@@ -1,0 +1,150 @@
+/**
+ * Local storage utilities for chat sessions
+ */
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+const STORAGE_KEY_SESSIONS = 'chat_sessions';
+const STORAGE_KEY_MESSAGES = 'chat_messages';
+
+export function getStoredSessions(): ChatSession[] {
+  if (typeof window === 'undefined') return [];
+  
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_SESSIONS);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('Error loading sessions:', error);
+    return [];
+  }
+}
+
+export function saveSession(session: ChatSession): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    const sessions = getStoredSessions();
+    const index = sessions.findIndex((s) => s.id === session.id);
+    
+    if (index >= 0) {
+      sessions[index] = session;
+    } else {
+      sessions.push(session);
+    }
+    
+    // Sort by updatedAt descending
+    sessions.sort((a, b) => b.updatedAt - a.updatedAt);
+    
+    localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
+  } catch (error) {
+    console.error('Error saving session:', error);
+  }
+}
+
+export function deleteSession(sessionId: string): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    const sessions = getStoredSessions().filter((s) => s.id !== sessionId);
+    localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
+    
+    // Also delete messages for this session
+    const messagesKey = `${STORAGE_KEY_MESSAGES}_${sessionId}`;
+    localStorage.removeItem(messagesKey);
+  } catch (error) {
+    console.error('Error deleting session:', error);
+  }
+}
+
+export function getStoredMessages(sessionId: string): Message[] {
+  if (typeof window === 'undefined') return [];
+  
+  try {
+    const messagesKey = `${STORAGE_KEY_MESSAGES}_${sessionId}`;
+    const stored = localStorage.getItem(messagesKey);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('Error loading messages:', error);
+    return [];
+  }
+}
+
+export function saveMessages(
+  sessionId: string,
+  messages: Message[]
+): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    const messagesKey = `${STORAGE_KEY_MESSAGES}_${sessionId}`;
+    localStorage.setItem(messagesKey, JSON.stringify(messages));
+  } catch (error) {
+    console.error('Error saving messages:', error);
+  }
+}
+
+export function generateSessionTitle(firstMessage: string): string {
+  // Generate title from first message (max 50 chars)
+  return firstMessage.slice(0, 50).trim() || 'New Chat';
+}
+
+/**
+ * Product list storage utilities
+ */
+export interface BriefProduct {
+  id: string;
+  name: string;
+  category: string;
+  specifications: string[];
+  addedDate: string;
+  image_link: string;
+}
+
+const STORAGE_KEY_PRODUCTS = 'brief_products';
+
+export function getStoredProducts(): BriefProduct[] {
+  if (typeof window === 'undefined') return [];
+  
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_PRODUCTS);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('Error loading products:', error);
+    return [];
+  }
+}
+
+export function saveProduct(product: BriefProduct): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    const products = getStoredProducts();
+    products.push(product);
+    localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(products));
+  } catch (error) {
+    console.error('Error saving product:', error);
+  }
+}
+
+export function deleteProduct(productId: string): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    const products = getStoredProducts().filter((p) => p.id !== productId);
+    localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(products));
+  } catch (error) {
+    console.error('Error deleting product:', error);
+  }
+}
+
