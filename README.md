@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Frontend - Chat Assistant
 
 A Next.js frontend application with a ChatGPT-like interface for interacting with the AI chat backend.
@@ -130,3 +131,6 @@ npm run lint
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `NEXT_PUBLIC_API_URL` | Backend API URL | `http://localhost:8000` |
+=======
+# procnow-client
+>>>>>>> f83337b39fd6be69b461f4ea2dc58ac1f13675c3
