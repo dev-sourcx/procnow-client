@@ -31,9 +31,9 @@ export default function ChatContainer({
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isApiConnected, setIsApiConnected] = useState<boolean | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentAssistantMessageRef = useRef<string>('');
+  const currentAssistantProductsRef = useRef<Product[]>([]);
   const sessionIdRef = useRef<string | null>(currentSessionId);
 
   const scrollToBottom = () => {
@@ -124,10 +124,12 @@ export default function ChatContainer({
       id: (Date.now() + 1).toString(),
       role: 'assistant',
       content: '',
+      products: [],
     };
 
     setMessages((prev) => [...prev, assistantMessage]);
     currentAssistantMessageRef.current = ''; // Reset ref
+    currentAssistantProductsRef.current = []; // Reset products ref
 
     try {
       await sendChatMessage(
@@ -140,10 +142,11 @@ export default function ChatContainer({
             const newMessages = [...prev];
             const lastIndex = newMessages.length - 1;
             if (lastIndex >= 0 && newMessages[lastIndex].role === 'assistant') {
-              // Use the ref value to ensure we don't duplicate
+              // Use the ref value to ensure we don't duplicate, preserve products
               newMessages[lastIndex] = {
                 ...newMessages[lastIndex],
                 content: currentAssistantMessageRef.current,
+                products: newMessages[lastIndex].products || currentAssistantProductsRef.current,
               };
             }
             return newMessages;
@@ -152,7 +155,19 @@ export default function ChatContainer({
         (products) => {
           // Handle products received from stream
           console.log('Products received from stream:', products);
-          setProducts(products);
+          currentAssistantProductsRef.current = products;
+          // Update the current assistant message with products
+          setMessages((prev) => {
+            const newMessages = [...prev];
+            const lastIndex = newMessages.length - 1;
+            if (lastIndex >= 0 && newMessages[lastIndex].role === 'assistant') {
+              newMessages[lastIndex] = {
+                ...newMessages[lastIndex],
+                products: products,
+              };
+            }
+            return newMessages;
+          });
         },
         (error) => {
           console.error('Error sending message:', error);
@@ -226,7 +241,7 @@ export default function ChatContainer({
               <line x1="16" y1="13" x2="8" y2="13"></line>
               <line x1="16" y1="17" x2="8" y2="17"></line>
             </svg>
-            Brief
+            Add Product
           </button>
           {/* API Connection Status */}
           {isApiConnected !== null && (
@@ -266,13 +281,6 @@ export default function ChatContainer({
           <>
             <MessageList messages={messages} />
             <div ref={messagesEndRef} />
-            {/* Product Section - Show after messages when assistant has finished responding */}
-            {!isLoading && 
-             messages.length > 0 && 
-             products.length > 0 && 
-             messages[messages.length - 1]?.role === 'assistant' && (
-              <ProductSection products={products} />
-            )}
           </>
         )}
       </div>

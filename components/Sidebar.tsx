@@ -55,6 +55,11 @@ export default function Sidebar({ onNewChat, isOpen, onToggle }: SidebarProps) {
     onToggle(); // Close sidebar on mobile
   };
 
+  const handleEnquiriesClick = () => {
+    router.push('/enquiries');
+    onToggle(); // Close sidebar on mobile
+  };
+
   return (
     <>
       {/* Overlay for mobile */}
@@ -148,7 +153,10 @@ export default function Sidebar({ onNewChat, isOpen, onToggle }: SidebarProps) {
               </button>
             </div>
             <div>
-              <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-gray-300 hover:bg-gray-800 transition-colors">
+              <button
+                onClick={handleEnquiriesClick}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-gray-300 hover:bg-gray-800 transition-colors"
+              >
                 <svg
                   width="16"
                   height="16"

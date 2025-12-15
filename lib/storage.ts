@@ -13,6 +13,7 @@ export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  products?: any[]; // Product[] from @/lib/api
 }
 
 const STORAGE_KEY_SESSIONS = 'chat_sessions';
@@ -145,6 +146,68 @@ export function deleteProduct(productId: string): void {
     localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(products));
   } catch (error) {
     console.error('Error deleting product:', error);
+  }
+}
+
+/**
+ * Enquiry storage utilities
+ */
+export interface EnquiryProduct {
+  productId: string;
+  quantity: number;
+  deliveryDate: string;
+  targetPrice: number;
+}
+
+export interface Enquiry {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  products?: EnquiryProduct[];
+}
+
+const STORAGE_KEY_ENQUIRIES = 'brief_enquiries';
+
+export function getStoredEnquiries(): Enquiry[] {
+  if (typeof window === 'undefined') return [];
+  
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_ENQUIRIES);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('Error loading enquiries:', error);
+    return [];
+  }
+}
+
+export function saveEnquiry(enquiry: Enquiry): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    const enquiries = getStoredEnquiries();
+    const index = enquiries.findIndex((e) => e.id === enquiry.id);
+    
+    if (index >= 0) {
+      enquiries[index] = enquiry;
+    } else {
+      enquiries.push(enquiry);
+    }
+    
+    localStorage.setItem(STORAGE_KEY_ENQUIRIES, JSON.stringify(enquiries));
+  } catch (error) {
+    console.error('Error saving enquiry:', error);
+  }
+}
+
+export function deleteEnquiry(enquiryId: string): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    const enquiries = getStoredEnquiries().filter((e) => e.id !== enquiryId);
+    localStorage.setItem(STORAGE_KEY_ENQUIRIES, JSON.stringify(enquiries));
+  } catch (error) {
+    console.error('Error deleting enquiry:', error);
   }
 }
 

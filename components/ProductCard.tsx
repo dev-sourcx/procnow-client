@@ -4,6 +4,7 @@ import { Product, generateFieldsFromKeyword, GeneratedFieldsResponse } from '@/l
 import { saveProduct, BriefProduct } from '@/lib/storage';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import CreatableSelect from './CreatableSelect';
 
 interface ProductCardProps {
   product: Product;
@@ -25,9 +26,17 @@ export default function ProductCard({
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [generatedFields, setGeneratedFields] = useState<GeneratedFieldsResponse | null>(null);
-  const [formData, setFormData] = useState<Record<string, string | number>>({});
+  const [formData, setFormData] = useState<Record<string, string | number | File | null>>({});
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [customFields, setCustomFields] = useState<Array<{id: string; label: string; type: 'text' | 'number' | 'textarea' | 'dropdown' | 'file'; options?: string[]; value: string | number | File | null}>>([]);
+  const [isAddFieldModalOpen, setIsAddFieldModalOpen] = useState(false);
+  const [newFieldLabel, setNewFieldLabel] = useState('');
+  const [newFieldType, setNewFieldType] = useState<'text' | 'number' | 'textarea' | 'dropdown' | 'file'>('text');
+  const [newFieldOptions, setNewFieldOptions] = useState<string>('');
+  const [customValues, setCustomValues] = useState<Record<string, string[]>>({});
+  const [dropdownSearch, setDropdownSearch] = useState<Record<string, string>>({});
+  const [dropdownOpen, setDropdownOpen] = useState<Record<string, boolean>>({});
 
   const handleAddClick = async () => {
     if (isLoading) return;
@@ -37,12 +46,37 @@ export default function ProductCard({
     try {
       // Send product document as keyword to generate fields
       const fields = await generateFieldsFromKeyword(JSON.stringify(product));
-      setGeneratedFields(fields);
+      
+      // Add default Description and Image Attachment fields
+      const defaultFields: GeneratedFieldsResponse['fields'] = [
+        {
+          label: 'Description',
+          type: 'textarea',
+          placeholder: 'Enter product description...',
+        },
+        {
+          label: 'Image Attachment',
+          type: 'file',
+          placeholder: 'Upload product image',
+        },
+      ];
+      
+      // Combine default fields with generated fields (defaults at bottom)
+      const fieldsWithDefaults: GeneratedFieldsResponse = {
+        ...fields,
+        fields: [...fields.fields, ...defaultFields],
+      };
+      
+      setGeneratedFields(fieldsWithDefaults);
       setIsModalOpen(true);
       // Initialize form data with empty values
-      const initialData: Record<string, string | number> = {};
-      fields.fields.forEach((field) => {
-        initialData[field.label] = field.type === 'number' ? 0 : '';
+      const initialData: Record<string, string | number | File | null> = {};
+      fieldsWithDefaults.fields.forEach((field) => {
+        if (field.type === 'file') {
+          initialData[field.label] = null;
+        } else {
+          initialData[field.label] = field.type === 'number' ? 0 : '';
+        }
       });
       setFormData(initialData);
     } catch (error) {
@@ -60,8 +94,102 @@ export default function ProductCard({
     setError(null);
   };
 
-  const handleInputChange = (label: string, value: string | number) => {
+  const handleInputChange = (label: string, value: string | number | File | null) => {
     setFormData((prev) => ({ ...prev, [label]: value }));
+  };
+
+  const handleFileChange = (label: string, file: File | null) => {
+    setFormData((prev) => ({ ...prev, [label]: file }));
+  };
+
+  const handleDropdownSearch = (label: string, searchValue: string) => {
+    setDropdownSearch((prev) => ({ ...prev, [label]: searchValue }));
+    setDropdownOpen((prev) => ({ ...prev, [label]: true }));
+  };
+
+  const handleAddCustomValue = (label: string, value: string, options: string[]) => {
+    if (!value.trim()) return;
+    
+    const existsInOptions = options.some(opt => opt.toLowerCase() === value.toLowerCase());
+    
+    if (!existsInOptions) {
+      setCustomValues((prev) => {
+        const currentCustom = prev[label] || [];
+        if (!currentCustom.some(cv => cv.toLowerCase() === value.toLowerCase())) {
+          return { ...prev, [label]: [...currentCustom, value] };
+        }
+        return prev;
+      });
+    }
+    
+    setFormData((prev) => ({ ...prev, [label]: value }));
+    setDropdownSearch((prev) => ({ ...prev, [label]: '' }));
+    setDropdownOpen((prev) => ({ ...prev, [label]: false }));
+  };
+
+  const handleSelectOption = (label: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [label]: value }));
+    setDropdownSearch((prev) => ({ ...prev, [label]: '' }));
+    setDropdownOpen((prev) => ({ ...prev, [label]: false }));
+  };
+
+  const handleAddCustomField = () => {
+    if (!newFieldLabel.trim()) return;
+
+    const fieldId = `custom_${Date.now()}`;
+    const options = newFieldType === 'dropdown' && newFieldOptions.trim()
+      ? newFieldOptions.split(',').map(opt => opt.trim()).filter(opt => opt.length > 0)
+      : undefined;
+
+    const newField = {
+      id: fieldId,
+      label: newFieldLabel.trim(),
+      type: newFieldType,
+      options,
+      value: newFieldType === 'number' ? 0 : newFieldType === 'file' ? null : '',
+    };
+
+    setCustomFields((prev) => [...prev, newField]);
+    
+    setFormData((prev) => ({
+      ...prev,
+      [newField.label]: newField.value,
+    }));
+
+    if (newFieldType === 'dropdown' && options) {
+      setCustomValues((prev) => ({ ...prev, [newField.label]: [] }));
+      setDropdownSearch((prev) => ({ ...prev, [newField.label]: '' }));
+      setDropdownOpen((prev) => ({ ...prev, [newField.label]: false }));
+    }
+
+    setNewFieldLabel('');
+    setNewFieldType('text');
+    setNewFieldOptions('');
+    setIsAddFieldModalOpen(false);
+  };
+
+  const handleDeleteCustomField = (fieldId: string, fieldLabel: string) => {
+    setCustomFields((prev) => prev.filter(field => field.id !== fieldId));
+    setFormData((prev) => {
+      const updated = { ...prev };
+      delete updated[fieldLabel];
+      return updated;
+    });
+    setCustomValues((prev) => {
+      const updated = { ...prev };
+      delete updated[fieldLabel];
+      return updated;
+    });
+    setDropdownSearch((prev) => {
+      const updated = { ...prev };
+      delete updated[fieldLabel];
+      return updated;
+    });
+    setDropdownOpen((prev) => {
+      const updated = { ...prev };
+      delete updated[fieldLabel];
+      return updated;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -168,6 +296,29 @@ export default function ProductCard({
                   <p className="text-sm text-red-800">{error}</p>
                 </div>
               )}
+              {/* Add Custom Field Button */}
+              <div className="flex items-center justify-end mb-4">
+                <button
+                  type="button"
+                  onClick={() => setIsAddFieldModalOpen(true)}
+                  className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  Add Custom Field
+                </button>
+              </div>
               {/* Fields in 2x2 Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {generatedFields.fields.map((field, index) => (
@@ -176,22 +327,17 @@ export default function ProductCard({
                       {field.label}
                     </label>
                     {field.type === 'dropdown' && field.options ? (
-                      <select
-                        value={formData[field.label] || ''}
-                        onChange={(e) => handleInputChange(field.label, e.target.value)}
-                        className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent"
+                      <CreatableSelect
+                        value={formData[field.label] as string || ''}
+                        onChange={(value) => handleInputChange(field.label, value)}
+                        options={field.options}
+                        placeholder={`Search or add ${field.label.toLowerCase()}`}
                         required
-                      >
-                        <option value="">Select {field.label}</option>
-                        {field.options.map((option, optIndex) => (
-                          <option key={optIndex} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
+                        className="w-full"
+                      />
                     ) : field.type === 'textarea' ? (
                       <textarea
-                        value={formData[field.label] || ''}
+                        value={(formData[field.label] as string) || ''}
                         onChange={(e) => handleInputChange(field.label, e.target.value)}
                         placeholder={field.placeholder}
                         rows={3}
@@ -201,16 +347,66 @@ export default function ProductCard({
                     ) : field.type === 'number' ? (
                       <input
                         type="number"
-                        value={formData[field.label] || ''}
+                        value={(formData[field.label] as number) || ''}
                         onChange={(e) => handleInputChange(field.label, parseFloat(e.target.value) || 0)}
                         placeholder={field.placeholder}
                         className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent placeholder:text-gray-400"
                         required
                       />
+                    ) : field.type === 'file' ? (
+                      <div className="space-y-2">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] || null;
+                            handleFileChange(field.label, file);
+                          }}
+                          className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-gray-800 file:text-white hover:file:bg-gray-900 file:cursor-pointer"
+                        />
+                        {formData[field.label] instanceof File && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                              <polyline points="17 8 12 3 7 8"></polyline>
+                              <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                            <span>{formData[field.label] instanceof File ? (formData[field.label] as File).name : ''}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleFileChange(field.label, null)}
+                              className="ml-auto text-red-600 hover:text-red-700"
+                            >
+                              <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <input
                         type="text"
-                        value={formData[field.label] || ''}
+                        value={(formData[field.label] as string) || ''}
                         onChange={(e) => handleInputChange(field.label, e.target.value)}
                         placeholder={field.placeholder}
                         className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent placeholder:text-gray-400"
@@ -219,8 +415,230 @@ export default function ProductCard({
                     )}
                   </div>
                 ))}
+
+                {/* Render Custom Fields */}
+                {customFields.map((field) => (
+                  <div key={field.id} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-gray-700">
+                        {field.label}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCustomField(field.id, field.label)}
+                        className="p-1 hover:bg-red-50 rounded text-red-600 hover:text-red-700 transition-colors"
+                        aria-label="Delete field"
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                      </button>
+                    </div>
+                    {field.type === 'dropdown' && field.options ? (
+                      <CreatableSelect
+                        value={formData[field.label] as string || ''}
+                        onChange={(value) => handleInputChange(field.label, value)}
+                        options={field.options}
+                        placeholder={`Search or add ${field.label.toLowerCase()}`}
+                        required
+                        className="w-full"
+                      />
+                    ) : field.type === 'textarea' ? (
+                      <textarea
+                        value={(formData[field.label] as string) || ''}
+                        onChange={(e) => handleInputChange(field.label, e.target.value)}
+                        placeholder={`Enter ${field.label.toLowerCase()}...`}
+                        rows={3}
+                        className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent resize-none placeholder:text-gray-400"
+                        required
+                      />
+                    ) : field.type === 'number' ? (
+                      <input
+                        type="number"
+                        value={(formData[field.label] as number) || ''}
+                        onChange={(e) => handleInputChange(field.label, parseFloat(e.target.value) || 0)}
+                        placeholder={`Enter ${field.label.toLowerCase()}...`}
+                        className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent placeholder:text-gray-400"
+                        required
+                      />
+                    ) : field.type === 'file' ? (
+                      <div className="space-y-2">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] || null;
+                            handleFileChange(field.label, file);
+                          }}
+                          className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-gray-800 file:text-white hover:file:bg-gray-900 file:cursor-pointer"
+                        />
+                        {formData[field.label] instanceof File && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                              <polyline points="17 8 12 3 7 8"></polyline>
+                              <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                            <span>{formData[field.label] instanceof File ? (formData[field.label] as File).name : ''}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleFileChange(field.label, null)}
+                              className="ml-auto text-red-600 hover:text-red-700"
+                            >
+                              <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        value={(formData[field.label] as string) || ''}
+                        onChange={(e) => handleInputChange(field.label, e.target.value)}
+                        placeholder={`Enter ${field.label.toLowerCase()}...`}
+                        className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent placeholder:text-gray-400"
+                        required
+                      />
+                    )}
+                  </div>
+                ))}
               </div>
             </form>
+
+            {/* Add Custom Field Modal */}
+            {isAddFieldModalOpen && (
+              <div 
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+                onClick={() => setIsAddFieldModalOpen(false)}
+              >
+                <div 
+                  className="bg-white rounded-lg shadow-xl max-w-md w-full border border-gray-200"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                    <h2 className="text-xl font-semibold text-gray-900">Add Custom Field</h2>
+                    <button
+                      onClick={() => setIsAddFieldModalOpen(false)}
+                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-400"
+                    >
+                      <svg
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </div>
+
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Field Label
+                      </label>
+                      <input
+                        type="text"
+                        value={newFieldLabel}
+                        onChange={(e) => setNewFieldLabel(e.target.value)}
+                        placeholder="Enter field name"
+                        className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent placeholder:text-gray-400"
+                        autoFocus
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Field Type
+                      </label>
+                      <select
+                        value={newFieldType}
+                        onChange={(e) => setNewFieldType(e.target.value as typeof newFieldType)}
+                        className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent"
+                      >
+                        <option value="text">Text</option>
+                        <option value="number">Number</option>
+                        <option value="textarea">Textarea</option>
+                        <option value="dropdown">Dropdown</option>
+                        <option value="file">File</option>
+                      </select>
+                    </div>
+
+                    {newFieldType === 'dropdown' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Options (comma-separated)
+                        </label>
+                        <input
+                          type="text"
+                          value={newFieldOptions}
+                          onChange={(e) => setNewFieldOptions(e.target.value)}
+                          placeholder="Option 1, Option 2, Option 3"
+                          className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent placeholder:text-gray-400"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Separate options with commas
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => setIsAddFieldModalOpen(false)}
+                        className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddCustomField}
+                        disabled={!newFieldLabel.trim()}
+                        className="px-6 py-2 bg-gray-800 hover:bg-gray-900 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-medium"
+                      >
+                        Add Field
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Modal Footer */}
             <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">
@@ -379,7 +797,7 @@ export default function ProductCard({
                     <line x1="3" y1="6" x2="21" y2="6"></line>
                     <path d="M16 10a4 4 0 0 1-8 0"></path>
                   </svg>
-                  <span>ADD</span>
+                  <span>Add to list</span>
                 </>
               )}
             </button>

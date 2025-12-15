@@ -276,7 +276,7 @@ export async function getProducts(): Promise<Record<string, Product[]>> {
 
 export interface GeneratedField {
   label: string;
-  type: 'dropdown' | 'text' | 'number' | 'textarea';
+  type: 'dropdown' | 'text' | 'number' | 'textarea' | 'file';
   options?: string[];
   placeholder?: string;
 }
