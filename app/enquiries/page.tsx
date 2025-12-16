@@ -35,6 +35,9 @@ export default function EnquiriesPage() {
   const [productDeliveryDates, setProductDeliveryDates] = useState<Record<string, string>>({});
   const [productTargetPrices, setProductTargetPrices] = useState<Record<string, number>>({});
   const [enquiryProductsUpdate, setEnquiryProductsUpdate] = useState(0);
+  const [specModalOpen, setSpecModalOpen] = useState(false);
+  const [specModalItems, setSpecModalItems] = useState<string[]>([]);
+  const [specModalTitle, setSpecModalTitle] = useState<string>('Specifications');
 
   const loadEnquiries = () => {
     const storedEnquiries = getStoredEnquiries();
@@ -419,6 +422,12 @@ export default function EnquiriesPage() {
     handleCloseProductModal();
   };
 
+  const openSpecModal = (items: string[], title?: string) => {
+    setSpecModalItems(items);
+    setSpecModalTitle(title || 'Specifications');
+    setSpecModalOpen(true);
+  };
+
   return (
     <main className="flex h-screen w-full bg-[#343541]">
       {/* Sidebar */}
@@ -585,6 +594,38 @@ export default function EnquiriesPage() {
                                 {totalProducts} item{totalProducts !== 1 ? 's' : ''}
                               </span>
                             )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenProductModal(enquiry.id);
+                              }}
+                              className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-1.5"
+                              aria-label="Add product"
+                            >
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                              </svg>
+                              Add product
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleEnquiry(enquiry.id);
+                              }}
+                              className="px-3 py-1.5 text-sm font-medium text-gray-200 bg-[#202123] hover:bg-gray-700 rounded-lg transition-colors"
+                            >
+                              {isExpanded ? 'Hide products' : 'View products'}
+                            </button>
                             {/* 3-dot Menu */}
                             <div className="relative" ref={(el) => { menuRefs.current[enquiry.id] = el; }}>
                               <button
@@ -770,9 +811,13 @@ export default function EnquiriesPage() {
                                                   </span>
                                                 ))}
                                                 {product.specifications.length > 3 && (
-                                                  <span className="text-xs px-2 py-1 bg-[#202123] text-gray-400 rounded">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => openSpecModal(product.specifications, product.name)}
+                                                    className="text-xs px-2 py-1 bg-[#202123] text-gray-400 rounded hover:text-white transition-colors"
+                                                  >
                                                     +{product.specifications.length - 3} more
-                                                  </span>
+                                                  </button>
                                                 )}
                                               </div>
                                             )}
@@ -1384,6 +1429,58 @@ export default function EnquiriesPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Specifications Modal */}
+      {specModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setSpecModalOpen(false)}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[70vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">{specModalTitle}</h3>
+              <button
+                onClick={() => setSpecModalOpen(false)}
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-3">
+              <ul className="space-y-2 text-sm text-gray-800">
+                {specModalItems.map((item, idx) => (
+                  <li key={idx} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="px-4 py-3 border-t border-gray-200 flex justify-end">
+              <button
+                onClick={() => setSpecModalOpen(false)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* New Enquiry Modal */}

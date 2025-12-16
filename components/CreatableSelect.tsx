@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect } from 'react';
 
 interface CreatableSelectProps {
-  value: string;
-  onChange: (value: string) => void;
+  value: string[];
+  onChange: (value: string[]) => void;
   options: string[];
   placeholder?: string;
   required?: boolean;
@@ -23,7 +23,6 @@ export default function CreatableSelect({
 }: CreatableSelectProps) {
   const [searchValue, setSearchValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
-  const [customValues, setCustomValues] = useState<string[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -46,164 +45,123 @@ export default function CreatableSelect({
   };
 
   const handleSelectOption = (option: string) => {
-    onChange(option);
+    const exists = value.includes(option);
+    const next = exists ? value.filter((v) => v !== option) : [...value, option];
+    onChange(next);
     setSearchValue('');
-    setIsOpen(false);
+    setIsOpen(true);
   };
 
   const handleAddCustomValue = () => {
     if (!searchValue.trim()) return;
-
     const trimmedValue = searchValue.trim();
-    const existsInOptions = options.some(opt => opt.toLowerCase() === trimmedValue.toLowerCase());
-    const existsInCustom = customValues.some(cv => cv.toLowerCase() === trimmedValue.toLowerCase());
-
-    if (!existsInOptions && !existsInCustom) {
-      setCustomValues((prev) => [...prev, trimmedValue]);
+    const exists = value.some((v) => v.toLowerCase() === trimmedValue.toLowerCase());
+    if (!exists) {
+      onChange([...value, trimmedValue]);
     }
-
-    handleSelectOption(trimmedValue);
-  };
-
-  const handleRemoveValue = () => {
-    onChange('');
     setSearchValue('');
+    setIsOpen(false);
   };
 
-  const filteredOptions = [...options, ...customValues].filter(opt =>
+  const handleRemoveValue = (val: string) => {
+    onChange(value.filter((v) => v !== val));
+  };
+
+  const filteredOptions = options.filter(opt =>
     opt.toLowerCase().includes(searchValue.toLowerCase())
   );
 
-  const showAddOption = searchValue.trim() && 
-    !filteredOptions.some(opt => opt.toLowerCase() === searchValue.toLowerCase().trim());
-
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
-      {/* Selected Value Badge */}
-      {value && (
-        <div className="mb-2 flex items-center gap-2 flex-wrap">
-          <span className="px-3 py-1.5 bg-blue-600/30 text-blue-400 text-sm rounded-lg flex items-center gap-2">
-            {value}
-            {customValues.includes(value) && (
-              <span className="px-1.5 py-0.5 bg-blue-600/50 text-blue-300 text-xs rounded">
-                Custom
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={handleRemoveValue}
-              className="ml-1 hover:bg-blue-600/50 rounded p-0.5"
-            >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-          </span>
-        </div>
-      )}
-
       {/* Searchable Input */}
       <div className="relative">
-        <input
-          type="text"
-          value={searchValue}
-          onChange={handleSearchChange}
-          onFocus={() => setIsOpen(true)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && searchValue.trim()) {
-              e.preventDefault();
-              handleAddCustomValue();
-            }
-          }}
-          placeholder={value ? `Search or add another option` : placeholder}
-          className="w-full px-3 py-2 text-white bg-[#202123] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
-          required={required && !value}
-        />
-        
-        {/* Dropdown Arrow */}
-        <button
-          type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={`transition-transform ${isOpen ? 'rotate-180' : ''}`}
+        <div className="w-full min-h-[44px] px-3 py-2.5 text-gray-900 bg-white border border-gray-200 rounded-lg shadow-sm focus-within:ring-2 focus-within:ring-gray-900/10 focus-within:border-gray-300 flex flex-wrap items-center gap-2">
+          {value.map((val) => (
+            <span
+              key={val}
+              className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-100"
+            >
+              {val}
+              <button
+                type="button"
+                onClick={() => handleRemoveValue(val)}
+                className="text-blue-500 hover:text-blue-700"
+                aria-label={`Remove ${val}`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          <input
+            type="text"
+            value={searchValue}
+            onChange={handleSearchChange}
+            onFocus={() => setIsOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && searchValue.trim()) {
+                e.preventDefault();
+                handleAddCustomValue();
+              }
+              if (e.key === 'Escape') {
+                setIsOpen(false);
+              }
+              if (e.key === 'Backspace' && searchValue === '' && value.length) {
+                handleRemoveValue(value[value.length - 1]);
+              }
+            }}
+            placeholder={value.length ? '' : placeholder}
+            className="flex-1 min-w-[120px] text-sm text-gray-900 outline-none placeholder:text-gray-400"
+            required={required && value.length === 0}
+          />
+          {/* Dropdown Arrow */}
+          <button
+            type="button"
+            onClick={() => setIsOpen(!isOpen)}
+            className="text-gray-500 hover:text-gray-700"
           >
-            <polyline points="6 9 12 15 18 9"></polyline>
-          </svg>
-        </button>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={`transition-transform ${isOpen ? 'rotate-180' : ''}`}
+            >
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Dropdown Options */}
       {isOpen && (
-        <div className="absolute z-10 w-full mt-1 bg-[#202123] border border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
           {filteredOptions.length > 0 ? (
             <>
               {filteredOptions.map((option, index) => {
-                const isCustom = customValues.includes(option);
-                const isSelected = value === option;
+                const isSelected = value.includes(option);
                 return (
                   <div
                     key={index}
                     onClick={() => handleSelectOption(option)}
-                    className={`px-3 py-2 cursor-pointer hover:bg-[#2d2d2d] flex items-center justify-between ${
-                      isSelected ? 'bg-blue-600/20' : ''
+                    className={`px-3 py-2 cursor-pointer hover:bg-gray-50 flex items-center justify-between ${
+                      isSelected ? 'bg-blue-50' : ''
                     }`}
                   >
-                    <span className="text-white">{option}</span>
-                    {isCustom && (
-                      <span className="ml-2 px-2 py-0.5 bg-blue-600/30 text-blue-400 text-xs rounded-full">
-                        Custom
-                      </span>
+                    <span className="text-gray-900">{option}</span>
+                    {isSelected && (
+                      <span className="ml-2 text-xs text-blue-600">Selected</span>
                     )}
                   </div>
                 );
               })}
             </>
           ) : (
-            <div className="px-3 py-2 text-gray-400 text-sm">
+            <div className="px-3 py-2 text-gray-500 text-sm">
               No options found
-            </div>
-          )}
-
-          {/* Add Custom Value Option */}
-          {showAddOption && (
-            <div
-              onClick={handleAddCustomValue}
-              className="px-3 py-2 cursor-pointer hover:bg-[#2d2d2d] border-t border-gray-700 flex items-center gap-2 text-blue-400"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              <span>Add &quot;{searchValue.trim()}&quot;</span>
             </div>
           )}
         </div>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { generateFieldsFromDescription, GeneratedFieldsResponse } from '@/lib/api';
 import { saveProduct, getStoredProducts, deleteProduct, BriefProduct, getStoredEnquiries, saveEnquiry, deleteEnquiry, Enquiry, EnquiryProduct } from '@/lib/storage';
 import Sidebar from '@/components/Sidebar';
+import CreatableSelect from '@/components/CreatableSelect';
 
 export default function BriefPage() {
   const router = useRouter();
@@ -13,7 +14,7 @@ export default function BriefPage() {
   const [itemInput, setItemInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [generatedFields, setGeneratedFields] = useState<GeneratedFieldsResponse | null>(null);
-  const [formData, setFormData] = useState<Record<string, string | number | File | null>>({});
+  const [formData, setFormData] = useState<Record<string, string | number | File | null | string[]>>({});
   const [imageUrl, setImageUrl] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,15 +29,19 @@ export default function BriefPage() {
   const [productQuantities, setProductQuantities] = useState<Record<string, number>>({});
   const [productDeliveryDates, setProductDeliveryDates] = useState<Record<string, string>>({});
   const [productTargetPrices, setProductTargetPrices] = useState<Record<string, number>>({});
+  const [customFields, setCustomFields] = useState<Array<{id: string; label: string; type: 'text' | 'number' | 'textarea' | 'dropdown' | 'file'; options?: string[]; value: string | number | File | null | string[]}>>([]);
+  const [isAddFieldModalOpen, setIsAddFieldModalOpen] = useState(false);
+  const [newFieldLabel, setNewFieldLabel] = useState('');
+  const [newFieldType, setNewFieldType] = useState<'text' | 'number' | 'textarea' | 'dropdown' | 'file'>('dropdown');
+  const [newFieldOptions, setNewFieldOptions] = useState<string>('');
+  const [enquiryProductsUpdate, setEnquiryProductsUpdate] = useState(0);
+  const [expandedEnquiries, setExpandedEnquiries] = useState<Record<string, boolean>>({});
   const [customValues, setCustomValues] = useState<Record<string, string[]>>({});
   const [dropdownSearch, setDropdownSearch] = useState<Record<string, string>>({});
   const [dropdownOpen, setDropdownOpen] = useState<Record<string, boolean>>({});
-  const [customFields, setCustomFields] = useState<Array<{id: string; label: string; type: 'text' | 'number' | 'textarea' | 'dropdown' | 'file'; options?: string[]; value: string | number | File | null}>>([]);
-  const [isAddFieldModalOpen, setIsAddFieldModalOpen] = useState(false);
-  const [newFieldLabel, setNewFieldLabel] = useState('');
-  const [newFieldType, setNewFieldType] = useState<'text' | 'number' | 'textarea' | 'dropdown' | 'file'>('text');
-  const [newFieldOptions, setNewFieldOptions] = useState<string>('');
-  const [enquiryProductsUpdate, setEnquiryProductsUpdate] = useState(0);
+  const [specModalOpen, setSpecModalOpen] = useState(false);
+  const [specModalItems, setSpecModalItems] = useState<string[]>([]);
+  const [specModalTitle, setSpecModalTitle] = useState<string>('Specifications');
 
   const handleGenerateWithAI = async () => {
     if (!itemInput.trim()) {
@@ -79,26 +84,17 @@ export default function BriefPage() {
       setGeneratedFields(fieldsWithDefaults);
       
       // Initialize form data with empty values
-      const initialData: Record<string, string | number | File | null> = {};
-      const initialCustomValues: Record<string, string[]> = {};
-      const initialDropdownSearch: Record<string, string> = {};
-      const initialDropdownOpen: Record<string, boolean> = {};
+      const initialData: Record<string, string | number | File | null | string[]> = {};
       fieldsWithDefaults.fields.forEach((field) => {
         if (field.type === 'file') {
           initialData[field.label] = null;
+        } else if (field.type === 'dropdown') {
+          initialData[field.label] = [];
         } else {
           initialData[field.label] = field.type === 'number' ? 0 : '';
         }
-        if (field.type === 'dropdown' && field.options) {
-          initialCustomValues[field.label] = [];
-          initialDropdownSearch[field.label] = '';
-          initialDropdownOpen[field.label] = false;
-        }
       });
       setFormData(initialData);
-      setCustomValues(initialCustomValues);
-      setDropdownSearch(initialDropdownSearch);
-      setDropdownOpen(initialDropdownOpen);
     } catch (error) {
       console.error('Error generating fields:', error);
       setError(error instanceof Error ? error.message : 'Failed to generate fields');
@@ -168,7 +164,7 @@ export default function BriefPage() {
     }
   };
 
-  const handleInputChange = (label: string, value: string | number | File | null) => {
+  const handleInputChange = (label: string, value: string | number | File | null | string[]) => {
     setFormData((prev) => ({ ...prev, [label]: value }));
   };
 
@@ -181,25 +177,17 @@ export default function BriefPage() {
     setDropdownOpen((prev) => ({ ...prev, [label]: true }));
   };
 
-  const handleAddCustomValue = (label: string, value: string, options: string[]) => {
+  const handleAddCustomValue = (label: string, value: string, options: string[] = []) => {
     if (!value.trim()) return;
-    
-    // Check if value already exists in options
-    const existsInOptions = options.some(opt => opt.toLowerCase() === value.toLowerCase());
-    
-    if (!existsInOptions) {
-      // Add to custom values if not already added
-      setCustomValues((prev) => {
-        const currentCustom = prev[label] || [];
-        if (!currentCustom.some(cv => cv.toLowerCase() === value.toLowerCase())) {
-          return { ...prev, [label]: [...currentCustom, value] };
-        }
-        return prev;
-      });
+    const trimmed = value.trim();
+    const existsInOptions = options.some((opt) => opt.toLowerCase() === trimmed.toLowerCase());
+    const existsInCustom = (customValues[label] || []).some((opt) => opt.toLowerCase() === trimmed.toLowerCase());
+
+    if (!existsInOptions && !existsInCustom) {
+      setCustomValues((prev) => ({ ...prev, [label]: [...(prev[label] || []), trimmed] }));
     }
-    
-    // Set the value in form data
-    setFormData((prev) => ({ ...prev, [label]: value }));
+
+    setFormData((prev) => ({ ...prev, [label]: trimmed }));
     setDropdownSearch((prev) => ({ ...prev, [label]: '' }));
     setDropdownOpen((prev) => ({ ...prev, [label]: false }));
   };
@@ -210,20 +198,29 @@ export default function BriefPage() {
     setDropdownOpen((prev) => ({ ...prev, [label]: false }));
   };
 
+  const openSpecModal = (items: string[], title?: string) => {
+    setSpecModalItems(items);
+    setSpecModalTitle(title || 'Specifications');
+    setSpecModalOpen(true);
+  };
+
   const handleAddCustomField = () => {
     if (!newFieldLabel.trim()) return;
 
     const fieldId = `custom_${Date.now()}`;
-    const options = newFieldType === 'dropdown' && newFieldOptions.trim()
+    const options = newFieldOptions.trim()
       ? newFieldOptions.split(',').map(opt => opt.trim()).filter(opt => opt.length > 0)
       : undefined;
 
     const newField = {
       id: fieldId,
       label: newFieldLabel.trim(),
-      type: newFieldType,
+      type: 'dropdown' as const,
       options,
-      value: newFieldType === 'number' ? 0 : newFieldType === 'file' ? null : '',
+      value:
+        newFieldOptions.trim()
+          ? []
+          : [],
     };
 
     setCustomFields((prev) => [...prev, newField]);
@@ -234,16 +231,9 @@ export default function BriefPage() {
       [newField.label]: newField.value,
     }));
 
-    // Initialize dropdown state if it's a dropdown
-    if (newFieldType === 'dropdown' && options) {
-      setCustomValues((prev) => ({ ...prev, [newField.label]: [] }));
-      setDropdownSearch((prev) => ({ ...prev, [newField.label]: '' }));
-      setDropdownOpen((prev) => ({ ...prev, [newField.label]: false }));
-    }
-
     // Reset modal state
     setNewFieldLabel('');
-    setNewFieldType('text');
+    setNewFieldType('dropdown');
     setNewFieldOptions('');
     setIsAddFieldModalOpen(false);
   };
@@ -251,22 +241,6 @@ export default function BriefPage() {
   const handleDeleteCustomField = (fieldId: string, fieldLabel: string) => {
     setCustomFields((prev) => prev.filter(field => field.id !== fieldId));
     setFormData((prev) => {
-      const updated = { ...prev };
-      delete updated[fieldLabel];
-      return updated;
-    });
-    // Clean up dropdown state if it was a dropdown
-    setCustomValues((prev) => {
-      const updated = { ...prev };
-      delete updated[fieldLabel];
-      return updated;
-    });
-    setDropdownSearch((prev) => {
-      const updated = { ...prev };
-      delete updated[fieldLabel];
-      return updated;
-    });
-    setDropdownOpen((prev) => {
       const updated = { ...prev };
       delete updated[fieldLabel];
       return updated;
@@ -282,8 +256,16 @@ export default function BriefPage() {
     try {
       // Convert formData to specifications array format: ["key: value", ...]
       const specifications = Object.entries(formData)
-        .filter(([_, value]) => value !== '' && value !== 0)
-        .map(([key, value]) => `${key}: ${value}`);
+        .filter(([_, value]) => {
+          if (Array.isArray(value)) return value.length > 0;
+          return value !== '' && value !== 0 && value !== null;
+        })
+        .map(([key, value]) => {
+          if (Array.isArray(value)) {
+            return `${key}: ${value.join(', ')}`;
+          }
+          return `${key}: ${value}`;
+        });
 
       // Create product object for storage
       const briefProduct: BriefProduct = {
@@ -407,6 +389,10 @@ export default function BriefPage() {
       setProductDeliveryDates({});
       setProductTargetPrices({});
     }, 300);
+  };
+
+  const toggleEnquiryExpand = (enquiryId: string) => {
+    setExpandedEnquiries((prev) => ({ ...prev, [enquiryId]: !prev[enquiryId] }));
   };
 
   const handleQuantityChange = (productId: string, newQuantity: number) => {
@@ -536,24 +522,24 @@ export default function BriefPage() {
           />
           {/* Drawer */}
           <div 
-            className={`fixed right-0 top-0 bottom-0 z-50 w-full max-w-2xl bg-[#444654] shadow-xl flex flex-col transform transition-transform duration-300 ease-out ${
+            className={`fixed right-0 top-0 bottom-0 z-50 w-full max-w-2xl bg-white shadow-xl flex flex-col transform transition-transform duration-300 ease-out ${
               isDrawerAnimating ? 'translate-x-0' : 'translate-x-full'
             }`}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Drawer Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-700">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <div>
-                <h2 className="text-xl font-semibold text-white">
+                <h2 className="text-xl font-semibold text-gray-900">
                   Add Products to Enquiry
                 </h2>
-                <p className="text-sm text-gray-400 mt-1">
+                <p className="text-sm text-gray-500 mt-1">
                   Select products from your product sheet
                 </p>
             </div>
               <button
                 onClick={handleCloseProductModal}
-                className="p-2 hover:bg-[#2d2d2d] rounded-lg transition-colors text-gray-400"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-400"
                 aria-label="Close drawer"
               >
                 <svg
@@ -591,10 +577,10 @@ export default function BriefPage() {
                     <circle cx="8.5" cy="8.5" r="1.5"></circle>
                     <polyline points="21 15 16 10 5 21"></polyline>
                   </svg>
-                  <h3 className="text-lg font-semibold text-white mb-2">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
                     No products available
                   </h3>
-                  <p className="text-gray-400 text-center">
+                  <p className="text-gray-600 text-center">
                     Add products to your product sheet first
                   </p>
                 </div>
@@ -603,7 +589,7 @@ export default function BriefPage() {
                   {modalProducts.map((product) => (
                     <div
                       key={product.id}
-                      className="flex items-start gap-4 p-4 border border-gray-700 rounded-lg hover:bg-[#2d2d2d] transition-colors"
+                      className="flex items-start gap-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors bg-white"
                     >
                       {/* Product Image */}
                       <div className="flex-shrink-0">
@@ -662,11 +648,15 @@ export default function BriefPage() {
                                     {spec}
                                   </span>
                                 ))}
-                                {product.specifications.length > 3 && (
-                                  <span className="text-xs px-2 py-1 bg-[#202123] text-gray-400 rounded">
-                                    +{product.specifications.length - 3} more
-                                  </span>
-                                )}
+                                            {product.specifications.length > 3 && (
+                                              <button
+                                                type="button"
+                                                onClick={() => openSpecModal(product.specifications, product.name)}
+                                                className="text-xs px-2 py-1 bg-[#202123] text-gray-400 rounded hover:text-white transition-colors"
+                                              >
+                                                +{product.specifications.length - 3} more
+                                              </button>
+                                            )}
                               </div>
                             )}
 
@@ -886,6 +876,57 @@ export default function BriefPage() {
         </>
       )}
 
+      {/* Specifications Modal */}
+      {specModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setSpecModalOpen(false)}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[70vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">{specModalTitle}</h3>
+              <button
+                onClick={() => setSpecModalOpen(false)}
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-3">
+              <ul className="space-y-2 text-sm text-gray-800">
+                {specModalItems.map((item, idx) => (
+                  <li key={idx} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="px-4 py-3 border-t border-gray-200 flex justify-end">
+              <button
+                onClick={() => setSpecModalOpen(false)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* New Enquiry Modal */}
       {isEnquiryModalOpen && (
         <div 
@@ -962,7 +1003,7 @@ export default function BriefPage() {
         </div>
       )}
 
-      <main className="flex h-screen w-full bg-[#343541]">
+      <main className="flex h-screen w-full bg-gray-50 text-gray-900">
         {/* Sidebar */}
         <Sidebar
           onNewChat={() => router.push('/')}
@@ -975,7 +1016,7 @@ export default function BriefPage() {
           {/* Sidebar Toggle Button (Mobile) */}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-[#202123] text-white rounded-lg hover:bg-gray-800"
+            className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white border border-gray-200 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100"
             aria-label="Toggle sidebar"
           >
             <svg
@@ -995,14 +1036,14 @@ export default function BriefPage() {
           </button>
 
           {/* Content Container */}
-          <div className="flex h-full w-full flex-col">
+          <div className="flex h-full w-full flex-col bg-gray-50">
             {/* Header */}
-            <div className="flex h-12 items-center justify-center border-b border-gray-700 bg-[#343541] px-4">
-              <h1 className="text-lg font-semibold text-white">Brief</h1>
+            <div className="flex h-12 items-center justify-center border-b border-gray-200 bg-white px-4 shadow-sm">
+              <h1 className="text-lg font-semibold text-gray-900">Brief</h1>
             </div>
 
             {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto bg-[#343541]">
+            <div className="flex-1 overflow-y-auto bg-gray-50">
       <div className="max-w-7xl mx-auto px-6 py-6">
         {/* Navigation Tabs */}
                 <div className="mb-6">
@@ -1010,10 +1051,10 @@ export default function BriefPage() {
                     <div className="flex gap-2">
               <button
                 onClick={() => setActiveTab('add')}
-                        className={`px-4 py-2.5 font-medium text-sm transition-colors rounded-lg flex items-center gap-2 ${
+                        className={`px-4 py-2.5 font-medium text-sm transition-colors rounded-lg flex items-center gap-2 border ${
                   activeTab === 'add'
-                            ? 'bg-[#444654] text-white'
-                            : 'bg-[#202123] text-gray-400 hover:bg-[#2d2d2d]'
+                            ? 'bg-gray-900 text-white border-gray-900'
+                            : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
                         }`}
                       >
                         <svg
@@ -1033,10 +1074,10 @@ export default function BriefPage() {
               </button>
               <button
                 onClick={() => setActiveTab('enquiries')}
-                        className={`px-4 py-2.5 font-medium text-sm transition-colors rounded-lg flex items-center gap-2 ${
+                        className={`px-4 py-2.5 font-medium text-sm transition-colors rounded-lg flex items-center gap-2 border ${
                   activeTab === 'enquiries'
-                            ? 'bg-[#444654] text-white'
-                            : 'bg-[#202123] text-gray-400 hover:bg-[#2d2d2d]'
+                            ? 'bg-gray-900 text-white border-gray-900'
+                            : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
                         }`}
               >
                 <svg
@@ -1111,7 +1152,7 @@ export default function BriefPage() {
                 {activeTab === 'enquiries' && (
                   <>
                     {enquiries.length === 0 ? (
-                      <div className="bg-[#444654] rounded-xl shadow-sm border border-gray-700 p-12">
+                      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12">
                 <div className="flex flex-col items-center justify-center text-center">
                   {/* Document Icon */}
                   <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center mb-6">
@@ -1144,44 +1185,58 @@ export default function BriefPage() {
                 </div>
               </div>
                     ) : (
-                      <div className="bg-[#444654] rounded-xl shadow-sm border border-gray-700 p-6">
+                      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <div className="mb-4">
-                          <h3 className="text-lg font-semibold text-white">
+                          <h3 className="text-lg font-semibold text-gray-900">
                             Enquiries ({enquiries.length})
                           </h3>
                         </div>
                         
                         <div className="space-y-3">
-                          {enquiries.map((enquiry) => (
-                            <div
-                              key={enquiry.id}
-                              className="flex items-center justify-between p-4 border border-gray-700 rounded-lg hover:bg-[#2d2d2d] transition-colors"
-                            >
-                              <div className="flex items-center gap-3 flex-1">
-                                <div className="w-10 h-10 bg-blue-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                                  <svg
-                                    width="20"
-                                    height="20"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    className="text-blue-400"
-                                  >
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                    <polyline points="14 2 14 8 20 8"></polyline>
-                                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                                    <polyline points="10 9 9 9 8 9"></polyline>
-                                  </svg>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <h4 className="text-base font-medium text-white truncate">
-                                    {enquiry.name}
-                                  </h4>
-                                  <p className="text-sm text-gray-400">
+                          {enquiries.map((enquiry) => {
+                            const isExpanded = expandedEnquiries[enquiry.id];
+                            const productsInEnquiry =
+                              enquiry.products?.map((p) => {
+                                const productDetails = products.find((prod) => prod.id === p.productId);
+                                return {
+                                  ...p,
+                                  name: productDetails?.name || 'Product',
+                                  category: productDetails?.category || 'N/A',
+                                  specs: productDetails?.specifications?.join(', '),
+                                };
+                              }) || [];
+
+                            return (
+                              <div
+                                key={enquiry.id}
+                                className="p-4 border border-gray-200 rounded-lg bg-white hover:bg-gray-50 transition-colors"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3 flex-1">
+                                    <div className="w-10 h-10 bg-blue-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                                      <svg
+                                        width="20"
+                                        height="20"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        className="text-blue-400"
+                                      >
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                                        <polyline points="10 9 9 9 8 9"></polyline>
+                                      </svg>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <h4 className="text-base font-medium text-white truncate">
+                                        {enquiry.name}
+                                      </h4>
+                                      <p className="text-sm text-gray-400">
                             Created: {new Date(enquiry.createdAt).toLocaleDateString('en-US', {
                               month: 'short',
                               day: 'numeric',
@@ -1190,52 +1245,89 @@ export default function BriefPage() {
                           </p>
                         </div>
                       </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                <button
-                                  onClick={() => handleOpenProductModal(enquiry.id)}
-                                  className="px-3 py-1.5 text-sm font-medium text-blue-400 bg-blue-600/20 hover:bg-blue-600/30 rounded-lg transition-colors flex items-center gap-1.5"
-                                  aria-label="Add product"
-                                >
-                                  <svg
-                                    width="16"
-                                    height="16"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  >
-                                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                                  </svg>
-                                  Add product
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteEnquiry(enquiry.id)}
-                                  className="p-2 hover:bg-red-600/20 rounded-lg transition-colors text-red-400"
-                                  aria-label="Delete enquiry"
-                                >
-                          <svg
-                            width="18"
-                            height="18"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <polyline points="3 6 5 6 21 6"></polyline>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                          </svg>
-                        </button>
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    <button
+                                      onClick={() => handleOpenProductModal(enquiry.id)}
+                                      className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-1.5"
+                                      aria-label="Add product"
+                                    >
+                                      <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      >
+                                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                                      </svg>
+                                      Add product
+                                    </button>
+                                    <button
+                                      onClick={() => toggleEnquiryExpand(enquiry.id)}
+                                      className="px-3 py-1.5 text-sm font-medium text-gray-200 bg-[#202123] hover:bg-gray-700 rounded-lg transition-colors"
+                                    >
+                                      {isExpanded ? 'Hide products' : 'View products'}
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteEnquiry(enquiry.id)}
+                                      className="p-2 hover:bg-red-600/20 rounded-lg transition-colors text-red-400"
+                                      aria-label="Delete enquiry"
+                                    >
+                                      <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      >
+                                        <polyline points="3 6 5 6 21 6"></polyline>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                      </svg>
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {isExpanded && (
+                                  <div className="mt-3 pt-3 border-t border-gray-700">
+                                    {productsInEnquiry.length > 0 ? (
+                                      <div className="space-y-2">
+                                        {productsInEnquiry.map((p) => (
+                                          <div
+                                            key={`${enquiry.id}_${p.productId}`}
+                                            className="flex flex-col sm:flex-row sm:items-center gap-2 bg-[#202123] border border-gray-700 rounded-lg px-3 py-2"
+                                          >
+                                            <div className="flex-1">
+                                              <p className="text-sm font-semibold text-white">{p.name}</p>
+                                              <p className="text-xs text-gray-300">
+                                                Qty: {p.quantity} | Target: {p.targetPrice || 0} | Date: {p.deliveryDate || 'N/A'}
+                                              </p>
+                                              {p.specs && (
+                                                <p className="text-xs text-gray-400 truncate">Specs: {p.specs}</p>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <div className="text-sm text-gray-200 bg-[#202123] border border-gray-700 rounded-lg px-3 py-2">
+                                        No products added yet.
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                    )}
           </>
         )}
 
@@ -1243,7 +1335,7 @@ export default function BriefPage() {
                 {activeTab === 'add' && (
                   <>
         {/* Item Enquiry Input Card */}
-                    <div className="bg-[#444654] rounded-xl shadow-sm border border-gray-700 p-6 mb-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
           <div className="flex items-center gap-2 mb-4">
             <svg
               width="20"
@@ -1259,7 +1351,7 @@ export default function BriefPage() {
               <circle cx="11" cy="11" r="8"></circle>
               <path d="m21 21-4.35-4.35"></path>
             </svg>
-                        <h2 className="text-lg font-semibold text-white">
+            <h2 className="text-lg font-semibold text-gray-900">
               Q What item do you need?
             </h2>
           </div>
@@ -1270,7 +1362,7 @@ export default function BriefPage() {
               value={itemInput}
               onChange={(e) => setItemInput(e.target.value)}
               placeholder="Enter item name (e.g., Laptop, Office Chair, Smartphone...)"
-                          className="flex-1 px-4 py-3 text-white bg-[#202123] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
+                          className="flex-1 px-4 py-3 text-gray-900 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-300 placeholder:text-gray-400"
             />
             <button
               onClick={handleGenerateWithAI}
@@ -1321,32 +1413,32 @@ export default function BriefPage() {
 
                       {/* Generated Fields Form */}
                       {generatedFields && (
-                        <div className="bg-[#444654] rounded-xl shadow-sm border border-gray-700 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                           <div className="flex items-center justify-between mb-6">
                             <div>
-                              <h2 className="text-xl font-semibold text-white">
+                              <h2 className="text-xl font-semibold text-gray-900">
                                 {generatedFields.item}
                               </h2>
-                              <p className="text-sm text-gray-400 mt-1">Fill in the specifications below</p>
+                              <p className="text-sm text-gray-500 mt-1">Fill in the specifications below</p>
                             </div>
                             <button
                               onClick={handleClearForm}
-                              className="px-3 py-1.5 text-sm text-gray-400 hover:bg-[#2d2d2d] rounded-lg transition-colors"
+                              className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                             >
                               Clear
                             </button>
                           </div>
 
                           {error && (
-                            <div className="mb-4 p-4 bg-red-900/20 border border-red-700 rounded-lg">
-                              <p className="text-sm text-red-400">{error}</p>
+                            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                              <p className="text-sm text-red-700">{error}</p>
                             </div>
                           )}
 
                           <form onSubmit={handleSubmit} className="space-y-4">
                             {/* Image URL Field - Full Width */}
                             <div className="space-y-2">
-                              <label className="block text-sm font-medium text-gray-300">
+                              <label className="block text-sm font-medium text-gray-800">
                                 Product Image URL (Optional)
                               </label>
                               <input
@@ -1354,7 +1446,7 @@ export default function BriefPage() {
                                 value={imageUrl}
                                 onChange={(e) => setImageUrl(e.target.value)}
                                 placeholder="https://example.com/image.jpg"
-                                className="w-full px-3 py-2 text-white bg-[#202123] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
+                                className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-300 placeholder:text-gray-400"
                               />
                 <p className="text-xs text-gray-500">
                   Enter a URL to an image of the product
@@ -1390,259 +1482,98 @@ export default function BriefPage() {
                 {/* Render generated fields */}
                 {generatedFields.fields.map((field, index) => (
                   <div key={index} className="space-y-2">
-                              <label className="block text-sm font-medium text-gray-300">
-                                {field.label}
-                              </label>
-                              {field.type === 'dropdown' && field.options ? (
-                                <div className="relative">
-                                  {/* Selected Value Badge */}
-                                  {formData[field.label] && (
-                                    <div className="mb-2 flex items-center gap-2 flex-wrap">
-                                      <span className="px-3 py-1.5 bg-blue-600/30 text-blue-400 text-sm rounded-lg flex items-center gap-2">
-                                        {formData[field.label] as string}
-                                        {customValues[field.label]?.includes(formData[field.label] as string) && (
-                                          <span className="px-1.5 py-0.5 bg-blue-600/50 text-blue-300 text-xs rounded">
-                                            Custom
-                                          </span>
-                                        )}
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setFormData((prev) => ({ ...prev, [field.label]: '' }));
-                                            setDropdownSearch((prev) => ({ ...prev, [field.label]: '' }));
-                                          }}
-                                          className="ml-1 hover:bg-blue-600/50 rounded p-0.5"
-                                        >
-                                          <svg
-                                            width="12"
-                                            height="12"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                          >
-                                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                                          </svg>
-                                        </button>
-                                      </span>
-                                    </div>
-                                  )}
-                                  
-                                  {/* Searchable Input */}
-                                  <div className="relative">
-                                    <input
-                                      type="text"
-                                      value={dropdownSearch[field.label] || ''}
-                                      onChange={(e) => handleDropdownSearch(field.label, e.target.value)}
-                                      onFocus={() => setDropdownOpen((prev) => ({ ...prev, [field.label]: true }))}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && dropdownSearch[field.label]) {
-                                          e.preventDefault();
-                                          handleAddCustomValue(field.label, dropdownSearch[field.label], field.options || []);
-                                        }
-                                      }}
-                                      placeholder={formData[field.label] ? `Search or add another ${field.label.toLowerCase()}` : `Search or add ${field.label.toLowerCase()}`}
-                                      className="w-full px-3 py-2 text-white bg-[#202123] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
-                                      required={!formData[field.label]}
-                                    />
-                                    {/* Dropdown Arrow */}
-                                    <button
-                                      type="button"
-                                      onClick={() => setDropdownOpen((prev) => ({ ...prev, [field.label]: !prev[field.label] }))}
-                                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
-                                    >
-                                      <svg
-                                        width="16"
-                                        height="16"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        className={`transition-transform ${dropdownOpen[field.label] ? 'rotate-180' : ''}`}
-                                      >
-                                        <polyline points="6 9 12 15 18 9"></polyline>
-                                      </svg>
-                                    </button>
-                                  </div>
-
-                                  {/* Dropdown Options */}
-                                  {dropdownOpen[field.label] && (
-                                    <div className="absolute z-10 w-full mt-1 bg-[#202123] border border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                                      {/* Filtered Options */}
-                                      {(() => {
-                                        const searchTerm = (dropdownSearch[field.label] || '').toLowerCase();
-                                        const allOptions = [...(field.options || []), ...(customValues[field.label] || [])];
-                                        const filteredOptions = allOptions.filter(opt => 
-                                          opt.toLowerCase().includes(searchTerm)
-                                        );
-                                        const currentValue = formData[field.label] as string || '';
-                                        
-                                        return (
-                                          <>
-                                            {filteredOptions.map((option, optIndex) => {
-                                              const isCustom = customValues[field.label]?.includes(option);
-                                              const isSelected = currentValue === option;
-                                              return (
-                                                <div
-                                                  key={optIndex}
-                                                  onClick={() => handleSelectOption(field.label, option)}
-                                                  className={`px-3 py-2 cursor-pointer hover:bg-[#2d2d2d] flex items-center justify-between ${
-                                                    isSelected ? 'bg-blue-600/20' : ''
-                                                  }`}
-                                                >
-                                                  <span className="text-white">{option}</span>
-                                                  {isCustom && (
-                                                    <span className="ml-2 px-2 py-0.5 bg-blue-600/30 text-blue-400 text-xs rounded-full">
-                                                      Custom
-                                                    </span>
-                                                  )}
-                                                </div>
-                                              );
-                                            })}
-                                            
-                                            {/* Add Custom Value Option */}
-                                            {searchTerm && 
-                                             !allOptions.some(opt => opt.toLowerCase() === searchTerm) && (
-                                              <div
-                                                onClick={() => handleAddCustomValue(field.label, dropdownSearch[field.label], field.options || [])}
-                                                className="px-3 py-2 cursor-pointer hover:bg-[#2d2d2d] border-t border-gray-700 flex items-center gap-2 text-blue-400"
-                                              >
-                                                <svg
-                                                  width="16"
-                                                  height="16"
-                                                  viewBox="0 0 24 24"
-                                                  fill="none"
-                                                  stroke="currentColor"
-                                                  strokeWidth="2"
-                                                  strokeLinecap="round"
-                                                  strokeLinejoin="round"
-                                                >
-                                                  <line x1="12" y1="5" x2="12" y2="19"></line>
-                                                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                                                </svg>
-                                                <span>Add &quot;{dropdownSearch[field.label]}&quot;</span>
-                                              </div>
-                                            )}
-                                            
-                                            {filteredOptions.length === 0 && !searchTerm && (
-                                              <div className="px-3 py-2 text-gray-400 text-sm">
-                                                No options available
-                                              </div>
-                                            )}
-                                          </>
-                                        );
-                                      })()}
-                                    </div>
-                                  )}
-
-                                  {/* Selected Value Badge (if custom) */}
-                                  {formData[field.label] && 
-                                   typeof formData[field.label] === 'string' &&
-                                   customValues[field.label]?.includes(formData[field.label] as string) && (
-                                    <div className="mt-2 flex items-center gap-2">
-                                      <span className="px-2 py-1 bg-blue-600/30 text-blue-400 text-xs rounded-full flex items-center gap-1">
-                                        <svg
-                                          width="12"
-                                          height="12"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="2"
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                        >
-                                          <path d="M12 2L14.09 8.26L20 9.27L15 13.14L16.18 19.02L12 15.77L7.82 19.02L9 13.14L4 9.27L9.91 8.26L12 2Z"></path>
-                                        </svg>
-                                        Custom: {formData[field.label] as string}
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                              ) : field.type === 'textarea' ? (
-                                <textarea
-                                  value={(formData[field.label] as string) || ''}
-                                  onChange={(e) => handleInputChange(field.label, e.target.value)}
-                                  placeholder={field.placeholder}
-                                  rows={3}
-                                  className="w-full px-3 py-2 text-white bg-[#202123] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder:text-gray-500"
-                                  required
-                                />
-                              ) : field.type === 'number' ? (
-                                <input
-                                  type="number"
-                                  value={(formData[field.label] as number) || ''}
-                                  onChange={(e) => handleInputChange(field.label, parseFloat(e.target.value) || 0)}
-                                  placeholder={field.placeholder}
-                                  className="w-full px-3 py-2 text-white bg-[#202123] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
-                                  required
-                                />
-                              ) : field.type === 'file' ? (
-                                <div className="space-y-2">
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(e) => {
-                                      const file = e.target.files?.[0] || null;
-                                      handleFileChange(field.label, file);
-                                    }}
-                                    className="w-full px-3 py-2 text-white bg-[#202123] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-600 file:text-white hover:file:bg-blue-700 file:cursor-pointer"
-                                  />
-                                  {formData[field.label] instanceof File && (
-                                    <div className="flex items-center gap-2 text-sm text-gray-400">
-                                      <svg
-                                        width="16"
-                                        height="16"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                      >
-                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                        <polyline points="17 8 12 3 7 8"></polyline>
-                                        <line x1="12" y1="3" x2="12" y2="15"></line>
-                                      </svg>
-                                      <span>{formData[field.label] instanceof File ? (formData[field.label] as File).name : ''}</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleFileChange(field.label, null)}
-                                        className="ml-auto text-red-400 hover:text-red-300"
-                                      >
-                                        <svg
-                                          width="14"
-                                          height="14"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="2"
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                        >
-                                          <line x1="18" y1="6" x2="6" y2="18"></line>
-                                          <line x1="6" y1="6" x2="18" y2="18"></line>
-                                        </svg>
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <input
-                                  type="text"
-                                  value={(formData[field.label] as string) || ''}
-                                  onChange={(e) => handleInputChange(field.label, e.target.value)}
-                                  placeholder={field.placeholder}
-                                  className="w-full px-3 py-2 text-white bg-[#202123] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
-                                  required
-                                />
-                              )}
-                            </div>
-                          ))}
+                    <label className="block text-sm font-medium text-gray-300">
+                      {field.label}
+                    </label>
+                    {field.type === 'dropdown' && field.options ? (
+                      <CreatableSelect
+                        value={(formData[field.label] as string[]) || []}
+                        onChange={(value) => handleInputChange(field.label, value)}
+                        options={field.options}
+                        placeholder={`Search or add ${field.label.toLowerCase()}`}
+                        required
+                        className="w-full"
+                      />
+                    ) : field.type === 'textarea' ? (
+                      <textarea
+                        value={(formData[field.label] as string) || ''}
+                        onChange={(e) => handleInputChange(field.label, e.target.value)}
+                        placeholder={field.placeholder}
+                        rows={3}
+                        className="w-full px-3 py-2.5 min-h-[110px] text-gray-900 bg-white border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-300 resize-none placeholder:text-gray-400"
+                        required
+                      />
+                    ) : field.type === 'number' ? (
+                      <input
+                        type="number"
+                        value={(formData[field.label] as number) || ''}
+                        onChange={(e) => handleInputChange(field.label, parseFloat(e.target.value) || 0)}
+                        placeholder={field.placeholder}
+                        className="w-full h-11 px-3 py-2.5 text-gray-900 bg-white border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-300 placeholder:text-gray-400"
+                        required
+                      />
+                    ) : field.type === 'file' ? (
+                      <div className="space-y-2">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] || null;
+                            handleFileChange(field.label, file);
+                          }}
+                          className="w-full h-11 px-3 py-2 text-gray-900 bg-white border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-300 file:mr-3 file:h-full file:px-3 file:py-0 file:rounded-md file:border file:border-gray-300 file:bg-white file:text-gray-800 file:text-sm file:font-medium file:leading-normal hover:file:bg-gray-50 file:cursor-pointer"
+                        />
+                        {formData[field.label] instanceof File && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                              <polyline points="17 8 12 3 7 8"></polyline>
+                              <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                            <span className="truncate">{formData[field.label] instanceof File ? (formData[field.label] as File).name : ''}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleFileChange(field.label, null)}
+                              className="ml-auto text-red-600 hover:text-red-700"
+                            >
+                              <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        value={(formData[field.label] as string) || ''}
+                        onChange={(e) => handleInputChange(field.label, e.target.value)}
+                        placeholder={field.placeholder}
+                        className="w-full h-11 px-3 py-2.5 text-gray-900 bg-white border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-300 placeholder:text-gray-400"
+                        required
+                      />
+                    )}
+                  </div>
+                ))}
 
                           {/* Render Custom Fields */}
                           {customFields.map((field) => (
@@ -1941,43 +1872,43 @@ export default function BriefPage() {
 
                   {/* Added Products Section */}
                   {products.length > 0 && (
-                    <div className="bg-[#444654] rounded-xl shadow-sm border border-gray-700 p-6 mt-6">
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mt-6">
                       <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-white">
+                        <h3 className="text-lg font-semibold text-gray-900">
                           Added Products ({products.length} item{products.length !== 1 ? 's' : ''})
           </h3>
                         <button
                           onClick={() => router.push('/product-sheet')}
-                          className="px-4 py-2 text-sm text-blue-400 hover:bg-blue-600/20 rounded-lg font-medium transition-colors"
+                          className="px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors"
                         >
                           View All
                         </button>
                       </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full text-left">
               <thead>
-                            <tr className="border-b border-gray-700">
-                              <th className="text-left py-3 px-4 text-sm font-semibold text-gray-300">
+                <tr className="border-b border-gray-200">
+                              <th className="py-3 px-4 text-sm font-semibold text-gray-700">
                     Product Name
                   </th>
-                              <th className="text-left py-3 px-4 text-sm font-semibold text-gray-300">
+                              <th className="py-3 px-4 text-sm font-semibold text-gray-700">
                     Category
                   </th>
-                              <th className="text-left py-3 px-4 text-sm font-semibold text-gray-300">
+                              <th className="py-3 px-4 text-sm font-semibold text-gray-700">
                     Key Specifications
                   </th>
-                              <th className="text-left py-3 px-4 text-sm font-semibold text-gray-300">
+                              <th className="py-3 px-4 text-sm font-semibold text-gray-700">
                     Added
                   </th>
-                              <th className="text-left py-3 px-4 text-sm font-semibold text-gray-300">
+                              <th className="py-3 px-4 text-sm font-semibold text-gray-700">
                                 Actions
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {products.map((product) => (
-                              <tr key={product.id} className="border-b border-gray-700 hover:bg-[#2d2d2d]">
+                  <tr key={product.id} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-3">
                           {product.image_link ? (
@@ -1990,7 +1921,7 @@ export default function BriefPage() {
                               }}
                             />
                                 ) : (
-                                  <div className="w-12 h-12 bg-[#202123] rounded-lg flex items-center justify-center flex-shrink-0">
+                                  <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
                                     <svg
                                       width="20"
                                       height="20"
@@ -2008,13 +1939,13 @@ export default function BriefPage() {
                                     </svg>
                                   </div>
                                 )}
-                                <span className="text-sm text-white font-medium">
+                                <span className="text-sm text-gray-900 font-medium">
                       {product.name}
                                 </span>
                               </div>
                     </td>
                     <td className="py-4 px-4">
-                              <span className="inline-block px-3 py-1 bg-[#202123] text-gray-300 text-xs font-medium rounded-full">
+                      <span className="inline-block px-3 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">
                         {product.category}
                       </span>
                     </td>
@@ -2029,9 +1960,13 @@ export default function BriefPage() {
                           </span>
                         ))}
                                 {product.specifications.length > 3 && (
-                                  <span className="inline-block px-3 py-1 bg-[#202123] text-gray-400 text-xs font-medium rounded-full">
+                                  <button
+                                    type="button"
+                                    onClick={() => openSpecModal(product.specifications, product.name)}
+                                    className="inline-block px-3 py-1 bg-[#202123] text-gray-400 text-xs font-medium rounded-full hover:text-white transition-colors"
+                                  >
                                     +{product.specifications.length - 3} more
-                                  </span>
+                                  </button>
                                 )}
                       </div>
                     </td>
@@ -2081,14 +2016,14 @@ export default function BriefPage() {
           onClick={() => setIsAddFieldModalOpen(false)}
         >
           <div 
-            className="bg-[#444654] rounded-lg shadow-xl max-w-md w-full border border-gray-700"
+            className="bg-white rounded-lg shadow-xl max-w-md w-full border border-gray-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-6 border-b border-gray-700">
-              <h2 className="text-xl font-semibold text-white">Add Custom Field</h2>
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">Add Custom Field</h2>
               <button
                 onClick={() => setIsAddFieldModalOpen(false)}
-                className="p-2 hover:bg-[#2d2d2d] rounded-lg transition-colors text-gray-400"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-400"
               >
                 <svg
                   width="24"
