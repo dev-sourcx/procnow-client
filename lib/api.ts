@@ -156,28 +156,32 @@ function extractProductsFromText(text: string): { cleanedText: string; products:
         if (braceCount === 0 && dictStart !== -1) {
           // Found the complete dict
           const dictString = text.substring(dictStart, i + 1);
-          
-          try {
-            // Convert Python dict syntax to JSON
-            let jsonString = dictString
-              .replace(/ObjectId\(['"]([^'"]+)['"]\)/g, '"$1"')  // ObjectId('...') to "..."
-              .replace(/'/g, '"')  // Single quotes to double quotes (after ObjectId replacement)
-              .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')  // Unquoted keys to quoted
-              .replace(/:\s*None/g, ': null')  // None to null
-              .replace(/:\s*True/g, ': true')  // True to true
-              .replace(/:\s*False/g, ': false');  // False to false
 
-            const parsed = JSON.parse(jsonString);
+          // Always clean the text by removing the dict block
+          const before = text.substring(0, dictStart).trim();
+          const after = text.substring(i + 1).trim();
+          const cleanedText = (before + ' ' + after).trim();
+
+          try {
+            // Convert Python dict-like string to a JavaScript object literal and evaluate it.
+            // 1) Normalize ObjectId('...') to just "..." so it becomes a plain string.
+            // 2) Leave single-quoted strings as-is so inner apostrophes like "Kid's" remain valid.
+            const jsLike = dictString.replace(
+              /ObjectId\(['"]([^'"]+)['"]\)/g,
+              '"$1"'
+            );
+
+            // Evaluate as JS object literal. This string is produced by our own backend.
+            // eslint-disable-next-line no-new-func
+            const parsed = Function('"use strict"; return (' + jsLike + ');')();
             
             if (parsed.type === 'products' && Array.isArray(parsed.data)) {
-              // Remove the product dict from text
-              const before = text.substring(0, dictStart).trim();
-              const after = text.substring(i + 1).trim();
-              const cleanedText = (before + ' ' + after).trim();
               return { cleanedText, products: parsed.data };
             }
           } catch (error) {
             console.warn('Failed to parse product data from text:', error);
+            // Even if parsing fails, still return the cleaned text without the dict
+            return { cleanedText, products: null };
           }
           
           break;
