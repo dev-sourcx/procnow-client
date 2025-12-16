@@ -49,6 +49,7 @@ export default function Home() {
           className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-[#202123] text-white rounded-lg hover:bg-gray-800"
           aria-label="Toggle sidebar"
         >
+          
           <svg
             width="20"
             height="20"
