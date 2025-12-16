@@ -1,6 +1,36 @@
 /**
- * Local storage utilities for chat sessions
+ * Local storage utilities for auth and chat sessions
  */
+
+const STORAGE_KEY_AUTH_TOKEN = 'auth_token';
+
+export function saveAuthToken(token: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY_AUTH_TOKEN, token);
+  } catch (error) {
+    console.error('Error saving auth token:', error);
+  }
+}
+
+export function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return localStorage.getItem(STORAGE_KEY_AUTH_TOKEN);
+  } catch (error) {
+    console.error('Error loading auth token:', error);
+    return null;
+  }
+}
+
+export function clearAuthToken(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(STORAGE_KEY_AUTH_TOKEN);
+  } catch (error) {
+    console.error('Error clearing auth token:', error);
+  }
+}
 
 export interface ChatSession {
   id: string;
@@ -159,12 +189,24 @@ export interface EnquiryProduct {
   targetPrice: number;
 }
 
+export interface ShippingAddress {
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+  phone: string;
+  email: string;
+}
+
 export interface Enquiry {
   id: string;
   name: string;
   createdAt: string;
   updatedAt: string;
   products?: EnquiryProduct[];
+  shippingAddress?: ShippingAddress;
 }
 
 const STORAGE_KEY_ENQUIRIES = 'brief_enquiries';

@@ -1,0 +1,50 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to Production Server (main)
+        if: github.ref == 'refs/heads/main'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 13.126.58.185
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            cd /home/ubuntu/client
+
+            export PATH=$PATH:/home/ubuntu/.nvm/versions/node/v24.11.0/bin
+
+            # Mark this repo as safe for git
+            git config --global --add safe.directory /home/ubuntu/client
+
+            echo "Pulling latest changes..."
+            git stash
+            git pull origin main
+
+            echo "Installing frontend dependencies..."
+            if [ -f package-lock.json ]; then
+              npm ci
+            else
+              npm install
+            fi
+
+            echo "Building frontend..."
+            npm run build
+
+            echo "Restarting PM2..."
+            # Adjust process name if your PM2 app is named differently
+            pm2 restart client
+            pm2 save

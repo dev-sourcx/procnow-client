@@ -4,6 +4,78 @@
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+// ===== Auth types =====
+export interface SignupPayload {
+  email: string;
+  password: string;
+  phone_number: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+}
+
+export interface ApiErrorResponse {
+  success?: boolean;
+  message?: string;
+  detail?: any;
+}
+
+/**
+ * Sign up a new user
+ * Calls: POST /api/v1/auth/signup
+ */
+export async function signup(payload: SignupPayload): Promise<void> {
+  const response = await fetch(`${API_URL}/api/v1/auth/signup`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    let errorMessage = 'Signup failed';
+    try {
+      const data: ApiErrorResponse = await response.json();
+      if (data.message) errorMessage = data.message;
+    } catch {
+      const text = await response.text();
+      if (text) errorMessage = text;
+    }
+    throw new Error(errorMessage);
+  }
+}
+
+/**
+ * Log in a user and get JWT token
+ * Calls: POST /api/v1/auth/login
+ */
+export async function login(email: string, password: string): Promise<TokenResponse> {
+  const response = await fetch(`${API_URL}/api/v1/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!response.ok) {
+    let errorMessage = 'Login failed';
+    try {
+      const data: ApiErrorResponse = await response.json();
+      if (data.message) errorMessage = data.message;
+    } catch {
+      const text = await response.text();
+      if (text) errorMessage = text;
+    }
+    throw new Error(errorMessage);
+  }
+
+  return response.json();
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;

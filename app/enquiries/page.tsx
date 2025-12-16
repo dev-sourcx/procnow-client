@@ -129,6 +129,41 @@ export default function EnquiriesPage() {
       return;
     }
 
+    // Pre-fill shipping address from enquiry if it already exists, so user can review/edit
+    if ((enquiry as any).shippingAddress) {
+      const existing = (enquiry as any).shippingAddress as {
+        addressLine1?: string;
+        addressLine2?: string;
+        city?: string;
+        state?: string;
+        zipCode?: string;
+        country?: string;
+        phone?: string;
+        email?: string;
+      };
+      setShippingAddress({
+        addressLine1: existing.addressLine1 || '',
+        addressLine2: existing.addressLine2 || '',
+        city: existing.city || '',
+        state: existing.state || '',
+        zipCode: existing.zipCode || '',
+        country: existing.country || '',
+        phone: existing.phone || '',
+        email: existing.email || '',
+      });
+    } else {
+      setShippingAddress({
+        addressLine1: '',
+        addressLine2: '',
+        city: '',
+        state: '',
+        zipCode: '',
+        country: '',
+        phone: '',
+        email: '',
+      });
+    }
+
     // Open the submit modal
     setSelectedEnquiryForSubmit(enquiryId);
     setIsSubmitModalOpen(true);
@@ -233,11 +268,31 @@ export default function EnquiriesPage() {
   const handleCreateEnquiry = () => {
     setIsNewEnquiryModalOpen(true);
     setEnquiryName('');
+    setShippingAddress({
+      addressLine1: '',
+      addressLine2: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      country: '',
+      phone: '',
+      email: '',
+    });
   };
 
   const handleCloseNewEnquiryModal = () => {
     setIsNewEnquiryModalOpen(false);
     setEnquiryName('');
+    setShippingAddress({
+      addressLine1: '',
+      addressLine2: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      country: '',
+      phone: '',
+      email: '',
+    });
   };
 
   const handleSaveNewEnquiry = (e: React.FormEvent) => {
@@ -253,6 +308,7 @@ export default function EnquiriesPage() {
       name: enquiryName.trim(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      shippingAddress: shippingAddress,
     };
 
     saveEnquiry(newEnquiry);
@@ -1520,7 +1576,7 @@ export default function EnquiriesPage() {
             </div>
 
             {/* Modal Body */}
-            <form onSubmit={handleSaveNewEnquiry} className="p-6">
+            <form onSubmit={handleSaveNewEnquiry} className="p-6 space-y-4">
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -1535,6 +1591,137 @@ export default function EnquiriesPage() {
                     autoFocus
                     required
                   />
+                </div>
+
+                {/* Shipping Address (same as submit enquiry form) */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Address Line 1 <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={shippingAddress.addressLine1}
+                      onChange={(e) =>
+                        setShippingAddress((prev) => ({ ...prev, addressLine1: e.target.value }))
+                      }
+                      placeholder="Street address, P.O. box"
+                      required
+                      className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Address Line 2
+                    </label>
+                    <input
+                      type="text"
+                      value={shippingAddress.addressLine2}
+                      onChange={(e) =>
+                        setShippingAddress((prev) => ({ ...prev, addressLine2: e.target.value }))
+                      }
+                      placeholder="Apartment, suite, unit, building, floor, etc."
+                      className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        City <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={shippingAddress.city}
+                        onChange={(e) =>
+                          setShippingAddress((prev) => ({ ...prev, city: e.target.value }))
+                        }
+                        placeholder="City"
+                        required
+                        className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        State/Province <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={shippingAddress.state}
+                        onChange={(e) =>
+                          setShippingAddress((prev) => ({ ...prev, state: e.target.value }))
+                        }
+                        placeholder="State or Province"
+                        required
+                        className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        ZIP/Postal Code <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={shippingAddress.zipCode}
+                        onChange={(e) =>
+                          setShippingAddress((prev) => ({ ...prev, zipCode: e.target.value }))
+                        }
+                        placeholder="ZIP or Postal Code"
+                        required
+                        className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Country <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={shippingAddress.country}
+                        onChange={(e) =>
+                          setShippingAddress((prev) => ({ ...prev, country: e.target.value }))
+                        }
+                        placeholder="Country"
+                        required
+                        className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Phone Number
+                      </label>
+                      <input
+                        type="tel"
+                        value={shippingAddress.phone}
+                        onChange={(e) =>
+                          setShippingAddress((prev) => ({ ...prev, phone: e.target.value }))
+                        }
+                        placeholder="Phone number"
+                        className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Email Address
+                      </label>
+                      <input
+                        type="email"
+                        value={shippingAddress.email}
+                        onChange={(e) =>
+                          setShippingAddress((prev) => ({ ...prev, email: e.target.value }))
+                        }
+                        placeholder="Email address"
+                        className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
