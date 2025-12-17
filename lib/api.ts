@@ -2,7 +2,10 @@
  * API utility functions for communicating with the backend
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Main backend (chat, products, etc.)
+const AI_API_URL = process.env.NEXT_PUBLIC_AI_API_URL || 'http://localhost:8000';
+// Separate auth backend (login/signup). Falls back to main API if not set.
+const API_URL = process.env.NEXT_PUBLIC_API_URL || AI_API_URL;
 
 // ===== Auth types =====
 export interface SignupPayload {
@@ -102,7 +105,7 @@ export interface Product {
  */
 export async function checkApiHealth(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_URL}/`, {
+    const response = await fetch(`${AI_API_URL}/`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -207,7 +210,7 @@ export async function sendChatMessage(
     // Add the latest user message to history
     const fullHistory: ChatMessage[] = [...history, { role: 'user', content: message }];
 
-    const response = await fetch(`${API_URL}/stream`, {
+    const response = await fetch(`${AI_API_URL}/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -330,7 +333,7 @@ export async function sendChatMessage(
 }
 
 export async function getProducts(): Promise<Record<string, Product[]>> {
-  const response = await fetch(`${API_URL}/products`, {
+  const response = await fetch(`${AI_API_URL}/products`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -355,7 +358,7 @@ export interface GeneratedFieldsResponse {
  * Generate fields from product keyword
  */
 export async function generateFieldsFromKeyword(keyword: string): Promise<GeneratedFieldsResponse> {
-  const response = await fetch(`${API_URL}/generate-fields-from-keywords`, {
+  const response = await fetch(`${AI_API_URL}/generate-fields-from-keywords`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -379,7 +382,7 @@ export async function generateFieldsFromKeyword(keyword: string): Promise<Genera
  * Generate fields from product description/data
  */
 export async function generateFieldsFromDescription(data: Record<string, any>): Promise<GeneratedFieldsResponse> {
-  const response = await fetch(`${API_URL}/generate-fields-from-description`, {
+  const response = await fetch(`${AI_API_URL}/generate-fields-from-description`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
