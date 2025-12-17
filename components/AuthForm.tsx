@@ -38,7 +38,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
         const token = await login(email, password);
         saveAuthToken(token.access_token);
         // Redirect to main app area after login
-        router.push('/brief');
+        router.push('/');
       } else {
         // Signup: backend expects email, password, phone_number
         await signup({

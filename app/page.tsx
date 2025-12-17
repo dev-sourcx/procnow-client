@@ -1,36 +1,67 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import ChatContainer from '@/components/ChatContainer';
 import Sidebar from '@/components/Sidebar';
+import { getCurrentUser, type CurrentUser } from '@/lib/api';
 import {
+  getAuthToken,
+  clearAuthToken,
   getStoredSessions,
-  deleteSession,
   ChatSession,
 } from '@/lib/storage';
 
 export default function Home() {
+  const router = useRouter();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
 
   useEffect(() => {
-    loadSessions();
-  }, []);
+    const checkAuth = async () => {
+      const token = getAuthToken();
+      if (!token) {
+        router.push('/login');
+        return;
+      }
 
-  const loadSessions = () => {
-    const storedSessions = getStoredSessions();
-    setSessions(storedSessions);
-    
-    // Auto-select first session if available and none selected
-    // if (!currentSessionId && storedSessions.length > 0) {
-    //   setCurrentSessionId(storedSessions[0].id);
-    // }
-  };
+      try {
+        const user = await getCurrentUser(token);
+        setCurrentUser(user);
+        // If successful, load sessions
+        const storedSessions = getStoredSessions();
+        setSessions(storedSessions);
+      } catch {
+        clearAuthToken();
+        router.push('/login');
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+
+    checkAuth();
+  }, [router]);
 
   const handleNewChat = () => {
     setCurrentSessionId(null);
   };
+
+  const handleLogout = () => {
+    clearAuthToken();
+    setCurrentUser(null);
+    router.push('/login');
+  };
+
+  if (isCheckingAuth) {
+    return (
+      <main className="flex h-screen w-full items-center justify-center bg-[#343541]">
+        <p className="text-gray-300">Checking authentication...</p>
+      </main>
+    );
+  }
 
   return (
     <main className="flex h-screen w-full bg-[#343541]">
@@ -39,6 +70,8 @@ export default function Home() {
         onNewChat={handleNewChat}
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
+        currentUser={currentUser}
+        onLogout={handleLogout}
       />
 
       {/* Main Chat Area */}
@@ -49,7 +82,6 @@ export default function Home() {
           className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-[#202123] text-white rounded-lg hover:bg-gray-800"
           aria-label="Toggle sidebar"
         >
-          
           <svg
             width="20"
             height="20"
@@ -68,7 +100,10 @@ export default function Home() {
 
         <ChatContainer
           currentSessionId={currentSessionId}
-          onSessionUpdate={loadSessions}
+          onSessionUpdate={() => {
+            const storedSessions = getStoredSessions();
+            setSessions(storedSessions);
+          }}
         />
       </div>
     </main>

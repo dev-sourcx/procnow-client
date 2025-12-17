@@ -3,14 +3,23 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getStoredProducts } from '@/lib/storage';
+import type { CurrentUser } from '@/lib/api';
 
 interface SidebarProps {
   onNewChat: () => void;
   isOpen: boolean;
   onToggle: () => void;
+  currentUser: CurrentUser | null;
+  onLogout: () => void;
 }
 
-export default function Sidebar({ onNewChat, isOpen, onToggle }: SidebarProps) {
+export default function Sidebar({
+  onNewChat,
+  isOpen,
+  onToggle,
+  currentUser,
+  onLogout,
+}: SidebarProps) {
   const router = useRouter();
   const [productCount, setProductCount] = useState<number>(0);
 
@@ -175,23 +184,26 @@ export default function Sidebar({ onNewChat, isOpen, onToggle }: SidebarProps) {
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="border-t border-gray-800 p-2">
-            <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-400">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+          {/* Footer with user info and logout */}
+          <div className="border-t border-gray-800 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 overflow-hidden">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500 text-xs font-semibold">
+                  {currentUser?.email ? currentUser.email.charAt(0).toUpperCase() : 'U'}
+                </div>
+                <div className="flex flex-col overflow-hidden">
+                  <span className="truncate text-sm text-gray-100">
+                    {currentUser?.email ?? 'Guest'}
+                  </span>
+                  <span className="text-xs text-gray-500">Signed in</span>
+                </div>
+              </div>
+              <button
+                onClick={onLogout}
+                className="rounded-md border border-gray-700 px-2 py-1 text-xs text-gray-300 hover:bg-gray-800"
               >
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </svg>
-              <span>Chat Assistant</span>
+                Logout
+              </button>
             </div>
           </div>
         </div>

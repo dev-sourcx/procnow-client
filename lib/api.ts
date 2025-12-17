@@ -19,6 +19,12 @@ export interface TokenResponse {
   token_type: string;
 }
 
+export interface CurrentUser {
+  id: string;
+  email: string;
+  phone_number: string;
+}
+
 export interface ApiErrorResponse {
   success?: boolean;
   message?: string;
@@ -74,6 +80,26 @@ export async function login(email: string, password: string): Promise<TokenRespo
       if (text) errorMessage = text;
     }
     throw new Error(errorMessage);
+  }
+
+  return response.json();
+}
+
+/**
+ * Get the currently authenticated user using the stored JWT token
+ * Calls: GET /api/v1/auth/me
+ */
+export async function getCurrentUser(token: string): Promise<CurrentUser> {
+  const response = await fetch(`${API_URL}/api/v1/auth/me`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('Not authenticated');
   }
 
   return response.json();
