@@ -141,6 +141,8 @@ export default function ProductSheetPage() {
         onNewChat={handleNewChat}
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
+        currentUser={null}
+        onLogout={() => {}}
       />
 
       {/* Main Content Area */}

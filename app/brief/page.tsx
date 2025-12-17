@@ -1182,6 +1182,8 @@ export default function BriefPage() {
           onNewChat={() => router.push('/')}
           isOpen={sidebarOpen}
           onToggle={() => setSidebarOpen(!sidebarOpen)}
+          currentUser={null}
+          onLogout={() => {}}
         />
 
         {/* Main Content Area */}
