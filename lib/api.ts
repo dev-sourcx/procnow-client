@@ -264,6 +264,7 @@ export async function sendChatMessage(
               onChunk(parsed.text);
             }
 
+            
             // Handle dedicated products event
             if (parsed.type === 'products' && parsed.data && onProducts) {
               onProducts(parsed.data);
