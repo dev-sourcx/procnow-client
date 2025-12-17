@@ -258,19 +258,13 @@ export async function sendChatMessage(
           try {
             const parsed = JSON.parse(data);
 
-            // Handle token events
+            // Handle streaming assistant text tokens
             if (parsed.type === 'token' && parsed.text) {
-              // Check if text contains embedded product data
-              const { cleanedText, products } = extractProductsFromText(parsed.text);
-              if (cleanedText) {
-                onChunk(cleanedText);
-              }
-              if (products && onProducts) {
-                onProducts(products);
-              }
+              // Stream the token text directly for incremental rendering
+              onChunk(parsed.text);
             }
 
-            // Handle products event
+            // Handle dedicated products event
             if (parsed.type === 'products' && parsed.data && onProducts) {
               onProducts(parsed.data);
             }
@@ -300,14 +294,8 @@ export async function sendChatMessage(
             try {
               const parsed = JSON.parse(data);
               if (parsed.type === 'token' && parsed.text) {
-                // Check if text contains embedded product data
-                const { cleanedText, products } = extractProductsFromText(parsed.text);
-                if (cleanedText) {
-                  onChunk(cleanedText);
-                }
-                if (products && onProducts) {
-                  onProducts(products);
-                }
+                // Stream the token text directly for incremental rendering
+                onChunk(parsed.text);
               }
               if (parsed.type === 'products' && parsed.data && onProducts) {
                 onProducts(parsed.data);
