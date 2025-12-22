@@ -2,6 +2,8 @@
  * Local storage utilities for auth and chat sessions
  */
 
+import { isAuthenticated } from './auth';
+
 const STORAGE_KEY_AUTH_TOKEN = 'auth_token';
 
 export function saveAuthToken(token: string): void {
@@ -159,12 +161,19 @@ export function getStoredProducts(): BriefProduct[] {
 export function saveProduct(product: BriefProduct): void {
   if (typeof window === 'undefined') return;
   
+  // Prevent guest users from adding products
+  if (!isAuthenticated()) {
+    console.warn('Cannot save product: User is not authenticated');
+    throw new Error('You must be logged in to add products to your list');
+  }
+  
   try {
     const products = getStoredProducts();
     products.push(product);
     localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(products));
   } catch (error) {
     console.error('Error saving product:', error);
+    throw error;
   }
 }
 

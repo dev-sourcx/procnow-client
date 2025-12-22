@@ -24,7 +24,8 @@ export default function Home() {
     const checkAuth = async () => {
       const token = getAuthToken();
       if (!token) {
-        router.push('/login');
+        // Don't redirect - allow user to browse without login
+        setIsCheckingAuth(false);
         return;
       }
 
@@ -35,8 +36,9 @@ export default function Home() {
         const storedSessions = getStoredSessions();
         setSessions(storedSessions);
       } catch {
+        // Token is invalid, clear it but don't redirect
         clearAuthToken();
-        router.push('/login');
+        setCurrentUser(null);
       } finally {
         setIsCheckingAuth(false);
       }

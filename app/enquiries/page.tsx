@@ -2,13 +2,24 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { getStoredEnquiries, deleteEnquiry, saveEnquiry, Enquiry, getStoredProducts, BriefProduct, EnquiryProduct } from '@/lib/storage';
+import { getStoredProducts, BriefProduct } from '@/lib/storage';
+import { requireAuth } from '@/lib/auth';
+import { getAuthToken } from '@/lib/storage';
+import { getCurrentUser, type CurrentUser, getProductSheet, ProductSheetItem, getEnquiries, createEnquiry, updateEnquiry, deleteEnquiry, type Enquiry as ApiEnquiry, generateFieldsFromKeyword, type GeneratedFieldsResponse, type GeneratedField, addProductItem } from '@/lib/api';
 import Sidebar from '@/components/Sidebar';
+import CreatableSelect from '@/components/CreatableSelect';
+
+interface EnquiryProduct {
+  productId: string;
+  quantity: number;
+  deliveryDate: string;
+  targetPrice: number;
+}
 
 export default function EnquiriesPage() {
   const router = useRouter();
-  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
-  const [products, setProducts] = useState<BriefProduct[]>([]);
+  const [enquiries, setEnquiries] = useState<ApiEnquiry[]>([]);
+  const [productSheetItems, setProductSheetItems] = useState<ProductSheetItem[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [expandedEnquiries, setExpandedEnquiries] = useState<Set<string>>(new Set());
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -27,58 +38,100 @@ export default function EnquiriesPage() {
     phone: '',
     email: '',
   });
+  const [billingAddress, setBillingAddress] = useState({
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    country: '',
+    phone: '',
+    email: '',
+  });
+  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('');
+  const [enquiryStatus, setEnquiryStatus] = useState('draft');
+  const [enquiryNotes, setEnquiryNotes] = useState('');
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isDrawerAnimating, setIsDrawerAnimating] = useState(false);
   const [selectedEnquiryId, setSelectedEnquiryId] = useState<string | null>(null);
-  const [modalProducts, setModalProducts] = useState<BriefProduct[]>([]);
-  const [productQuantities, setProductQuantities] = useState<Record<string, number>>({});
-  const [productDeliveryDates, setProductDeliveryDates] = useState<Record<string, string>>({});
-  const [productTargetPrices, setProductTargetPrices] = useState<Record<string, number>>({});
+  const [modalProducts, setModalProducts] = useState<ProductSheetItem[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [isNewEnquiryProductModalOpen, setIsNewEnquiryProductModalOpen] = useState(false);
+  const [newEnquirySelectedProductIds, setNewEnquirySelectedProductIds] = useState<string[]>([]);
   const [enquiryProductsUpdate, setEnquiryProductsUpdate] = useState(0);
+  const [isGenerateProductModalOpen, setIsGenerateProductModalOpen] = useState(false);
+  const [productKeyword, setProductKeyword] = useState('');
+  const [generatedFields, setGeneratedFields] = useState<GeneratedFieldsResponse | null>(null);
+  const [specFormData, setSpecFormData] = useState<Record<string, any>>({});
+  const [isGenerating, setIsGenerating] = useState(false);
   const [specModalOpen, setSpecModalOpen] = useState(false);
   const [specModalItems, setSpecModalItems] = useState<string[]>([]);
   const [specModalTitle, setSpecModalTitle] = useState<string>('Specifications');
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const loadEnquiries = () => {
-    const storedEnquiries = getStoredEnquiries();
+  const loadEnquiries = async () => {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        setEnquiries([]);
+        setIsLoading(false);
+        return;
+      }
+
+      const fetchedEnquiries = await getEnquiries(token);
     // Sort by updatedAt descending (most recent first)
-    storedEnquiries.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-    setEnquiries(storedEnquiries);
+      fetchedEnquiries.sort((a, b) => {
+        const dateA = new Date(b.updatedAt || b.createdAt || '').getTime();
+        const dateB = new Date(a.updatedAt || a.createdAt || '').getTime();
+        return dateA - dateB;
+      });
+      setEnquiries(fetchedEnquiries);
+    } catch (error) {
+      console.error('Error loading enquiries:', error);
+      setEnquiries([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const loadProducts = () => {
-    const storedProducts = getStoredProducts();
-    setProducts(storedProducts);
+  const loadProducts = async () => {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        setProductSheetItems([]);
+        return;
+      }
+
+      const productSheet = await getProductSheet(token);
+      setProductSheetItems(productSheet.productSheetItems);
+    } catch (error) {
+      console.error('Error loading products:', error);
+      setProductSheetItems([]);
+    }
   };
 
   useEffect(() => {
-    loadEnquiries();
-    loadProducts();
+    const initialize = async () => {
+      setIsLoading(true);
 
-    // Listen for storage changes
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'brief_enquiries') {
-        loadEnquiries();
+      // Check authentication
+      const token = getAuthToken();
+      if (token) {
+        try {
+          const user = await getCurrentUser(token);
+          setCurrentUser(user);
+        } catch {
+          setCurrentUser(null);
+        }
       }
-      if (e.key === 'brief_products') {
-        loadProducts();
-      }
+
+      // Load data
+      await Promise.all([loadEnquiries(), loadProducts()]);
     };
 
-    window.addEventListener('storage', handleStorageChange);
-
-    // Also listen for custom events for same-tab updates
-    const handleCustomStorageChange = () => {
-      loadEnquiries();
-      loadProducts();
-    };
-
-    window.addEventListener('enquiryUpdated', handleCustomStorageChange);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('enquiryUpdated', handleCustomStorageChange);
-    };
+    initialize();
   }, []);
 
   const handleNewChat = () => {
@@ -97,19 +150,32 @@ export default function EnquiriesPage() {
     });
   };
 
-  const handleDeleteEnquiry = (enquiryId: string, e?: React.MouseEvent) => {
+  const handleDeleteEnquiry = async (enquiryId: string, e?: React.MouseEvent) => {
     if (e) {
       e.stopPropagation();
     }
-    if (confirm('Are you sure you want to delete this enquiry?')) {
-      deleteEnquiry(enquiryId);
-      loadEnquiries();
+    if (!confirm('Are you sure you want to delete this enquiry?')) {
+      return;
+    }
+
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        requireAuth();
+        return;
+      }
+
+      await deleteEnquiry(token, enquiryId);
+      await loadEnquiries();
       setExpandedEnquiries((prev) => {
         const newSet = new Set(prev);
         newSet.delete(enquiryId);
         return newSet;
       });
       setOpenMenuId(null);
+    } catch (error: any) {
+      console.error('Error deleting enquiry:', error);
+      alert(error.message || 'Failed to delete enquiry. Please try again.');
     }
   };
 
@@ -118,10 +184,15 @@ export default function EnquiriesPage() {
       e.stopPropagation();
     }
 
-    const enquiry = enquiries.find((e) => e.id === enquiryId);
+    // Require authentication before submitting enquiry
+    if (!requireAuth()) {
+      return;
+    }
+
+    const enquiry = enquiries.find((e) => e._id === enquiryId);
     if (!enquiry) return;
 
-    const enquiryProducts = enquiry.products || [];
+    const enquiryProducts = enquiry.enquiryProducts || [];
     
     if (enquiryProducts.length === 0) {
       alert('Please add at least one product to the enquiry before submitting.');
@@ -130,27 +201,47 @@ export default function EnquiriesPage() {
     }
 
     // Pre-fill shipping address from enquiry if it already exists, so user can review/edit
-    if ((enquiry as any).shippingAddress) {
-      const existing = (enquiry as any).shippingAddress as {
-        addressLine1?: string;
-        addressLine2?: string;
-        city?: string;
-        state?: string;
-        zipCode?: string;
-        country?: string;
-        phone?: string;
-        email?: string;
-      };
+    if (enquiry.shippingAddress) {
+      const addr = enquiry.shippingAddress;
+      // If shippingAddress is a string, try to parse it, otherwise use it directly
+      if (typeof addr === 'string') {
+        try {
+          const parsed = JSON.parse(addr);
       setShippingAddress({
-        addressLine1: existing.addressLine1 || '',
-        addressLine2: existing.addressLine2 || '',
-        city: existing.city || '',
-        state: existing.state || '',
-        zipCode: existing.zipCode || '',
-        country: existing.country || '',
-        phone: existing.phone || '',
-        email: existing.email || '',
+            addressLine1: parsed.addressLine1 || '',
+            addressLine2: parsed.addressLine2 || '',
+            city: parsed.city || '',
+            state: parsed.state || '',
+            zipCode: parsed.zipCode || '',
+            country: parsed.country || '',
+            phone: parsed.phone || '',
+            email: parsed.email || '',
+          });
+        } catch {
+          // If parsing fails, split by newline or comma
+          setShippingAddress({
+            addressLine1: addr || '',
+            addressLine2: '',
+            city: '',
+            state: '',
+            zipCode: '',
+            country: '',
+            phone: '',
+            email: '',
+          });
+        }
+      } else {
+        setShippingAddress({
+          addressLine1: (addr as any).addressLine1 || '',
+          addressLine2: (addr as any).addressLine2 || '',
+          city: (addr as any).city || '',
+          state: (addr as any).state || '',
+          zipCode: (addr as any).zipCode || '',
+          country: (addr as any).country || '',
+          phone: (addr as any).phone || '',
+          email: (addr as any).email || '',
       });
+      }
     } else {
       setShippingAddress({
         addressLine1: '',
@@ -162,6 +253,37 @@ export default function EnquiriesPage() {
         phone: '',
         email: '',
       });
+    }
+
+    // Pre-fill billing address if it exists
+    if (enquiry.billingAddress) {
+      const addr = enquiry.billingAddress;
+      if (typeof addr === 'string') {
+        try {
+          const parsed = JSON.parse(addr);
+          setBillingAddress({
+            addressLine1: parsed.addressLine1 || '',
+            addressLine2: parsed.addressLine2 || '',
+            city: parsed.city || '',
+            state: parsed.state || '',
+            zipCode: parsed.zipCode || '',
+            country: parsed.country || '',
+            phone: parsed.phone || '',
+            email: parsed.email || '',
+          });
+        } catch {
+          setBillingAddress({
+            addressLine1: addr || '',
+            addressLine2: '',
+            city: '',
+            state: '',
+            zipCode: '',
+            country: '',
+            phone: '',
+            email: '',
+          });
+        }
+      }
     }
 
     // Open the submit modal
@@ -183,6 +305,16 @@ export default function EnquiriesPage() {
       phone: '',
       email: '',
     });
+    setBillingAddress({
+      addressLine1: '',
+      addressLine2: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      country: '',
+      phone: '',
+      email: '',
+    });
   };
 
   const handleShippingAddressChange = (field: string, value: string) => {
@@ -192,12 +324,18 @@ export default function EnquiriesPage() {
     }));
   };
 
-  const handleSubmitEnquiryForm = (e: React.FormEvent) => {
+  const handleSubmitEnquiryForm = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedEnquiryForSubmit) return;
+    // Require authentication before submitting enquiry
+    if (!requireAuth()) {
+      return;
+    }
 
-    const enquiry = enquiries.find((e) => e.id === selectedEnquiryForSubmit);
+    if (!selectedEnquiryForSubmit) return;
+    if (isSubmitting) return;
+
+    const enquiry = enquiries.find((e) => e._id === selectedEnquiryForSubmit);
     if (!enquiry) return;
 
     // Validate required fields
@@ -208,22 +346,59 @@ export default function EnquiriesPage() {
       return;
     }
 
-    // Update the enquiry with shipping address and current timestamp
-    const updatedEnquiry: Enquiry = {
-      ...enquiry,
-      updatedAt: new Date().toISOString(),
-      // Store shipping address in the enquiry (you may want to add this to the Enquiry interface)
-      shippingAddress: shippingAddress,
-    } as Enquiry & { shippingAddress: typeof shippingAddress };
+    if (!billingAddress.addressLine1.trim() || !billingAddress.city.trim() || 
+        !billingAddress.state.trim() || !billingAddress.zipCode.trim() || 
+        !billingAddress.country.trim()) {
+      alert('Please fill in all required billing address fields.');
+      return;
+    }
 
-    saveEnquiry(updatedEnquiry);
-    loadEnquiries();
+    setIsSubmitting(true);
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        requireAuth();
+        return;
+      }
+
+      // Update the enquiry with shipping/billing address and status
+      await updateEnquiry(token, selectedEnquiryForSubmit, {
+        shippingAddress: {
+          addressLine1: shippingAddress.addressLine1,
+          addressLine2: shippingAddress.addressLine2 || undefined,
+          city: shippingAddress.city,
+          state: shippingAddress.state,
+          zipCode: shippingAddress.zipCode,
+          country: shippingAddress.country,
+          phone: shippingAddress.phone || undefined,
+          email: shippingAddress.email || undefined,
+        },
+        billingAddress: {
+          addressLine1: billingAddress.addressLine1,
+          addressLine2: billingAddress.addressLine2 || undefined,
+          city: billingAddress.city,
+          state: billingAddress.state,
+          zipCode: billingAddress.zipCode,
+          country: billingAddress.country,
+          phone: billingAddress.phone || undefined,
+          email: billingAddress.email || undefined,
+        },
+        enquiryStatus: 'submitted',
+      });
+
+      await loadEnquiries();
     
     // Show success message
-    const enquiryProducts = enquiry.products || [];
-    alert(`Enquiry "${enquiry.name}" has been submitted successfully with ${enquiryProducts.length} product(s).`);
+      const enquiryProducts = enquiry.enquiryProducts || [];
+      alert(`Enquiry "${enquiry.enquiryName}" has been submitted successfully with ${enquiryProducts.length} product(s).`);
     
     handleCloseSubmitModal();
+    } catch (error: any) {
+      console.error('Error submitting enquiry:', error);
+      alert(error.message || 'Failed to submit enquiry. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const toggleMenu = (enquiryId: string, e: React.MouseEvent) => {
@@ -248,8 +423,8 @@ export default function EnquiriesPage() {
     };
   }, [openMenuId]);
 
-  const getProductById = (productId: string): BriefProduct | undefined => {
-    return products.find((p) => p.id === productId);
+  const getProductById = (productId: string): ProductSheetItem | undefined => {
+    return productSheetItems.find((p) => p._id === productId);
   };
 
   const formatDate = (dateString: string): string => {
@@ -266,6 +441,11 @@ export default function EnquiriesPage() {
   };
 
   const handleCreateEnquiry = () => {
+    // Require authentication before creating enquiry
+    if (!requireAuth()) {
+      return;
+    }
+
     setIsNewEnquiryModalOpen(true);
     setEnquiryName('');
     setShippingAddress({
@@ -278,6 +458,20 @@ export default function EnquiriesPage() {
       phone: '',
       email: '',
     });
+    setBillingAddress({
+      addressLine1: '',
+      addressLine2: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      country: '',
+      phone: '',
+      email: '',
+    });
+    setExpectedDeliveryDate('');
+    setEnquiryStatus('draft');
+    setEnquiryNotes('');
+    setSelectedProductIds([]);
   };
 
   const handleCloseNewEnquiryModal = () => {
@@ -293,60 +487,232 @@ export default function EnquiriesPage() {
       phone: '',
       email: '',
     });
+    setBillingAddress({
+      addressLine1: '',
+      addressLine2: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      country: '',
+      phone: '',
+      email: '',
+    });
+    setExpectedDeliveryDate('');
+    setEnquiryStatus('draft');
+    setEnquiryNotes('');
+    setSelectedProductIds([]);
+    setNewEnquirySelectedProductIds([]);
   };
 
-  const handleSaveNewEnquiry = (e: React.FormEvent) => {
+  const handleCloseNewEnquiryProductModal = () => {
+    setIsNewEnquiryProductModalOpen(false);
+  };
+
+  const handleToggleNewEnquiryProductSelection = (productId: string) => {
+    setNewEnquirySelectedProductIds((prev) => {
+      if (prev.includes(productId)) {
+        return prev.filter((id) => id !== productId);
+      } else {
+        return [...prev, productId];
+      }
+    });
+  };
+
+  const handleDoneNewEnquiryProductSelection = () => {
+    setIsNewEnquiryProductModalOpen(false);
+  };
+
+  const handleCloseGenerateProductModal = () => {
+    setIsGenerateProductModalOpen(false);
+    setProductKeyword('');
+    setGeneratedFields(null);
+    setSpecFormData({});
+  };
+
+  const handleGenerateProduct = async () => {
+    if (!productKeyword.trim()) {
+      alert('Please enter a product keyword');
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      // Call backend to generate fields from keyword
+      const fields = await generateFieldsFromKeyword(productKeyword.trim());
+      
+      // Initialize form data with empty values
+      const initialData: Record<string, string | number | string[]> = {};
+      fields.fields.forEach((field) => {
+        if (field.type === 'dropdown') {
+          initialData[field.label] = [];
+        } else if (field.type === 'number') {
+          initialData[field.label] = 0;
+        } else {
+          initialData[field.label] = '';
+        }
+      });
+      
+      setSpecFormData(initialData);
+      setGeneratedFields(fields);
+    } catch (error) {
+      console.error('Error generating fields:', error);
+      alert(error instanceof Error ? error.message : 'Failed to generate fields. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleSpecInputChange = (label: string, value: string | number | string[]) => {
+    setSpecFormData((prev) => ({ ...prev, [label]: value }));
+  };
+
+  const handleAddGeneratedProductToEnquiry = async () => {
+    if (!generatedFields) return;
+
+    // Require authentication
+    if (!requireAuth()) {
+      return;
+    }
+
+    const token = getAuthToken();
+    if (!token) {
+      requireAuth();
+      return;
+    }
+
+    try {
+      // Convert form data to userAttributes format
+      const userAttributes: Record<string, any> = {};
+      Object.entries(specFormData).forEach(([label, value]) => {
+        if (value !== '' && value !== 0 && value !== null && value !== undefined) {
+          userAttributes[label] = value;
+        }
+      });
+
+      // Create product item
+      const newProduct = await addProductItem(token, {
+        productSource: 'ai_generated',
+        displayName: generatedFields.item || productKeyword,
+        category: generatedFields.item || 'General',
+        userAttributes: userAttributes,
+        adminProductId: null,
+        externalRef: null,
+      });
+
+      // Reload product sheet items
+      await loadProducts();
+
+      // Add to selected products
+      if (newProduct._id) {
+        setNewEnquirySelectedProductIds((prev) => [...prev, newProduct._id]);
+      }
+
+      // Close modal and reset
+      handleCloseGenerateProductModal();
+      alert('Product generated and added to enquiry successfully!');
+    } catch (error: any) {
+      console.error('Error adding generated product:', error);
+      alert(error.message || 'Failed to add product. Please try again.');
+    }
+  };
+
+  const handleSaveNewEnquiry = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Require authentication before saving enquiry
+    if (!requireAuth()) {
+      return;
+    }
     
     if (!enquiryName.trim()) {
       alert('Please enter an enquiry name');
       return;
     }
 
-    const newEnquiry: Enquiry = {
-      id: `enquiry_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      name: enquiryName.trim(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      shippingAddress: shippingAddress,
-    };
+    // Validate required address fields
+    if (!shippingAddress.addressLine1.trim() || !shippingAddress.city.trim() || 
+        !shippingAddress.state.trim() || !shippingAddress.zipCode.trim() || 
+        !shippingAddress.country.trim()) {
+      alert('Please fill in all required shipping address fields.');
+      return;
+    }
 
-    saveEnquiry(newEnquiry);
-    loadEnquiries();
+    if (!billingAddress.addressLine1.trim() || !billingAddress.city.trim() || 
+        !billingAddress.state.trim() || !billingAddress.zipCode.trim() || 
+        !billingAddress.country.trim()) {
+      alert('Please fill in all required billing address fields.');
+      return;
+    }
+
+    if (!expectedDeliveryDate) {
+      alert('Please select an expected delivery date.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        requireAuth();
+        return;
+      }
+
+      await createEnquiry(token, {
+        enquiryName: enquiryName.trim(),
+        shippingAddress: {
+          addressLine1: shippingAddress.addressLine1,
+          addressLine2: shippingAddress.addressLine2 || undefined,
+          city: shippingAddress.city,
+          state: shippingAddress.state,
+          zipCode: shippingAddress.zipCode,
+          country: shippingAddress.country,
+          phone: shippingAddress.phone || undefined,
+          email: shippingAddress.email || undefined,
+        },
+        billingAddress: {
+          addressLine1: billingAddress.addressLine1,
+          addressLine2: billingAddress.addressLine2 || undefined,
+          city: billingAddress.city,
+          state: billingAddress.state,
+          zipCode: billingAddress.zipCode,
+          country: billingAddress.country,
+          phone: billingAddress.phone || undefined,
+          email: billingAddress.email || undefined,
+        },
+        expectedDeliveryDate: new Date(expectedDeliveryDate).toISOString(),
+        enquiryStatus: enquiryStatus,
+        enquiryNotes: enquiryNotes || undefined,
+        enquiryProducts: newEnquirySelectedProductIds.length > 0 ? newEnquirySelectedProductIds : [],
+      });
+
+      await loadEnquiries();
     handleCloseNewEnquiryModal();
+    } catch (error: any) {
+      console.error('Error creating enquiry:', error);
+      alert(error.message || 'Failed to create enquiry. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleOpenProductModal = (enquiryId: string) => {
+    // Require authentication before opening product modal
+    if (!requireAuth()) {
+      return;
+    }
+
     setSelectedEnquiryId(enquiryId);
-    const allProducts = getStoredProducts();
-    setModalProducts(allProducts);
+    setModalProducts(productSheetItems);
     
     // Load existing enquiry to get already added products
-    const enquiries = getStoredEnquiries();
-    const enquiry = enquiries.find((e) => e.id === enquiryId);
+    const enquiry = enquiries.find((e) => e._id === enquiryId);
     
-    // Initialize quantities, delivery dates, and target prices
-    const initialQuantities: Record<string, number> = {};
-    const initialDeliveryDates: Record<string, string> = {};
-    const initialTargetPrices: Record<string, number> = {};
+    // Initialize selected products list
+    const enquiryProductIds = enquiry?.enquiryProducts?.map((p: any) => 
+      typeof p === 'string' ? p : p._id || p
+    ) || [];
+    setSelectedProductIds(enquiryProductIds);
     
-    allProducts.forEach((product) => {
-      // Check if product is already in enquiry
-      const existingProduct = enquiry?.products?.find((p) => p.productId === product.id);
-      if (existingProduct) {
-        initialQuantities[product.id] = existingProduct.quantity;
-        initialDeliveryDates[product.id] = existingProduct.deliveryDate;
-        initialTargetPrices[product.id] = existingProduct.targetPrice;
-      } else {
-        initialQuantities[product.id] = 1;
-        initialDeliveryDates[product.id] = '';
-        initialTargetPrices[product.id] = 0;
-      }
-    });
-    
-    setProductQuantities(initialQuantities);
-    setProductDeliveryDates(initialDeliveryDates);
-    setProductTargetPrices(initialTargetPrices);
     setIsProductModalOpen(true);
     // Trigger animation
     setTimeout(() => setIsDrawerAnimating(true), 10);
@@ -359,123 +725,59 @@ export default function EnquiriesPage() {
       setIsProductModalOpen(false);
       setSelectedEnquiryId(null);
       setModalProducts([]);
-      setProductQuantities({});
-      setProductDeliveryDates({});
-      setProductTargetPrices({});
+      setSelectedProductIds([]);
     }, 300);
   };
 
-  const handleQuantityChange = (productId: string, newQuantity: number) => {
-    if (newQuantity < 1) return;
-    setProductQuantities((prev) => ({
-      ...prev,
-      [productId]: newQuantity,
-    }));
-  };
-
-  const handleRemoveProduct = (productId: string) => {
-    setModalProducts((prev) => prev.filter((p) => p.id !== productId));
-    setProductQuantities((prev) => {
-      const updated = { ...prev };
-      delete updated[productId];
-      return updated;
-    });
-    setProductDeliveryDates((prev) => {
-      const updated = { ...prev };
-      delete updated[productId];
-      return updated;
-    });
-    setProductTargetPrices((prev) => {
-      const updated = { ...prev };
-      delete updated[productId];
-      return updated;
+  const handleToggleProductSelection = (productId: string) => {
+    setSelectedProductIds((prev) => {
+      if (prev.includes(productId)) {
+        return prev.filter((id) => id !== productId);
+      } else {
+        return [...prev, productId];
+      }
     });
   };
 
-  const handleAddProductToEnquiry = (productId: string) => {
-    if (!selectedEnquiryId) return;
-
-    const enquiries = getStoredEnquiries();
-    const enquiry = enquiries.find((e) => e.id === selectedEnquiryId);
-    
-    if (!enquiry) return;
-
-    const enquiryProduct: EnquiryProduct = {
-      productId,
-      quantity: productQuantities[productId] || 1,
-      deliveryDate: productDeliveryDates[productId] || '',
-      targetPrice: productTargetPrices[productId] || 0,
-    };
-
-    // Update or add the product to the enquiry
-    const updatedProducts = enquiry.products || [];
-    const existingIndex = updatedProducts.findIndex((p) => p.productId === productId);
-    
-    if (existingIndex >= 0) {
-      updatedProducts[existingIndex] = enquiryProduct;
-    } else {
-      updatedProducts.push(enquiryProduct);
+  const handleAddProductsToEnquiry = async () => {
+    // Require authentication before adding products
+    if (!requireAuth()) {
+      return;
     }
 
-    const updatedEnquiry: Enquiry = {
-      ...enquiry,
-      products: updatedProducts,
-      updatedAt: new Date().toISOString(),
-    };
+    if (!selectedEnquiryId) return;
 
-    saveEnquiry(updatedEnquiry);
-    loadEnquiries();
-    // Force re-render of drawer to update button states
-    setEnquiryProductsUpdate((prev) => prev + 1);
+    const token = getAuthToken();
+    if (!token) {
+      requireAuth();
+      return;
+    }
+
+    try {
+      await updateEnquiry(token, selectedEnquiryId, {
+        enquiryProducts: selectedProductIds,
+      });
+
+      await loadEnquiries();
+
+      // Show success message
+      const enquiry = enquiries.find((e) => e._id === selectedEnquiryId);
+      alert(`Successfully added ${selectedProductIds.length} product(s) to "${enquiry?.enquiryName || 'enquiry'}".`);
+      
+      // Close the drawer
+      handleCloseProductModal();
+    } catch (error: any) {
+      console.error('Error updating enquiry:', error);
+      alert(error.message || 'Failed to add products. Please try again.');
+    }
   };
 
   const isProductAddedToEnquiry = (productId: string): boolean => {
-    if (!selectedEnquiryId) return false;
-    const enquiries = getStoredEnquiries();
-    const enquiry = enquiries.find((e) => e.id === selectedEnquiryId);
-    return enquiry?.products?.some((p) => p.productId === productId) || false;
+    return selectedProductIds.includes(productId);
   };
 
   const getAddedProductsCount = (): number => {
-    if (!selectedEnquiryId) return 0;
-    const enquiries = getStoredEnquiries();
-    const enquiry = enquiries.find((e) => e.id === selectedEnquiryId);
-    return enquiry?.products?.length || 0;
-  };
-
-  const handleAddAllProductsToEnquiry = () => {
-    if (!selectedEnquiryId) return;
-
-    const enquiries = getStoredEnquiries();
-    const enquiry = enquiries.find((e) => e.id === selectedEnquiryId);
-    
-    if (!enquiry) return;
-
-    // Get all products currently in the drawer
-    const updatedProducts: EnquiryProduct[] = modalProducts.map((product) => {
-      return {
-        productId: product.id,
-        quantity: productQuantities[product.id] || 1,
-        deliveryDate: productDeliveryDates[product.id] || '',
-        targetPrice: productTargetPrices[product.id] || 0,
-      };
-    });
-
-    // Update the enquiry with all products
-    const updatedEnquiry: Enquiry = {
-      ...enquiry,
-      products: updatedProducts,
-      updatedAt: new Date().toISOString(),
-    };
-
-    saveEnquiry(updatedEnquiry);
-    loadEnquiries();
-    
-    // Show success message
-    alert(`Successfully added ${updatedProducts.length} product(s) to "${enquiry.name}".`);
-    
-    // Close the drawer
-    handleCloseProductModal();
+    return selectedProductIds.length;
   };
 
   const openSpecModal = (items: string[], title?: string) => {
@@ -491,8 +793,10 @@ export default function EnquiriesPage() {
         onNewChat={handleNewChat}
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
-        currentUser={null}
-        onLogout={() => {}}
+        currentUser={currentUser}
+        onLogout={() => {
+          router.push('/login');
+        }}
       />
 
       {/* Main Content Area */}
@@ -561,7 +865,13 @@ export default function EnquiriesPage() {
               </div>
 
               {/* Enquiries Accordion */}
-              {enquiries.length === 0 ? (
+              {isLoading ? (
+                <div className="flex h-full items-center justify-center min-h-[400px]">
+                  <div className="text-center">
+                    <p className="text-gray-400">Loading enquiries...</p>
+                  </div>
+                </div>
+              ) : enquiries.length === 0 ? (
                 <div className="flex h-full items-center justify-center min-h-[400px]">
                   <div className="text-center">
                     <svg
@@ -582,31 +892,28 @@ export default function EnquiriesPage() {
                       No enquiries yet
                     </h3>
                     <p className="text-gray-500 mb-6">
-                      Create your first enquiry from the brief page
+                      Create your first enquiry
                     </p>
-                    <button
-                      onClick={() => router.push('/brief')}
-                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-                    >
-                      Go to Brief Page
-                    </button>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {enquiries.map((enquiry) => {
-                    const isExpanded = expandedEnquiries.has(enquiry.id);
-                    const enquiryProducts = enquiry.products || [];
+                    const enquiryId = enquiry._id || '';
+                    const isExpanded = expandedEnquiries.has(enquiryId);
+                    const enquiryProducts = Array.isArray(enquiry.enquiryProducts) 
+                      ? enquiry.enquiryProducts 
+                      : [];
                     const totalProducts = enquiryProducts.length;
 
                     return (
                       <div
-                        key={enquiry.id}
+                        key={enquiryId}
                         className="bg-[#40414F] rounded-lg border border-gray-700 overflow-hidden"
                       >
                         {/* Accordion Header */}
                         <button
-                          onClick={() => toggleEnquiry(enquiry.id)}
+                          onClick={() => toggleEnquiry(enquiryId)}
                           className="w-full flex items-center justify-between p-4 hover:bg-[#4A4B5A] transition-colors"
                         >
                           <div className="flex items-center gap-4 flex-1 text-left">
@@ -629,18 +936,20 @@ export default function EnquiriesPage() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <h3 className="text-lg font-semibold text-white mb-1">
-                                {enquiry.name}
+                                {enquiry.enquiryName}
                               </h3>
                               <div className="flex items-center gap-4 text-sm text-gray-400">
                                 <span>
                                   {totalProducts} product{totalProducts !== 1 ? 's' : ''}
                                 </span>
                                 <span>•</span>
-                                <span>Created {formatDate(enquiry.createdAt)}</span>
-                                {enquiry.updatedAt !== enquiry.createdAt && (
+                                <span>Status: {enquiry.enquiryStatus || 'draft'}</span>
+                                <span>•</span>
+                                <span>Created {formatDate(enquiry.createdAt as string)}</span>
+                                {enquiry.updatedAt && enquiry.updatedAt !== enquiry.createdAt && (
                                   <>
                                     <span>•</span>
-                                    <span>Updated {formatDate(enquiry.updatedAt)}</span>
+                                    <span>Updated {formatDate(enquiry.updatedAt as string)}</span>
                                   </>
                                 )}
                               </div>
@@ -655,7 +964,7 @@ export default function EnquiriesPage() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleOpenProductModal(enquiry.id);
+                                handleOpenProductModal(enquiryId);
                               }}
                               className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-1.5"
                               aria-label="Add product"
@@ -678,16 +987,16 @@ export default function EnquiriesPage() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                toggleEnquiry(enquiry.id);
+                                toggleEnquiry(enquiryId);
                               }}
                               className="px-3 py-1.5 text-sm font-medium text-gray-200 bg-[#202123] hover:bg-gray-700 rounded-lg transition-colors"
                             >
                               {isExpanded ? 'Hide products' : 'View products'}
                             </button>
                             {/* 3-dot Menu */}
-                            <div className="relative" ref={(el) => { menuRefs.current[enquiry.id] = el; }}>
+                            <div className="relative" ref={(el) => { menuRefs.current[enquiryId] = el; }}>
                               <button
-                                onClick={(e) => toggleMenu(enquiry.id, e)}
+                                onClick={(e) => toggleMenu(enquiryId, e)}
                                 className="p-2 text-gray-400 hover:text-white hover:bg-[#4A4B5A] rounded-lg transition-colors"
                                 aria-label="Enquiry options"
                               >
@@ -708,10 +1017,10 @@ export default function EnquiriesPage() {
                               </button>
                               
                               {/* Dropdown Menu */}
-                              {openMenuId === enquiry.id && (
+                              {openMenuId === enquiryId && (
                                 <div className="absolute right-0 top-full mt-1 w-48 bg-[#40414F] border border-gray-600 rounded-lg shadow-lg z-10 overflow-hidden">
                                   <button
-                                    onClick={(e) => handleSubmitEnquiry(enquiry.id, e)}
+                                    onClick={(e) => handleSubmitEnquiry(enquiryId, e)}
                                     className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-[#4A4B5A] transition-colors flex items-center gap-2"
                                   >
                                     <svg
@@ -729,7 +1038,7 @@ export default function EnquiriesPage() {
                                     Submit Enquiry
                                   </button>
                                   <button
-                                    onClick={(e) => handleDeleteEnquiry(enquiry.id, e)}
+                                    onClick={(e) => handleDeleteEnquiry(enquiryId, e)}
                                     className="w-full px-4 py-2.5 text-left text-sm text-red-400 hover:bg-red-900/20 transition-colors flex items-center gap-2"
                                   >
                                     <svg
@@ -761,7 +1070,7 @@ export default function EnquiriesPage() {
                                 Products ({enquiryProducts.length})
                               </h4>
                               <button
-                                onClick={() => handleOpenProductModal(enquiry.id)}
+                                  onClick={() => handleOpenProductModal(enquiryId)}
                                 className="px-3 py-1.5 text-sm font-medium text-blue-400 bg-blue-600/20 hover:bg-blue-600/30 rounded-lg transition-colors flex items-center gap-1.5"
                                 aria-label="Add product"
                               >
@@ -785,7 +1094,7 @@ export default function EnquiriesPage() {
                               <div className="text-center py-8 text-gray-400">
                                 <p>No products added to this enquiry yet.</p>
                                 <button
-                                  onClick={() => handleOpenProductModal(enquiry.id)}
+                                  onClick={() => handleOpenProductModal(enquiryId)}
                                   className="mt-4 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
                                 >
                                   Add Products
@@ -793,18 +1102,40 @@ export default function EnquiriesPage() {
                               </div>
                             ) : (
                               <div className="space-y-4">
-                                {enquiryProducts.map((enquiryProduct, index) => {
-                                  const product = getProductById(enquiryProduct.productId);
-                                  if (!product) {
+                                {enquiryProducts.map((product: any, index: number) => {
+                                  // Handle both string IDs and populated product objects
+                                  const productId = typeof product === 'string' ? product : (product._id || product.id);
+                                  const productData = typeof product === 'string' 
+                                    ? getProductById(productId)
+                                    : product;
+                                  
+                                  if (!productData) {
                                     return (
                                       <div
                                         key={index}
                                         className="p-4 bg-[#343541] rounded-lg border border-gray-600 text-gray-400"
                                       >
-                                        Product not found (ID: {enquiryProduct.productId})
+                                        Product not found (ID: {productId})
                                       </div>
                                     );
                                   }
+
+                                  // Extract specifications from userAttributes
+                                  const specifications: string[] = [];
+                                  if (productData.userAttributes) {
+                                    Object.entries(productData.userAttributes).forEach(([key, value]) => {
+                                      if (value !== '' && value !== 0 && value !== null) {
+                                        if (Array.isArray(value)) {
+                                          specifications.push(`${key}: ${value.join(', ')}`);
+                                        } else {
+                                          specifications.push(`${key}: ${value}`);
+                                        }
+                                      }
+                                    });
+                                  }
+
+                                  const imageLink = productData.userAttributes?.image_link || 
+                                                    productData.userAttributes?.Image_Attachment || '';
 
                                   return (
                                     <div
@@ -813,10 +1144,10 @@ export default function EnquiriesPage() {
                                     >
                                       {/* Product Image */}
                                       <div className="flex-shrink-0">
-                                        {product.image_link ? (
+                                        {imageLink ? (
                                           <img
-                                            src={product.image_link}
-                                            alt={product.name}
+                                            src={imageLink}
+                                            alt={productData.displayName || 'Product'}
                                             className="w-20 h-20 object-cover rounded-lg"
                                             onError={(e) => {
                                               (e.target as HTMLImageElement).src = '/placeholder-product.jpg';
@@ -848,19 +1179,21 @@ export default function EnquiriesPage() {
                                         <div className="flex items-start justify-between gap-4">
                                           <div className="flex-1">
                                             {/* Category */}
+                                            {productData.category && (
                                             <span className="inline-block px-2 py-0.5 bg-[#202123] text-gray-300 text-xs font-medium rounded-full mb-1">
-                                              {product.category.toUpperCase()}
+                                                {productData.category.toUpperCase()}
                                             </span>
+                                            )}
                                             
                                             {/* Product Name */}
                                             <h4 className="text-base font-semibold text-white mt-1 mb-2">
-                                              {product.name}
+                                              {productData.displayName || 'Unnamed Product'}
                                             </h4>
 
                                             {/* Specifications */}
-                                            {product.specifications.length > 0 && (
+                                            {specifications.length > 0 && (
                                               <div className="flex flex-wrap gap-2 mt-2 mb-3">
-                                                {product.specifications.slice(0, 3).map((spec, specIndex) => (
+                                                {specifications.slice(0, 3).map((spec, specIndex) => (
                                                   <span
                                                     key={specIndex}
                                                     className="text-xs px-2 py-1 bg-[#202123] text-gray-300 rounded"
@@ -868,50 +1201,18 @@ export default function EnquiriesPage() {
                                                     {spec}
                                                   </span>
                                                 ))}
-                                                {product.specifications.length > 3 && (
+                                                {specifications.length > 3 && (
                                                   <button
                                                     type="button"
-                                                    onClick={() => openSpecModal(product.specifications, product.name)}
+                                                    onClick={() => openSpecModal(specifications, productData.displayName)}
                                                     className="text-xs px-2 py-1 bg-[#202123] text-gray-400 rounded hover:text-white transition-colors"
                                                   >
-                                                    +{product.specifications.length - 3} more
+                                                    +{specifications.length - 3} more
                                                   </button>
                                                 )}
                                               </div>
                                             )}
-
-                                            {/* Enquiry-Specific Details */}
-                                            <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-600">
-                                              <div>
-                                                <label className="block text-xs font-medium text-gray-400 mb-1">
-                                                  Quantity
-                                                </label>
-                                                <p className="text-sm text-white font-medium">
-                                                  {enquiryProduct.quantity}
-                                                </p>
                                               </div>
-                                              <div>
-                                                <label className="block text-xs font-medium text-gray-400 mb-1">
-                                                  Expected Delivery
-                                                </label>
-                                                <p className="text-sm text-white">
-                                                  {enquiryProduct.deliveryDate
-                                                    ? formatDate(enquiryProduct.deliveryDate)
-                                                    : 'Not set'}
-                                                </p>
-                                              </div>
-                                              <div>
-                                                <label className="block text-xs font-medium text-gray-400 mb-1">
-                                                  Target Price
-                                                </label>
-                                                <p className="text-sm text-white font-medium">
-                                                  {enquiryProduct.targetPrice > 0
-                                                    ? `$${enquiryProduct.targetPrice.toFixed(2)}`
-                                                    : 'Not set'}
-                                                </p>
-                                              </div>
-                                            </div>
-                                          </div>
                                         </div>
                                       </div>
                                     </div>
@@ -971,8 +1272,14 @@ export default function EnquiriesPage() {
             <form onSubmit={handleSubmitEnquiryForm} className="p-6">
               <div className="mb-4">
                 <p className="text-sm text-gray-400 mb-4">
-                  Please provide the shipping address for this enquiry.
+                  Please provide the shipping and billing addresses for this enquiry.
                 </p>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-4">Shipping Address</h3>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -1105,7 +1412,8 @@ export default function EnquiriesPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
+                  disabled={isSubmitting}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
                 >
                   <svg
                     width="16"
@@ -1119,7 +1427,7 @@ export default function EnquiriesPage() {
                   >
                     <polyline points="20 6 9 17 4 12"></polyline>
                   </svg>
-                  Submit Enquiry
+                  {isSubmitting ? 'Submitting...' : 'Submit Enquiry'}
                 </button>
               </div>
             </form>
@@ -1203,17 +1511,20 @@ export default function EnquiriesPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {modalProducts.map((product) => (
+                      {modalProducts.map((product: ProductSheetItem) => (
                     <div
-                      key={product.id}
+                      key={product._id}
                       className="flex items-start gap-4 p-4 border border-gray-700 rounded-lg hover:bg-[#2d2d2d] transition-colors"
                     >
                       {/* Product Image */}
                       <div className="flex-shrink-0">
-                        {product.image_link ? (
+                        {(() => {
+                          const imageLink = product.userAttributes?.image_link || 
+                                            product.userAttributes?.Image_Attachment || '';
+                          return imageLink ? (
                           <img
-                            src={product.image_link}
-                            alt={product.name}
+                              src={imageLink}
+                              alt={product.displayName || 'Product'}
                             className="w-20 h-20 object-cover rounded-lg"
                             onError={(e) => {
                               (e.target as HTMLImageElement).src = '/placeholder-product.jpg';
@@ -1237,7 +1548,8 @@ export default function EnquiriesPage() {
                               <polyline points="21 15 16 10 5 21"></polyline>
                             </svg>
                           </div>
-                        )}
+                          );
+                        })()}
                       </div>
 
                       {/* Product Details */}
@@ -1245,19 +1557,34 @@ export default function EnquiriesPage() {
                         <div className="flex flex-col gap-3">
                           <div className="flex-1">
                             {/* Category */}
+                            {product.category && (
                             <span className="inline-block px-2 py-0.5 bg-[#202123] text-gray-300 text-xs font-medium rounded-full mb-1">
                               {product.category.toUpperCase()}
                             </span>
+                            )}
                             
                             {/* Product Name */}
                             <h3 className="text-base font-semibold text-white mt-1 mb-2">
-                              {product.name}
+                              {product.displayName || 'Unnamed Product'}
                             </h3>
 
                             {/* Specifications */}
-                            {product.specifications.length > 0 && (
+                            {(() => {
+                              const specifications: string[] = [];
+                              if (product.userAttributes) {
+                                Object.entries(product.userAttributes).forEach(([key, value]) => {
+                                  if (value !== '' && value !== 0 && value !== null) {
+                                    if (Array.isArray(value)) {
+                                      specifications.push(`${key}: ${value.join(', ')}`);
+                                    } else {
+                                      specifications.push(`${key}: ${value}`);
+                                    }
+                                  }
+                                });
+                              }
+                              return specifications.length > 0 ? (
                               <div className="flex flex-wrap gap-2 mt-2">
-                                {product.specifications.slice(0, 3).map((spec, index) => (
+                                  {specifications.slice(0, 3).map((spec, index) => (
                                   <span
                                     key={index}
                                     className="text-xs px-2 py-1 bg-[#202123] text-gray-300 rounded"
@@ -1265,123 +1592,32 @@ export default function EnquiriesPage() {
                                     {spec}
                                   </span>
                                 ))}
-                                {product.specifications.length > 3 && (
+                                  {specifications.length > 3 && (
                                   <span className="text-xs px-2 py-1 bg-[#202123] text-gray-400 rounded">
-                                    +{product.specifications.length - 3} more
+                                      +{specifications.length - 3} more
                                   </span>
                                 )}
                               </div>
-                            )}
-
-                            {/* Added Date */}
-                            <p className="text-xs text-gray-400 mt-2">
-                              Added {product.addedDate}
-                            </p>
-                          </div>
-
-                          {/* Expected Delivery Date and Target Price Fields */}
-                          <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-gray-700">
-                            {/* Expected Delivery Date */}
-                            <div className="space-y-1">
-                              <label className="block text-xs font-medium text-gray-300">
-                                Expected Delivery Date
-                              </label>
-                              <input
-                                type="date"
-                                value={productDeliveryDates[product.id] || ''}
-                                onChange={(e) => {
-                                  setProductDeliveryDates((prev) => ({
-                                    ...prev,
-                                    [product.id]: e.target.value,
-                                  }));
-                                }}
-                                className="w-full px-3 py-1.5 text-sm text-white bg-[#202123] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              />
-                            </div>
-
-                            {/* Target Price */}
-                            <div className="space-y-1">
-                              <label className="block text-xs font-medium text-gray-300">
-                                Target Price
-                              </label>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={productTargetPrices[product.id] || ''}
-                                onChange={(e) => {
-                                  const value = parseFloat(e.target.value) || 0;
-                                  setProductTargetPrices((prev) => ({
-                                    ...prev,
-                                    [product.id]: value,
-                                  }));
-                                }}
-                                placeholder="0.00"
-                                className="w-full px-3 py-1.5 text-sm text-white bg-[#202123] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
-                              />
-                            </div>
+                              ) : null;
+                            })()}
                           </div>
                         </div>
                       </div>
 
-                      {/* Quantity Controls, Add Button, and Remove Button */}
+                      {/* Toggle Selection Button */}
                       <div className="flex flex-col items-end gap-3 flex-shrink-0">
-                        {/* Quantity Controls */}
-                        <div className="flex items-center gap-2 border border-gray-600 rounded-lg">
-                          <button
-                            onClick={() => handleQuantityChange(product.id, (productQuantities[product.id] || 1) - 1)}
-                            className="px-2 py-1.5 text-gray-400 hover:bg-[#2d2d2d] rounded-l-lg transition-colors"
-                            disabled={(productQuantities[product.id] || 1) <= 1}
-                          >
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <line x1="5" y1="12" x2="19" y2="12"></line>
-                            </svg>
-                          </button>
-                          <input
-                            type="number"
-                            min="1"
-                            value={productQuantities[product.id] || 1}
-                            onChange={(e) => {
-                              const value = parseInt(e.target.value) || 1;
-                              handleQuantityChange(product.id, Math.max(1, value));
-                            }}
-                            className="w-16 px-2 py-1.5 text-center text-sm text-white bg-[#202123] border-0 focus:outline-none focus:ring-0"
-                          />
-                          <button
-                            onClick={() => handleQuantityChange(product.id, (productQuantities[product.id] || 1) + 1)}
-                            className="px-2 py-1.5 text-gray-400 hover:bg-[#2d2d2d] rounded-r-lg transition-colors"
-                          >
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <line x1="12" y1="5" x2="12" y2="19"></line>
-                              <line x1="5" y1="12" x2="19" y2="12"></line>
-                            </svg>
-                          </button>
-                        </div>
 
-                        {/* Add Button */}
-                        {isProductAddedToEnquiry(product.id) ? (
+                        {/* Toggle Selection Button */}
                           <button
-                            disabled
-                            className="px-4 py-2 bg-green-600/20 text-green-400 rounded-lg cursor-not-allowed flex items-center gap-2 text-sm font-medium"
-                          >
+                          onClick={() => handleToggleProductSelection(product._id || '')}
+                          className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium ${
+                            isProductAddedToEnquiry(product._id || '')
+                              ? 'bg-green-600/20 text-green-400'
+                              : 'bg-blue-600 hover:bg-blue-700 text-white'
+                          }`}
+                        >
+                          {isProductAddedToEnquiry(product._id || '') ? (
+                            <>
                             <svg
                               width="16"
                               height="16"
@@ -1394,13 +1630,10 @@ export default function EnquiriesPage() {
                             >
                               <polyline points="20 6 9 17 4 12"></polyline>
                             </svg>
-                            Added
-                          </button>
+                              Selected
+                            </>
                         ) : (
-                          <button
-                            onClick={() => handleAddProductToEnquiry(product.id)}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-medium"
-                          >
+                            <>
                             <svg
                               width="16"
                               height="16"
@@ -1414,29 +1647,9 @@ export default function EnquiriesPage() {
                               <line x1="12" y1="5" x2="12" y2="19"></line>
                               <line x1="5" y1="12" x2="19" y2="12"></line>
                             </svg>
-                            Add
-                          </button>
-                        )}
-
-                        {/* Remove Button */}
-                        <button
-                          onClick={() => handleRemoveProduct(product.id)}
-                          className="p-2 hover:bg-red-600/20 rounded-lg transition-colors text-red-400"
-                          aria-label="Remove product"
-                        >
-                          <svg
-                            width="18"
-                            height="18"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <polyline points="3 6 5 6 21 6"></polyline>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                          </svg>
+                              Select
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>
@@ -1464,8 +1677,8 @@ export default function EnquiriesPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={handleAddAllProductsToEnquiry}
-                  disabled={modalProducts.length === 0}
+                  onClick={handleAddProductsToEnquiry}
+                  disabled={selectedProductIds.length === 0}
                   className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
                 >
                   <svg
@@ -1481,7 +1694,7 @@ export default function EnquiriesPage() {
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
                   </svg>
-                  Add to Enquiry
+                  Add {selectedProductIds.length > 0 ? `${selectedProductIds.length} ` : ''}Product{selectedProductIds.length !== 1 ? 's' : ''} to Enquiry
                 </button>
               </div>
             </div>
@@ -1541,25 +1754,32 @@ export default function EnquiriesPage() {
         </div>
       )}
 
-      {/* New Enquiry Modal */}
+      {/* New Enquiry Sidebar */}
       {isNewEnquiryModalOpen && (
+        <>
+          {/* Overlay */}
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+            className="fixed inset-0 bg-black/50 z-40"
           onClick={handleCloseNewEnquiryModal}
-        >
-          <div 
-            className="bg-[#40414F] rounded-lg shadow-xl max-w-md w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
+          />
+          
+          {/* Sidebar */}
+          <div className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl bg-[#40414F] shadow-xl transform transition-transform duration-300 ease-in-out">
+            <div className="flex h-full flex-col">
+              {/* Sidebar Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-600">
+                <div>
               <h2 className="text-xl font-semibold text-white">
-                New Enquiry
+                    Create new enquiry
               </h2>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Fill in the details to create a new enquiry
+                  </p>
+                </div>
               <button
                 onClick={handleCloseNewEnquiryModal}
                 className="p-2 hover:bg-[#4A4B5A] rounded-lg transition-colors text-gray-400 hover:text-white"
-                aria-label="Close modal"
+                  aria-label="Close sidebar"
               >
                 <svg
                   width="24"
@@ -1577,26 +1797,66 @@ export default function EnquiriesPage() {
               </button>
             </div>
 
-            {/* Modal Body */}
-            <form onSubmit={handleSaveNewEnquiry} className="p-6 space-y-4">
+              {/* Sidebar Body */}
+              <div className="flex-1 overflow-y-auto">
+                <form onSubmit={handleSaveNewEnquiry} className="p-6 space-y-6">
+                  {/* Enquiry Details Section */}
               <div className="space-y-4">
+                    <div className="flex items-center gap-2 mb-4">
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="text-gray-300"
+                      >
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                      </svg>
+                      <h3 className="text-lg font-semibold text-white">Enquiry Details</h3>
+                    </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Enquiry Name
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
+                        Enquiry Name <span className="text-red-400">*</span>
                   </label>
                   <input
                     type="text"
                     value={enquiryName}
                     onChange={(e) => setEnquiryName(e.target.value)}
-                    placeholder="Enter enquiry name"
-                    className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
+                        placeholder="e.g., Office Furniture Order Q1"
+                        className="w-full rounded-lg border border-teal-300 bg-[#343541] px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                     autoFocus
                     required
                   />
+                    </div>
                 </div>
 
-                {/* Shipping Address (same as submit enquiry form) */}
-                <div className="space-y-4">
+                  {/* Shipping Address Section */}
+                  <div className="space-y-4 pt-4 border-t border-gray-600">
+                    <div className="flex items-center gap-2 mb-4">
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="text-gray-300"
+                      >
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                      </svg>
+                      <h3 className="text-lg font-semibold text-white">Shipping Address</h3>
+                    </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
                       Address Line 1 <span className="text-red-400">*</span>
@@ -1609,10 +1869,9 @@ export default function EnquiriesPage() {
                       }
                       placeholder="Street address, P.O. box"
                       required
-                      className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
+                        className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500"
                     />
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
                       Address Line 2
@@ -1624,10 +1883,9 @@ export default function EnquiriesPage() {
                         setShippingAddress((prev) => ({ ...prev, addressLine2: e.target.value }))
                       }
                       placeholder="Apartment, suite, unit, building, floor, etc."
-                      className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
+                        className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500"
                     />
                   </div>
-
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -1641,7 +1899,7 @@ export default function EnquiriesPage() {
                         }
                         placeholder="City"
                         required
-                        className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
+                          className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500"
                       />
                     </div>
                     <div>
@@ -1656,11 +1914,10 @@ export default function EnquiriesPage() {
                         }
                         placeholder="State or Province"
                         required
-                        className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
+                          className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500"
                       />
                     </div>
                   </div>
-
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -1674,7 +1931,7 @@ export default function EnquiriesPage() {
                         }
                         placeholder="ZIP or Postal Code"
                         required
-                        className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
+                          className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500"
                       />
                     </div>
                     <div>
@@ -1689,11 +1946,10 @@ export default function EnquiriesPage() {
                         }
                         placeholder="Country"
                         required
-                        className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
+                          className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500"
                       />
                     </div>
                   </div>
-
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -1706,7 +1962,7 @@ export default function EnquiriesPage() {
                           setShippingAddress((prev) => ({ ...prev, phone: e.target.value }))
                         }
                         placeholder="Phone number"
-                        className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
+                          className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500"
                       />
                     </div>
                     <div>
@@ -1720,30 +1976,689 @@ export default function EnquiriesPage() {
                           setShippingAddress((prev) => ({ ...prev, email: e.target.value }))
                         }
                         placeholder="Email address"
-                        className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-500"
+                          className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500"
                       />
                     </div>
+                    </div>
+                  </div>
+
+                  {/* Billing Address Section */}
+                  <div className="space-y-4 pt-4 border-t border-gray-600">
+                    <div className="flex items-center gap-2 mb-4">
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="text-gray-300"
+                      >
+                        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                        <line x1="1" y1="10" x2="23" y2="10"></line>
+                      </svg>
+                      <h3 className="text-lg font-semibold text-white">Billing Address</h3>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Address Line 1 <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={billingAddress.addressLine1}
+                        onChange={(e) =>
+                          setBillingAddress((prev) => ({ ...prev, addressLine1: e.target.value }))
+                        }
+                        placeholder="Street address, P.O. box"
+                        required
+                        className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Address Line 2
+                      </label>
+                      <input
+                        type="text"
+                        value={billingAddress.addressLine2}
+                        onChange={(e) =>
+                          setBillingAddress((prev) => ({ ...prev, addressLine2: e.target.value }))
+                        }
+                        placeholder="Apartment, suite, unit, building, floor, etc."
+                        className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          City <span className="text-red-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={billingAddress.city}
+                          onChange={(e) =>
+                            setBillingAddress((prev) => ({ ...prev, city: e.target.value }))
+                          }
+                          placeholder="City"
+                          required
+                          className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          State/Province <span className="text-red-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={billingAddress.state}
+                          onChange={(e) =>
+                            setBillingAddress((prev) => ({ ...prev, state: e.target.value }))
+                          }
+                          placeholder="State or Province"
+                          required
+                          className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          ZIP/Postal Code <span className="text-red-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={billingAddress.zipCode}
+                          onChange={(e) =>
+                            setBillingAddress((prev) => ({ ...prev, zipCode: e.target.value }))
+                          }
+                          placeholder="ZIP or Postal Code"
+                          required
+                          className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Country <span className="text-red-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={billingAddress.country}
+                          onChange={(e) =>
+                            setBillingAddress((prev) => ({ ...prev, country: e.target.value }))
+                          }
+                          placeholder="Country"
+                          required
+                          className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Phone Number
+                        </label>
+                        <input
+                          type="tel"
+                          value={billingAddress.phone}
+                          onChange={(e) =>
+                            setBillingAddress((prev) => ({ ...prev, phone: e.target.value }))
+                          }
+                          placeholder="Phone number"
+                          className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Email Address
+                        </label>
+                        <input
+                          type="email"
+                          value={billingAddress.email}
+                          onChange={(e) =>
+                            setBillingAddress((prev) => ({ ...prev, email: e.target.value }))
+                          }
+                          placeholder="Email address"
+                          className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500"
+                        />
                   </div>
                 </div>
               </div>
 
-              {/* Modal Footer */}
-              <div className="flex items-center justify-end gap-3 mt-6 pt-6 border-t border-gray-600">
+                  {/* Expected Delivery Date Section */}
+                  <div className="space-y-4 pt-4 border-t border-gray-600">
+                    <div className="flex items-center gap-2 mb-1">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="text-gray-400"
+                      >
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                      </svg>
+                      <label className="block text-sm font-medium text-gray-300">
+                        Expected Delivery Date <span className="text-red-400">*</span>
+                      </label>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={expectedDeliveryDate}
+                        onChange={(e) => setExpectedDeliveryDate(e.target.value)}
+                        className="w-full rounded-lg border border-gray-600 bg-[#343541] px-3 py-2 pr-10 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                        placeholder="dd-mm-yyyy"
+                        required
+                      />
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
+                      >
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                      </svg>
+                    </div>
+                  </div>
+
+                  {/* Products Section */}
+                  <div className="space-y-4 pt-4 border-t border-gray-600">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <svg
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="text-gray-300"
+                        >
+                          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                          <line x1="3" y1="9" x2="21" y2="9"></line>
+                          <line x1="9" y1="21" x2="9" y2="9"></line>
+                        </svg>
+                        <h3 className="text-lg font-semibold text-white">
+                          Products ({newEnquirySelectedProductIds.length})
+                        </h3>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsNewEnquiryProductModalOpen(true);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-300 bg-[#343541] border border-gray-600 hover:bg-[#4A4B5A] rounded-lg transition-colors"
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <line x1="8" y1="6" x2="21" y2="6"></line>
+                            <line x1="8" y1="12" x2="21" y2="12"></line>
+                            <line x1="8" y1="18" x2="21" y2="18"></line>
+                            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                          </svg>
+                          Select
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsGenerateProductModalOpen(true);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-300 bg-[#343541] border border-gray-600 hover:bg-[#4A4B5A] rounded-lg transition-colors"
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                          </svg>
+                          Generate
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Products List or Empty State */}
+                    {newEnquirySelectedProductIds.length === 0 ? (
+                      <div className="border-2 border-dashed border-gray-600 rounded-lg p-12 flex flex-col items-center justify-center bg-[#343541]/50">
+                        <svg
+                          width="64"
+                          height="64"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="text-gray-500 mb-4"
+                        >
+                          <circle cx="9" cy="21" r="1"></circle>
+                          <circle cx="20" cy="21" r="1"></circle>
+                          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                        </svg>
+                        <p className="text-gray-400 font-medium mb-1">No products added yet</p>
+                        <p className="text-gray-500 text-sm text-center">
+                          Use Select or Generate buttons above
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {newEnquirySelectedProductIds.map((productId) => {
+                          const product = productSheetItems.find((p) => p._id === productId);
+                          if (!product) return null;
+                          return (
+                            <div
+                              key={productId}
+                              className="flex items-center justify-between p-3 bg-[#343541] rounded-lg border border-gray-600"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-white truncate">
+                                  {product.displayName || product.category || 'Unnamed Product'}
+                                </p>
+                                {product.category && (
+                                  <p className="text-xs text-gray-400 mt-0.5">{product.category}</p>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleNewEnquiryProductSelection(productId)}
+                                className="ml-2 px-2 py-1 text-xs text-red-400 hover:text-red-300"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="pt-4 border-t border-gray-600">
+                    <div className="flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={handleCloseNewEnquiryModal}
-                  className="px-4 py-2 text-gray-400 bg-[#343541] hover:bg-[#4A4B5A] rounded-lg transition-colors"
+                        className="px-4 py-2 text-sm font-medium text-gray-300 bg-[#343541] hover:bg-[#4A4B5A] rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                        disabled={isSubmitting}
+                        className="px-4 py-2 text-sm font-medium text-white bg-teal-500 hover:bg-teal-600 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg transition-colors"
                 >
-                  Create Enquiry
+                        {isSubmitting ? 'Creating...' : 'Create Enquiry'}
                 </button>
+                    </div>
               </div>
             </form>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* New Enquiry Product Selection Modal */}
+      {isNewEnquiryProductModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={handleCloseNewEnquiryProductModal}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-gray-600"
+                >
+                  <line x1="8" y1="6" x2="21" y2="6"></line>
+                  <line x1="8" y1="12" x2="21" y2="12"></line>
+                  <line x1="8" y1="18" x2="21" y2="18"></line>
+                  <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                  <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                  <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                </svg>
+                <h3 className="text-lg font-semibold text-gray-900">Select from Product Sheet</h3>
+              </div>
+              <button
+                onClick={handleCloseNewEnquiryProductModal}
+                className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body - Product List */}
+            <div className="flex-1 overflow-y-auto px-4 py-3">
+              {productSheetItems.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No products available in your product sheet.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {productSheetItems.map((product) => {
+                    const isSelected = newEnquirySelectedProductIds.includes(product._id || '');
+                    return (
+                      <div
+                        key={product._id}
+                        className="bg-white rounded-lg border border-gray-200 p-3 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-900">
+                              {product.displayName || product.category || 'Unnamed Product'}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-0.5">AI Generated</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleNewEnquiryProductSelection(product._id || '')}
+                            className={`ml-3 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                              isSelected
+                                ? 'bg-gray-100 text-gray-700 border-gray-300'
+                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {isSelected ? 'Added' : '+ Add'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-4 py-3 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={handleDoneNewEnquiryProductSelection}
+                className="w-full px-4 py-2 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generate Product with AI Modal */}
+      {isGenerateProductModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={handleCloseGenerateProductModal}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-md w-full h-[80vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-gray-600"
+                >
+                  <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                </svg>
+                <h3 className="text-lg font-semibold text-gray-900">Generate Product with AI</h3>
+              </div>
+              <button
+                onClick={handleCloseGenerateProductModal}
+                className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="px-4 py-4 flex-1 overflow-y-auto">
+              {!generatedFields ? (
+                <>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Enter product keyword
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={productKeyword}
+                      onChange={(e) => setProductKeyword(e.target.value)}
+                      placeholder="e.g., laptop, office chair, printer"
+                      className="flex-1 px-3 py-2 border border-teal-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-400"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          handleGenerateProduct();
+                        }
+                      }}
+                      disabled={isGenerating}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleGenerateProduct}
+                      disabled={isGenerating}
+                      className="px-4 py-2 bg-teal-500 hover:bg-teal-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center"
+                    >
+                      {isGenerating ? (
+                        <svg
+                          className="animate-spin"
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+                        </svg>
+                      ) : (
+                        <svg
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Enter a product type and AI will generate relevant specification fields
+                  </p>
+                </>
+              ) : (
+                <div className="bg-gray-100 rounded-lg p-4 space-y-4">
+                  {/* Product Header */}
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-base font-semibold text-gray-900">
+                      {generatedFields.item}
+                    </h4>
+                    <span className="text-xs text-gray-500">AI Generated</span>
+                  </div>
+
+                  {/* Generated Fields */}
+                  <div className="space-y-4">
+                    {generatedFields.fields.map((field, index) => (
+                      <div key={index} className="space-y-1">
+                        <label className="block text-sm font-medium text-gray-700">
+                          {field.label}
+                          {field.type !== 'textarea' && <span className="text-red-500 ml-1">*</span>}
+                        </label>
+                        {field.type === 'dropdown' && field.options ? (
+                          <CreatableSelect
+                            value={(specFormData[field.label] as string[]) || []}
+                            onChange={(value) => handleSpecInputChange(field.label, value)}
+                            options={field.options}
+                            placeholder={`Select ${field.label.toLowerCase()}`}
+                            required
+                            className="w-full"
+                          />
+                        ) : field.type === 'textarea' ? (
+                          <textarea
+                            value={(specFormData[field.label] as string) || ''}
+                            onChange={(e) => handleSpecInputChange(field.label, e.target.value)}
+                            placeholder={field.placeholder || `e.g., Specific brand preferences, desired features like touchscreen, backlit keyboard, ideal delivery date.`}
+                            rows={4}
+                            className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-y placeholder:text-gray-400"
+                          />
+                        ) : field.type === 'number' ? (
+                          <input
+                            type="number"
+                            value={(specFormData[field.label] as number) || ''}
+                            onChange={(e) => handleSpecInputChange(field.label, parseFloat(e.target.value) || 0)}
+                            placeholder={field.placeholder || `e.g., 50`}
+                            className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-400"
+                            required
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            value={(specFormData[field.label] as string) || ''}
+                            onChange={(e) => handleSpecInputChange(field.label, e.target.value)}
+                            placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                            className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-400"
+                            required
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-4 py-3 border-t border-gray-200 space-y-2">
+              {generatedFields ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleAddGeneratedProductToEnquiry}
+                    className="w-full px-4 py-2 text-sm font-medium text-white bg-teal-500 hover:bg-teal-600 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    + Add to Enquiry
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCloseGenerateProductModal}
+                    className="w-full px-4 py-2 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Close
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleCloseGenerateProductModal}
+                  className="w-full px-4 py-2 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Close
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Overlay */}
+      {isLoading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-[#40414F] rounded-lg p-6">
+            <p className="text-white">Loading enquiries...</p>
           </div>
         </div>
       )}

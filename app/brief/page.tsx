@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { generateFieldsFromDescription, GeneratedFieldsResponse } from '@/lib/api';
 import { saveProduct, getStoredProducts, deleteProduct, BriefProduct, getStoredEnquiries, saveEnquiry, deleteEnquiry, Enquiry, EnquiryProduct } from '@/lib/storage';
+import { requireAuth } from '@/lib/auth';
 import Sidebar from '@/components/Sidebar';
 import CreatableSelect from '@/components/CreatableSelect';
 
@@ -260,6 +261,11 @@ export default function BriefPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Require authentication before submitting
+    if (!requireAuth()) {
+      return;
+    }
+    
     if (isSubmitting) return;
     
     setIsSubmitting(true);
@@ -291,8 +297,17 @@ export default function BriefPage() {
         image_link: imageUrl.trim() || '',
       };
 
-      // Save to localStorage
+      // Save to localStorage (will throw if not authenticated)
+      try {
       saveProduct(briefProduct);
+      } catch (saveError: any) {
+        // If it's an authentication error, requireAuth will handle redirect
+        if (saveError.message && saveError.message.includes('logged in')) {
+          requireAuth();
+          return;
+        }
+        throw saveError;
+      }
       
       // Dispatch custom event to notify other components
       if (typeof window !== 'undefined') {
@@ -307,15 +322,25 @@ export default function BriefPage() {
       
       // Show success message
       alert('Product saved successfully!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving product:', error);
+      // Show user-friendly error message
+      if (error.message && error.message.includes('logged in')) {
+        setError('You must be logged in to save products. Please log in and try again.');
+      } else {
       setError('Failed to save product. Please try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleCreateEnquiry = () => {
+    // Require authentication before creating enquiry
+    if (!requireAuth()) {
+      return;
+    }
+
     setIsEnquiryModalOpen(true);
     setEnquiryName('');
     setShippingAddress({
@@ -347,6 +372,11 @@ export default function BriefPage() {
 
   const handleSaveEnquiry = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Require authentication before saving enquiry
+    if (!requireAuth()) {
+      return;
+    }
     
     if (!enquiryName.trim()) {
       alert('Please enter an enquiry name');
@@ -465,6 +495,11 @@ export default function BriefPage() {
   };
 
   const handleAddProductToEnquiry = (productId: string) => {
+    // Require authentication before adding product
+    if (!requireAuth()) {
+      return;
+    }
+
     if (!selectedEnquiryId) return;
 
     const enquiries = getStoredEnquiries();
@@ -516,6 +551,11 @@ export default function BriefPage() {
   };
 
   const handleAddAllProductsToEnquiry = () => {
+    // Require authentication before adding products
+    if (!requireAuth()) {
+      return;
+    }
+
     if (!selectedEnquiryId) return;
 
     const enquiries = getStoredEnquiries();

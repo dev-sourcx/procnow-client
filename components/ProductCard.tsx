@@ -1,7 +1,8 @@
 'use client';
 
-import { Product, generateFieldsFromKeyword, GeneratedFieldsResponse } from '@/lib/api';
-import { saveProduct, BriefProduct } from '@/lib/storage';
+import { Product, generateFieldsFromKeyword, GeneratedFieldsResponse, addProductItem } from '@/lib/api';
+import { getAuthToken } from '@/lib/storage';
+import { requireAuth } from '@/lib/auth';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import CreatableSelect from './CreatableSelect';
@@ -39,6 +40,11 @@ export default function ProductCard({
   const [dropdownOpen, setDropdownOpen] = useState<Record<string, boolean>>({});
 
   const handleAddClick = async () => {
+    // Require authentication before adding product
+    if (!requireAuth()) {
+      return;
+    }
+
     if (isLoading) return;
     
     setIsLoading(true);
@@ -204,6 +210,11 @@ export default function ProductCard({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Require authentication before submitting
+    if (!requireAuth()) {
+      return;
+    }
+    
     if (isSubmitting) return;
     
     setIsSubmitting(true);
@@ -221,22 +232,32 @@ export default function ProductCard({
           return `${key}: ${value}`;
         });
 
-      // Create product object for brief page
-      const briefProduct: BriefProduct = {
-        id: `product_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        name: product.product_name,
+      // Get auth token
+      const token = getAuthToken();
+      if (!token) {
+        requireAuth();
+        return;
+      }
+
+      // Map form data to userAttributes object
+      const userAttributes: Record<string, any> = {};
+      Object.entries(formData).forEach(([key, value]) => {
+        if (value !== '' && value !== 0 && value !== null && (Array.isArray(value) ? value.length > 0 : true)) {
+          userAttributes[key] = value;
+        }
+      });
+
+      // Prepare product item data for backend
+      const productItemPayload = {
+        productSource: 'user', // or 'admin' if from admin products
+        displayName: product.product_name,
         category: product.product_category || 'General',
-        specifications: specifications,
-        addedDate: new Date().toLocaleDateString('en-US', {
-          month: '2-digit',
-          day: '2-digit',
-          year: 'numeric',
-        }),
-        image_link: product.image_link || '',
+        externalRef: product._id || null, // Reference to original product
+        userAttributes: userAttributes,
       };
 
-      // Save to localStorage
-      saveProduct(briefProduct);
+      // Save to backend
+      await addProductItem(token, productItemPayload);
       
       // Dispatch custom event to notify other components
       if (typeof window !== 'undefined') {
@@ -248,9 +269,14 @@ export default function ProductCard({
       
       // Navigate to brief page
       router.push('/brief');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving product:', error);
+      // Show user-friendly error message
+      if (error.message && error.message.includes('logged in')) {
+        setError('You must be logged in to save products. Please log in and try again.');
+      } else {
       setError('Failed to save product. Please try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }

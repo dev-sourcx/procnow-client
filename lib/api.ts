@@ -4,39 +4,124 @@
 
 // Main backend (chat, products, etc.)
 const AI_API_URL = process.env.NEXT_PUBLIC_AI_API_URL || 'http://localhost:8000';
-// Separate auth backend (login/signup). Falls back to main API if not set.
-const API_URL = process.env.NEXT_PUBLIC_API_URL || AI_API_URL;
+// Separate auth backend (login/signup) - Node.js backend
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // ===== Auth types =====
 export interface SignupPayload {
   email: string;
   password: string;
-  phone_number: string;
+  name: string;
 }
 
 export interface TokenResponse {
-  access_token: string;
-  token_type: string;
+  token: string;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+  };
 }
 
 export interface CurrentUser {
   id: string;
   email: string;
-  phone_number: string;
+  name: string;
+}
+
+export interface ProductSheetItem {
+  _id?: string;
+  productSource: string;
+  adminProductId?: string | null;
+  externalRef?: string | null;
+  displayName?: string | null;
+  category?: string | null;
+  userAttributes?: Record<string, any>;
+}
+
+export interface ProductSheet {
+  id: string | null;
+  userId: string;
+  productSheetItems: ProductSheetItem[];
+  itemCount: number;
+}
+
+export interface AddProductItemPayload {
+  productSource: string;
+  adminProductId?: string;
+  externalRef?: string;
+  displayName?: string;
+  category?: string;
+  userAttributes?: Record<string, any>;
+}
+
+export interface Address {
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface Enquiry {
+  _id?: string;
+  userId: string;
+  enquiryName: string;
+  shippingAddress: Address;
+  billingAddress: Address;
+  expectedDeliveryDate: string | Date;
+  enquiryStatus: string;
+  enquiryNotes?: string;
+  attachment?: string;
+  enquiryProducts: ProductSheetItem[];
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
+}
+
+export interface CreateEnquiryPayload {
+  enquiryName: string;
+  shippingAddress: Address;
+  billingAddress: Address;
+  expectedDeliveryDate: string | Date;
+  enquiryStatus: string;
+  enquiryNotes?: string;
+  attachment?: string;
+  enquiryProducts: string[]; // Array of ProductSheetItem IDs
+}
+
+export interface UpdateEnquiryPayload {
+  enquiryName?: string;
+  shippingAddress?: Address;
+  billingAddress?: Address;
+  expectedDeliveryDate?: string | Date;
+  enquiryStatus?: string;
+  enquiryNotes?: string;
+  attachment?: string;
+  enquiryProducts?: string[];
 }
 
 export interface ApiErrorResponse {
   success?: boolean;
   message?: string;
+  error?: string;
   detail?: any;
+}
+
+export interface ApiSuccessResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
 }
 
 /**
  * Sign up a new user
- * Calls: POST /api/v1/auth/signup
+ * Calls: POST /api/auth/signup
  */
-export async function signup(payload: SignupPayload): Promise<void> {
-  const response = await fetch(`${API_URL}/api/v1/auth/signup`, {
+export async function signup(payload: SignupPayload): Promise<TokenResponse> {
+  const response = await fetch(`${API_URL}/api/auth/signup`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -44,25 +129,23 @@ export async function signup(payload: SignupPayload): Promise<void> {
     body: JSON.stringify(payload),
   });
 
-  if (!response.ok) {
-    let errorMessage = 'Signup failed';
-    try {
-      const data: ApiErrorResponse = await response.json();
-      if (data.message) errorMessage = data.message;
-    } catch {
-      const text = await response.text();
-      if (text) errorMessage = text;
-    }
+  const responseData: ApiSuccessResponse<TokenResponse> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    const errorMessage = errorResponse.message || errorResponse.error || 'Signup failed';
     throw new Error(errorMessage);
   }
+
+  return (responseData as ApiSuccessResponse<TokenResponse>).data;
 }
 
 /**
  * Log in a user and get JWT token
- * Calls: POST /api/v1/auth/login
+ * Calls: POST /api/auth/login
  */
 export async function login(email: string, password: string): Promise<TokenResponse> {
-  const response = await fetch(`${API_URL}/api/v1/auth/login`, {
+  const response = await fetch(`${API_URL}/api/auth/login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -70,27 +153,23 @@ export async function login(email: string, password: string): Promise<TokenRespo
     body: JSON.stringify({ email, password }),
   });
 
-  if (!response.ok) {
-    let errorMessage = 'Login failed';
-    try {
-      const data: ApiErrorResponse = await response.json();
-      if (data.message) errorMessage = data.message;
-    } catch {
-      const text = await response.text();
-      if (text) errorMessage = text;
-    }
+  const responseData: ApiSuccessResponse<TokenResponse> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    const errorMessage = errorResponse.message || errorResponse.error || 'Login failed';
     throw new Error(errorMessage);
   }
 
-  return response.json();
+  return (responseData as ApiSuccessResponse<TokenResponse>).data;
 }
 
 /**
  * Get the currently authenticated user using the stored JWT token
- * Calls: GET /api/v1/auth/me
+ * Calls: GET /api/auth/me
  */
 export async function getCurrentUser(token: string): Promise<CurrentUser> {
-  const response = await fetch(`${API_URL}/api/v1/auth/me`, {
+  const response = await fetch(`${API_URL}/api/auth/me`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -98,11 +177,229 @@ export async function getCurrentUser(token: string): Promise<CurrentUser> {
     },
   });
 
-  if (!response.ok) {
-    throw new Error('Not authenticated');
+  const responseData: ApiSuccessResponse<CurrentUser> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Not authenticated');
   }
 
-  return response.json();
+  return (responseData as ApiSuccessResponse<CurrentUser>).data;
+}
+
+/**
+ * Get Google OAuth authorization URL
+ * Calls: GET /api/auth/google
+ */
+export async function getGoogleAuthUrl(): Promise<string> {
+  const response = await fetch(`${API_URL}/api/auth/google`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  const responseData: ApiSuccessResponse<{ authUrl: string }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to get Google OAuth URL');
+  }
+
+  return (responseData as ApiSuccessResponse<{ authUrl: string }>).data.authUrl;
+}
+
+/**
+ * Get user's product sheet
+ * Calls: GET /api/product-sheet
+ */
+export async function getProductSheet(token: string): Promise<ProductSheet> {
+  const response = await fetch(`${API_URL}/api/product-sheet`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const responseData: ApiSuccessResponse<ProductSheet> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to get product sheet');
+  }
+
+  return (responseData as ApiSuccessResponse<ProductSheet>).data;
+}
+
+/**
+ * Add a product item to user's product sheet
+ * Calls: POST /api/product-sheet/items
+ */
+export async function addProductItem(
+  token: string,
+  payload: AddProductItemPayload
+): Promise<ProductSheetItem> {
+  const response = await fetch(`${API_URL}/api/product-sheet/items`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const responseData: ApiSuccessResponse<{ productSheetItem: ProductSheetItem }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to add product item');
+  }
+
+  return (responseData as ApiSuccessResponse<{ productSheetItem: ProductSheetItem }>).data.productSheetItem;
+}
+
+/**
+ * Delete a product item from user's product sheet
+ * Calls: DELETE /api/product-sheet/items/:itemId
+ */
+export async function deleteProductItem(token: string, itemId: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/product-sheet/items/${itemId}`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const responseData: ApiSuccessResponse<{}> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to delete product item');
+  }
+}
+
+/**
+ * Create a new enquiry
+ * Calls: POST /api/enquiries
+ */
+export async function createEnquiry(
+  token: string,
+  payload: CreateEnquiryPayload
+): Promise<Enquiry> {
+  const response = await fetch(`${API_URL}/api/enquiries`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const responseData: ApiSuccessResponse<{ enquiry: Enquiry }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to create enquiry');
+  }
+
+  return (responseData as ApiSuccessResponse<{ enquiry: Enquiry }>).data.enquiry;
+}
+
+/**
+ * Get all enquiries for the authenticated user
+ * Calls: GET /api/enquiries
+ */
+export async function getEnquiries(token: string): Promise<Enquiry[]> {
+  const response = await fetch(`${API_URL}/api/enquiries`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const responseData: ApiSuccessResponse<{ enquiries: Enquiry[] }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to get enquiries');
+  }
+
+  return (responseData as ApiSuccessResponse<{ enquiries: Enquiry[] }>).data.enquiries;
+}
+
+/**
+ * Get a single enquiry by ID
+ * Calls: GET /api/enquiries/:enquiryId
+ */
+export async function getEnquiry(token: string, enquiryId: string): Promise<Enquiry> {
+  const response = await fetch(`${API_URL}/api/enquiries/${enquiryId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const responseData: ApiSuccessResponse<{ enquiry: Enquiry }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to get enquiry');
+  }
+
+  return (responseData as ApiSuccessResponse<{ enquiry: Enquiry }>).data.enquiry;
+}
+
+/**
+ * Update an enquiry
+ * Calls: PUT /api/enquiries/:enquiryId
+ */
+export async function updateEnquiry(
+  token: string,
+  enquiryId: string,
+  payload: UpdateEnquiryPayload
+): Promise<Enquiry> {
+  const response = await fetch(`${API_URL}/api/enquiries/${enquiryId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const responseData: ApiSuccessResponse<{ enquiry: Enquiry }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to update enquiry');
+  }
+
+  return (responseData as ApiSuccessResponse<{ enquiry: Enquiry }>).data.enquiry;
+}
+
+/**
+ * Delete an enquiry
+ * Calls: DELETE /api/enquiries/:enquiryId
+ */
+export async function deleteEnquiry(token: string, enquiryId: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/enquiries/${enquiryId}`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const responseData: ApiSuccessResponse<{}> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to delete enquiry');
+  }
 }
 
 export interface ChatMessage {
