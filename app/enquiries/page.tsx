@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { getStoredProducts, BriefProduct } from '@/lib/storage';
+import { getStoredProducts, BriefProduct, ChatSession } from '@/lib/storage';
 import { requireAuth } from '@/lib/auth';
 import { getAuthToken } from '@/lib/storage';
 import { getCurrentUser, type CurrentUser, getProductSheet, ProductSheetItem, getEnquiries, createEnquiry, updateEnquiry, deleteEnquiry, type Enquiry as ApiEnquiry, generateFieldsFromKeyword, type GeneratedFieldsResponse, type GeneratedField, addProductItem } from '@/lib/api';
@@ -68,6 +68,8 @@ export default function EnquiriesPage() {
   const [specModalItems, setSpecModalItems] = useState<string[]>([]);
   const [specModalTitle, setSpecModalTitle] = useState<string>('Specifications');
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -136,6 +138,17 @@ export default function EnquiriesPage() {
 
   const handleNewChat = () => {
     router.push('/');
+  };
+
+  const handleSessionSelect = (sessionId: string) => {
+    setCurrentSessionId(sessionId);
+  };
+
+  const handleSessionDelete = async (sessionId: string) => {
+    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    if (currentSessionId === sessionId) {
+      setCurrentSessionId(null);
+    }
   };
 
   const toggleEnquiry = (enquiryId: string) => {
@@ -797,6 +810,10 @@ export default function EnquiriesPage() {
         onLogout={() => {
           router.push('/login');
         }}
+        sessions={sessions}
+        currentSessionId={currentSessionId}
+        onSessionSelect={handleSessionSelect}
+        onSessionDelete={handleSessionDelete}
       />
 
       {/* Main Content Area */}

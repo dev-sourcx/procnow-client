@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { generateFieldsFromDescription, GeneratedFieldsResponse } from '@/lib/api';
-import { saveProduct, getStoredProducts, deleteProduct, BriefProduct, getStoredEnquiries, saveEnquiry, deleteEnquiry, Enquiry, EnquiryProduct } from '@/lib/storage';
+import { saveProduct, getStoredProducts, deleteProduct, BriefProduct, getStoredEnquiries, saveEnquiry, deleteEnquiry, Enquiry, EnquiryProduct, ChatSession } from '@/lib/storage';
 import { requireAuth } from '@/lib/auth';
 import Sidebar from '@/components/Sidebar';
 import CreatableSelect from '@/components/CreatableSelect';
@@ -11,6 +11,8 @@ import CreatableSelect from '@/components/CreatableSelect';
 export default function BriefPage() {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'add' | 'enquiries'>('add');
   const [itemInput, setItemInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -53,6 +55,17 @@ export default function BriefPage() {
   const [specModalOpen, setSpecModalOpen] = useState(false);
   const [specModalItems, setSpecModalItems] = useState<string[]>([]);
   const [specModalTitle, setSpecModalTitle] = useState<string>('Specifications');
+
+  const handleSessionSelect = (sessionId: string) => {
+    setCurrentSessionId(sessionId);
+  };
+
+  const handleSessionDelete = async (sessionId: string) => {
+    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    if (currentSessionId === sessionId) {
+      setCurrentSessionId(null);
+    }
+  };
 
   const handleGenerateWithAI = async () => {
     if (!itemInput.trim()) {
@@ -1224,6 +1237,10 @@ export default function BriefPage() {
           onToggle={() => setSidebarOpen(!sidebarOpen)}
           currentUser={null}
           onLogout={() => {}}
+          sessions={sessions}
+          currentSessionId={currentSessionId}
+          onSessionSelect={handleSessionSelect}
+          onSessionDelete={handleSessionDelete}
         />
 
         {/* Main Content Area */}

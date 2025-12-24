@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { requireAuth } from '@/lib/auth';
 import { getCurrentUser, type CurrentUser, getProductSheet, ProductSheetItem, generateFieldsFromKeyword, type GeneratedFieldsResponse, addProductItem, deleteProductItem, getEnquiries, createEnquiry } from '@/lib/api';
-import { getAuthToken } from '@/lib/storage';
+import { getAuthToken, ChatSession } from '@/lib/storage';
 import Sidebar from '@/components/Sidebar';
 import CreatableSelect from '@/components/CreatableSelect';
 
@@ -23,6 +23,8 @@ export default function ProductSheetPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [aiKeyword, setAiKeyword] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -346,6 +348,17 @@ export default function ProductSheetPage() {
     router.push('/');
   };
 
+  const handleSessionSelect = (sessionId: string) => {
+    setCurrentSessionId(sessionId);
+  };
+
+  const handleSessionDelete = async (sessionId: string) => {
+    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    if (currentSessionId === sessionId) {
+      setCurrentSessionId(null);
+    }
+  };
+
   // Enquiry sidebar handlers
   const handleCreateEnquiry = () => {
     if (!requireAuth()) {
@@ -615,6 +628,10 @@ export default function ProductSheetPage() {
           setCurrentUser(null);
           router.push('/login');
         }}
+        sessions={sessions}
+        currentSessionId={currentSessionId}
+        onSessionSelect={handleSessionSelect}
+        onSessionDelete={handleSessionDelete}
       />
 
       {/* Main Content Area */}
