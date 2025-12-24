@@ -133,6 +133,104 @@ export function generateSessionTitle(firstMessage: string): string {
 }
 
 /**
+ * Guest session storage utilities
+ * Only stores one guest session at a time
+ */
+const STORAGE_KEY_GUEST_SESSION = 'guest_chat_session';
+const STORAGE_KEY_GUEST_MESSAGES = 'guest_chat_messages';
+
+/**
+ * Get the guest session from localStorage (only one allowed)
+ */
+export function getGuestSession(): ChatSession | null {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_GUEST_SESSION);
+    return stored ? JSON.parse(stored) : null;
+  } catch (error) {
+    console.error('Error loading guest session:', error);
+    return null;
+  }
+}
+
+/**
+ * Save the guest session to localStorage (replaces any existing guest session)
+ */
+export function saveGuestSession(session: ChatSession): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    localStorage.setItem(STORAGE_KEY_GUEST_SESSION, JSON.stringify(session));
+  } catch (error) {
+    console.error('Error saving guest session:', error);
+  }
+}
+
+/**
+ * Delete the guest session from localStorage
+ */
+export function deleteGuestSession(): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    localStorage.removeItem(STORAGE_KEY_GUEST_SESSION);
+    localStorage.removeItem(STORAGE_KEY_GUEST_MESSAGES);
+  } catch (error) {
+    console.error('Error deleting guest session:', error);
+  }
+}
+
+/**
+ * Get messages for the guest session
+ */
+export function getGuestMessages(): Message[] {
+  if (typeof window === 'undefined') return [];
+  
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_GUEST_MESSAGES);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('Error loading guest messages:', error);
+    return [];
+  }
+}
+
+/**
+ * Save messages for the guest session
+ */
+export function saveGuestMessages(messages: Message[]): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    localStorage.setItem(STORAGE_KEY_GUEST_MESSAGES, JSON.stringify(messages));
+  } catch (error) {
+    console.error('Error saving guest messages:', error);
+  }
+}
+
+/**
+ * Get guest session data for syncing (returns null if no guest session exists)
+ */
+export function getGuestSessionData(): { title: string; messages: Array<{ role: 'user' | 'assistant'; content: string; products?: any[] }> } | null {
+  const guestSession = getGuestSession();
+  const guestMessages = getGuestMessages();
+  
+  if (!guestSession || guestMessages.length === 0) {
+    return null;
+  }
+  
+  return {
+    title: guestSession.title,
+    messages: guestMessages.map((msg) => ({
+      role: msg.role,
+      content: msg.content,
+      products: msg.products || [],
+    })),
+  };
+}
+
+/**
  * Product list storage utilities
  */
 export interface BriefProduct {

@@ -5,16 +5,28 @@ import { useRouter } from 'next/navigation';
 import MessageList from './MessageList';
 import InputBox from './InputBox';
 import ProductSection from './ProductSection';
-import { sendChatMessage, checkApiHealth, ChatMessage, getProducts, Product } from '@/lib/api';
 import {
-  getStoredSessions,
-  saveSession,
-  getStoredMessages,
-  saveMessages,
-  generateSessionTitle,
-  ChatSession,
-  Message,
+  sendChatMessage,
+  checkApiHealth,
+  ChatMessage,
+  getProducts,
+  Product,
+  createChatSession,
+  updateChatSession,
+  getChatMessages,
+  createChatMessageBackend,
+  updateChatMessageBackend,
+} from '@/lib/api';
+import { 
+  generateSessionTitle, 
+  Message, 
+  getGuestSession,
+  saveGuestSession,
+  deleteGuestSession,
+  getGuestMessages,
+  saveGuestMessages,
 } from '@/lib/storage';
+import { getAuthToken } from '@/lib/storage';
 
 export type { Message };
 
@@ -35,6 +47,9 @@ export default function ChatContainer({
   const currentAssistantMessageRef = useRef<string>('');
   const currentAssistantProductsRef = useRef<Product[]>([]);
   const sessionIdRef = useRef<string | null>(currentSessionId);
+  const currentAssistantMessageIdRef = useRef<string | null>(null);
+  const token = getAuthToken();
+  const isAuthenticated = !!token;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -51,57 +66,121 @@ export default function ChatContainer({
 
   // Load messages when session changes
   useEffect(() => {
-    if (currentSessionId) {
-      sessionIdRef.current = currentSessionId;
-      const storedMessages = getStoredMessages(currentSessionId);
-      setMessages(storedMessages);
-    } else {
-      sessionIdRef.current = null;
-      setMessages([]);
-    }
-  }, [currentSessionId]);
-
-  // Save messages to localStorage whenever they change
-  useEffect(() => {
-    if (sessionIdRef.current && messages.length > 0) {
-      saveMessages(sessionIdRef.current, messages);
-      
-      // Update session title from first user message
-      const firstUserMessage = messages.find((m) => m.role === 'user');
-      if (firstUserMessage) {
-        const sessions = getStoredSessions();
-        const session = sessions.find((s) => s.id === sessionIdRef.current);
-        if (session) {
-          const title = generateSessionTitle(firstUserMessage.content);
-          if (session.title !== title) {
-            saveSession({
-              ...session,
-              title,
-              updatedAt: Date.now(),
-            });
-            onSessionUpdate();
+    const loadMessages = async () => {
+      if (!currentSessionId) {
+        sessionIdRef.current = null;
+        
+        // If not authenticated, load guest session from localStorage
+        if (!isAuthenticated || !token) {
+          const guestSession = getGuestSession();
+          if (guestSession) {
+            sessionIdRef.current = guestSession.id;
+            const guestMessages = getGuestMessages();
+            setMessages(guestMessages);
+          } else {
+            setMessages([]);
           }
+        } else {
+          setMessages([]);
         }
+        return;
       }
-    }
-  }, [messages, onSessionUpdate]);
+
+      // Load guest messages if not authenticated
+      if (!isAuthenticated || !token) {
+        sessionIdRef.current = currentSessionId;
+        // Check if this is the guest session
+        const guestSession = getGuestSession();
+        if (guestSession && guestSession.id === currentSessionId) {
+          const guestMessages = getGuestMessages();
+          setMessages(guestMessages);
+        } else {
+          setMessages([]);
+        }
+        return;
+      }
+
+      sessionIdRef.current = currentSessionId;
+      // Reset title tracking when session changes
+      sessionTitleSetRef.current.delete(currentSessionId);
+
+      try {
+        const backendMessages = await getChatMessages(token, currentSessionId);
+        // Convert backend messages to frontend format
+        const convertedMessages: Message[] = backendMessages.map((msg) => ({
+          id: msg._id,
+          role: msg.role,
+          content: msg.content,
+          products: msg.products || [],
+        }));
+        setMessages(convertedMessages);
+        
+        // If messages already exist, mark title as set
+        if (convertedMessages.length > 0) {
+          sessionTitleSetRef.current.add(currentSessionId);
+        }
+      } catch (error) {
+        console.error('Error loading messages from backend:', error);
+        setMessages([]);
+      }
+    };
+
+    loadMessages();
+  }, [currentSessionId, isAuthenticated, token]);
+
+  // Track if we've already set the title for this session to avoid infinite updates
+  const sessionTitleSetRef = useRef<Set<string>>(new Set());
 
   const handleSendMessage = async (message: string) => {
     if (!message.trim() || isLoading) return;
 
-    // Create new session if needed
-    let currentId = sessionIdRef.current;
+    // Handle guest users - save to localStorage
+    if (!isAuthenticated || !token) {
+      // Create or get guest session
+      let guestSession = getGuestSession();
+      let currentId = sessionIdRef.current;
+      
+      if (!guestSession || !currentId) {
+        // Create new guest session
+        const title = generateSessionTitle(message);
+        const sessionId = `guest_${Date.now()}`;
+        guestSession = {
+          id: sessionId,
+          title,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        saveGuestSession(guestSession);
+        currentId = sessionId;
+        sessionIdRef.current = currentId;
+        onSessionUpdate(); // Notify parent to reload guest session
+      } else {
+        currentId = guestSession.id;
+        sessionIdRef.current = currentId;
+      }
+    } else {
+      // Handle authenticated users - create session in backend if needed
+      let currentId = sessionIdRef.current;
+      if (!currentId) {
+        const title = generateSessionTitle(message);
+
+        try {
+          // Create session in backend
+          const newSession = await createChatSession(token, title);
+          currentId = newSession._id;
+          sessionIdRef.current = currentId;
+        } catch (error) {
+          console.error('Error creating session in backend:', error);
+          return;
+        }
+        onSessionUpdate();
+      }
+    }
+
+    const currentId = sessionIdRef.current;
     if (!currentId) {
-      currentId = `session_${Date.now()}`;
-      sessionIdRef.current = currentId;
-      const newSession: ChatSession = {
-        id: currentId,
-        title: generateSessionTitle(message),
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-      saveSession(newSession);
-      onSessionUpdate();
+      console.error('No session ID available');
+      return;
     }
 
     const userMessage: Message = {
@@ -113,15 +192,44 @@ export default function ChatContainer({
     setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
 
+    // Save user message to backend if authenticated, or to localStorage if guest
+    if (isAuthenticated && token && currentId) {
+      try {
+        const savedMessage = await createChatMessageBackend(token, currentId, 'user', message);
+        // Update the message ID with the backend ID
+        userMessage.id = savedMessage._id;
+        setMessages((prev) => {
+          const newMessages = [...prev];
+          const lastIndex = newMessages.length - 1;
+          if (lastIndex >= 0 && newMessages[lastIndex].role === 'user') {
+            newMessages[lastIndex] = {
+              ...newMessages[lastIndex],
+              id: savedMessage._id,
+            };
+          }
+          return newMessages;
+        });
+      } catch (error) {
+        console.error('Error saving user message to backend:', error);
+        // Continue even if backend save fails - message is still in state
+      }
+    } else {
+      // Save to localStorage for guest users
+      const currentMessages = getGuestMessages();
+      currentMessages.push(userMessage);
+      saveGuestMessages(currentMessages);
+    }
+
     // Prepare history for API
     const history: ChatMessage[] = messages.map((msg) => ({
       role: msg.role,
       content: msg.content,
     }));
 
-    // Create assistant message placeholder
+    // Create assistant message placeholder (local only, not in backend yet)
+    // We'll create it in backend only when [DONE] signal is received
     const assistantMessage: Message = {
-      id: (Date.now() + 1).toString(),
+      id: `temp_${Date.now()}`, // Temporary local ID
       role: 'assistant',
       content: '',
       products: [],
@@ -130,12 +238,13 @@ export default function ChatContainer({
     setMessages((prev) => [...prev, assistantMessage]);
     currentAssistantMessageRef.current = ''; // Reset ref
     currentAssistantProductsRef.current = []; // Reset products ref
+    currentAssistantMessageIdRef.current = null; // Reset backend ID ref
 
     try {
       await sendChatMessage(
         history,
         message,
-        (chunk) => {
+        async (chunk) => {
           // Accumulate chunks in ref to prevent duplication
           currentAssistantMessageRef.current += chunk;
           setMessages((prev) => {
@@ -151,8 +260,9 @@ export default function ChatContainer({
             }
             return newMessages;
           });
+          // Don't update backend during streaming - wait for [DONE] signal
         },
-        (products) => {
+        async (products) => {
           // Handle products received from stream
           console.log('Products received from stream:', products);
           currentAssistantProductsRef.current = products;
@@ -168,6 +278,118 @@ export default function ChatContainer({
             }
             return newMessages;
           });
+          // Don't update backend during streaming - wait for [DONE] signal
+        },
+        async () => {
+          // Called when [DONE] signal is received - save final message
+          const finalContent = currentAssistantMessageRef.current || '';
+          const finalProducts = currentAssistantProductsRef.current || [];
+          
+          if (isAuthenticated && token && sessionIdRef.current) {
+            // Save to backend for authenticated users
+            console.log('Streaming complete. Creating final message in backend:', {
+              sessionId: sessionIdRef.current,
+              contentLength: finalContent.length,
+              productsCount: finalProducts.length,
+              contentPreview: finalContent.substring(0, 50)
+            });
+            
+            try {
+              // Create assistant message in backend with complete content (only when [DONE] is received)
+              const savedMessage = await createChatMessageBackend(
+                token,
+                sessionIdRef.current,
+                'assistant',
+                finalContent,
+                finalProducts
+              );
+              
+              console.log('Final message created successfully in backend:', savedMessage._id);
+              
+              // Update the local message with the backend ID
+              setMessages((currentMessages) => {
+                const newMessages = [...currentMessages];
+                const lastIndex = newMessages.length - 1;
+                if (lastIndex >= 0 && newMessages[lastIndex].role === 'assistant') {
+                  // Update with backend ID and final content
+                  newMessages[lastIndex] = {
+                    ...newMessages[lastIndex],
+                    id: savedMessage._id,
+                    content: finalContent,
+                    products: finalProducts,
+                  };
+                }
+                
+                // Update session title only once after streaming completes
+                if (!sessionTitleSetRef.current.has(sessionIdRef.current!)) {
+                  const firstUserMessage = newMessages.find((m) => m.role === 'user');
+                  if (firstUserMessage) {
+                    const title = generateSessionTitle(firstUserMessage.content);
+                    sessionTitleSetRef.current.add(sessionIdRef.current!);
+                    
+                    updateChatSession(token, sessionIdRef.current!, title)
+                      .then(() => {
+                        // Defer parent state update to avoid setState during render
+                        setTimeout(() => {
+                          onSessionUpdate();
+                        }, 0);
+                      })
+                      .catch((error) => {
+                        console.error('Error updating session title in backend:', error);
+                        sessionTitleSetRef.current.delete(sessionIdRef.current!);
+                      });
+                  }
+                }
+                
+                return newMessages;
+              });
+              
+              // Store the backend message ID for future reference
+              currentAssistantMessageIdRef.current = savedMessage._id;
+              
+              // Refresh sessions list
+              onSessionUpdate();
+            } catch (error) {
+              console.error('Error creating final message in backend:', error);
+            }
+          } else {
+            // Save to localStorage for guest users
+            setMessages((currentMessages) => {
+              const newMessages = [...currentMessages];
+              const lastIndex = newMessages.length - 1;
+              if (lastIndex >= 0 && newMessages[lastIndex].role === 'assistant') {
+                newMessages[lastIndex] = {
+                  ...newMessages[lastIndex],
+                  content: finalContent,
+                  products: finalProducts,
+                };
+              }
+              
+              // Save all messages to localStorage
+              saveGuestMessages(newMessages);
+              
+              // Update guest session title if needed
+              const guestSession = getGuestSession();
+              if (guestSession && sessionIdRef.current === guestSession.id) {
+                const firstUserMessage = newMessages.find((m) => m.role === 'user');
+                if (firstUserMessage) {
+                  const title = generateSessionTitle(firstUserMessage.content);
+                  const updatedSession = {
+                    ...guestSession,
+                    title,
+                    updatedAt: Date.now(),
+                  };
+                  saveGuestSession(updatedSession);
+                  // Defer parent state update to avoid setState during render
+                  setTimeout(() => {
+                    onSessionUpdate();
+                  }, 0);
+                }
+              }
+              
+              return newMessages;
+            });
+          }
         },
         (error) => {
           console.error('Error sending message:', error);
@@ -190,27 +412,29 @@ export default function ChatContainer({
         const newMessages = [...prev];
         const lastIndex = newMessages.length - 1;
         if (lastIndex >= 0 && newMessages[lastIndex].role === 'assistant') {
+          const errorContent = `Error: ${error instanceof Error ? error.message : 'Unknown error'}. Please check if the backend is running.`;
           newMessages[lastIndex] = {
             ...newMessages[lastIndex],
-            content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}. Please check if the backend is running.`,
+            content: errorContent,
           };
+          
+          // Save error message to backend
+          if (isAuthenticated && token && currentAssistantMessageIdRef.current) {
+            updateChatMessageBackend(
+              token,
+              currentAssistantMessageIdRef.current,
+              errorContent,
+              currentAssistantProductsRef.current
+            ).catch((err) => {
+              console.error('Error saving error message to backend:', err);
+            });
+          }
         }
         return newMessages;
       });
     } finally {
       setIsLoading(false);
-      // Update session timestamp
-      if (sessionIdRef.current) {
-        const sessions = getStoredSessions();
-        const session = sessions.find((s) => s.id === sessionIdRef.current);
-        if (session) {
-          saveSession({
-            ...session,
-            updatedAt: Date.now(),
-          });
-          onSessionUpdate();
-        }
-      }
+      // Final save is now handled by the onDone callback when [DONE] signal is received
     }
   };
 

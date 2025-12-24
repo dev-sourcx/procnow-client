@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getProductSheet } from '@/lib/api';
+import { getProductSheet, deleteChatSession } from '@/lib/api';
 import { getAuthToken } from '@/lib/storage';
 import type { CurrentUser } from '@/lib/api';
+import { ChatSession } from '@/lib/storage';
 
 interface SidebarProps {
   onNewChat: () => void;
@@ -12,6 +13,10 @@ interface SidebarProps {
   onToggle: () => void;
   currentUser: CurrentUser | null;
   onLogout: () => void;
+  sessions: ChatSession[];
+  currentSessionId: string | null;
+  onSessionSelect: (sessionId: string) => void;
+  onSessionDelete: (sessionId: string) => void;
 }
 
 export default function Sidebar({
@@ -20,6 +25,10 @@ export default function Sidebar({
   onToggle,
   currentUser,
   onLogout,
+  sessions,
+  currentSessionId,
+  onSessionSelect,
+  onSessionDelete,
 }: SidebarProps) {
   const router = useRouter();
   const [productCount, setProductCount] = useState<number>(0);
@@ -71,6 +80,52 @@ export default function Sidebar({
     onToggle(); // Close sidebar on mobile
   };
 
+  const handleLoginClick = () => {
+    router.push('/login');
+    onToggle(); // Close sidebar on mobile
+  };
+
+  const handleSessionClick = (sessionId: string) => {
+    onSessionSelect(sessionId);
+    onToggle(); // Close sidebar on mobile
+  };
+
+  const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation(); // Prevent session selection when clicking delete
+    
+    if (!window.confirm('Are you sure you want to delete this chat session?')) {
+      return;
+    }
+
+    const token = getAuthToken();
+    if (!token) return;
+
+    try {
+      await deleteChatSession(token, sessionId);
+      onSessionDelete(sessionId);
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      alert('Failed to delete session. Please try again.');
+    }
+  };
+
+  const formatDate = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+
+    if (diffInDays === 0) {
+      return 'Today';
+    } else if (diffInDays === 1) {
+      return 'Yesterday';
+    } else if (diffInDays < 7) {
+      return `${diffInDays} days ago`;
+    } else {
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+  };
+
   return (
     <>
       {/* Overlay for mobile */}
@@ -112,32 +167,77 @@ export default function Sidebar({
           </div>
 
           <div className="flex-1 flex flex-col gap-6 overflow-y-auto px-2 py-4">
-            <div>
-              <button
-                onClick={handleChatClick}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-gray-300 hover:bg-gray-800 transition-colors"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+            {/* Chat Sessions List */}
+            {currentUser && sessions.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                  Recent Chats
+                </h3>
+                <div className="flex flex-col gap-1">
+                  {sessions.map((session) => (
+                    <div
+                      key={session.id}
+                      onClick={() => handleSessionClick(session.id)}
+                      className={`group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm cursor-pointer transition-colors ${
+                        currentSessionId === session.id
+                          ? 'bg-gray-800 text-white'
+                          : 'text-gray-300 hover:bg-gray-800'
+                      }`}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="shrink-0"
+                      >
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <div className="truncate font-medium">{session.title}</div>
+                        <div className="text-xs text-gray-500 truncate">
+                          {formatDate(session.updatedAt)}
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => handleDeleteSession(e, session.id)}
+                        className="opacity-0 group-hover:opacity-100 shrink-0 p-1 hover:bg-gray-700 rounded transition-opacity"
+                        aria-label="Delete session"
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="3 6 5 6 21 6"></polyline>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Navigation Links */}
+            <div className="flex flex-col gap-1">
+              <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                Navigation
+              </h3>
+              <div>
+                <button
+                  onClick={handleChatClick}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-gray-300 hover:bg-gray-800 transition-colors"
                 >
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                </svg>
-                Chat
-              </button>
-            </div>
-            <div>
-              <button
-                onClick={handleProductSheetClick}
-                className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm text-gray-300 hover:bg-gray-800 transition-colors"
-              >
-                <div className="flex items-center gap-3">
                   <svg
                     width="16"
                     height="16"
@@ -148,41 +248,63 @@ export default function Sidebar({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   >
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                    <polyline points="10 9 9 9 8 9"></polyline>
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                   </svg>
-                  Product Sheet
-                </div>
-                {productCount > 0 && (
-                  <span className="px-2 py-0.5 text-xs font-medium bg-gray-700 text-gray-300 rounded-full">
-                    {productCount}
-                  </span>
-                )}
-              </button>
-            </div>
-            <div>
-              <button
-                onClick={handleEnquiriesClick}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-gray-300 hover:bg-gray-800 transition-colors"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                  Chat
+                </button>
+              </div>
+              <div>
+                <button
+                  onClick={handleProductSheetClick}
+                  className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm text-gray-300 hover:bg-gray-800 transition-colors"
                 >
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                  <polyline points="22,6 12,13 2,6"></polyline>
-                </svg>
-                Enquiries
-              </button>
+                  <div className="flex items-center gap-3">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                      <line x1="16" y1="13" x2="8" y2="13"></line>
+                      <line x1="16" y1="17" x2="8" y2="17"></line>
+                      <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    Product Sheet
+                  </div>
+                  {productCount > 0 && (
+                    <span className="px-2 py-0.5 text-xs font-medium bg-gray-700 text-gray-300 rounded-full">
+                      {productCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+              <div>
+                <button
+                  onClick={handleEnquiriesClick}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-gray-300 hover:bg-gray-800 transition-colors"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                  </svg>
+                  Enquiries
+                </button>
+              </div>
             </div>
           </div>
 
@@ -211,16 +333,24 @@ export default function Sidebar({
                 </button>
               </div>
             ) : (
+              <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2 overflow-hidden">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-600 text-xs font-semibold">
+                {/* <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-600 text-xs font-semibold">
                   G
-                </div>
-                <div className="flex flex-col overflow-hidden">
+                </div> */}
+                {/* <div className="flex flex-col overflow-hidden">
                   <span className="truncate text-sm text-gray-400">
                     Guest
                   </span>
                   <span className="text-xs text-gray-500">Not signed in</span>
+                </div> */}
                 </div>
+                <button
+                  onClick={handleLoginClick}
+                  className="w-full rounded-md border border-gray-700 px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 transition-colors"
+                >
+                  Login
+                </button>
               </div>
             )}
           </div>

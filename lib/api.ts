@@ -407,6 +407,21 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface ChatSession {
+  _id: string;
+  title: string;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+}
+
+export interface ChatMessageResponse {
+  _id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  products?: any[];
+  createdAt: string | Date;
+}
+
 export interface ChatRequest {
   history: ChatMessage[];
   message: string;
@@ -439,6 +454,217 @@ export async function checkApiHealth(): Promise<boolean> {
     console.error('API health check failed:', error);
     return false;
   }
+}
+
+/**
+ * Get all chat sessions for the authenticated user
+ * Calls: GET /api/chat/sessions
+ */
+export async function getChatSessions(token: string): Promise<ChatSession[]> {
+  const response = await fetch(`${API_URL}/api/chat/sessions`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const responseData: ApiSuccessResponse<{ sessions: ChatSession[] }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to get chat sessions');
+  }
+
+  return (responseData as ApiSuccessResponse<{ sessions: ChatSession[] }>).data.sessions;
+}
+
+/**
+ * Create a new chat session
+ * Calls: POST /api/chat/sessions
+ */
+export async function createChatSession(
+  token: string,
+  title: string
+): Promise<ChatSession> {
+  const response = await fetch(`${API_URL}/api/chat/sessions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ title }),
+  });
+
+  const responseData: ApiSuccessResponse<{ session: ChatSession }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to create chat session');
+  }
+
+  return (responseData as ApiSuccessResponse<{ session: ChatSession }>).data.session;
+}
+
+/**
+ * Update a chat session
+ * Calls: PUT /api/chat/sessions/:sessionId
+ */
+export async function updateChatSession(
+  token: string,
+  sessionId: string,
+  title: string
+): Promise<ChatSession> {
+  const response = await fetch(`${API_URL}/api/chat/sessions/${sessionId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ title }),
+  });
+
+  const responseData: ApiSuccessResponse<{ session: ChatSession }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to update chat session');
+  }
+
+  return (responseData as ApiSuccessResponse<{ session: ChatSession }>).data.session;
+}
+
+/**
+ * Delete a chat session
+ * Calls: DELETE /api/chat/sessions/:sessionId
+ */
+export async function deleteChatSession(token: string, sessionId: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/chat/sessions/${sessionId}`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const responseData: ApiSuccessResponse<{}> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to delete chat session');
+  }
+}
+
+/**
+ * Get all messages for a chat session
+ * Calls: GET /api/chat/sessions/:sessionId/messages
+ */
+export async function getChatMessages(
+  token: string,
+  sessionId: string
+): Promise<ChatMessageResponse[]> {
+  const response = await fetch(`${API_URL}/api/chat/sessions/${sessionId}/messages`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const responseData: ApiSuccessResponse<{ messages: ChatMessageResponse[] }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to get chat messages');
+  }
+
+  return (responseData as ApiSuccessResponse<{ messages: ChatMessageResponse[] }>).data.messages;
+}
+
+/**
+ * Create a new chat message
+ * Calls: POST /api/chat/sessions/:sessionId/messages
+ */
+export async function createChatMessageBackend(
+  token: string,
+  sessionId: string,
+  role: 'user' | 'assistant',
+  content: string,
+  products?: any[]
+): Promise<ChatMessageResponse> {
+  const response = await fetch(`${API_URL}/api/chat/sessions/${sessionId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ role, content, products: products || [] }),
+  });
+
+  const responseData: ApiSuccessResponse<{ message: ChatMessageResponse }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to create chat message');
+  }
+
+  return (responseData as ApiSuccessResponse<{ message: ChatMessageResponse }>).data.message;
+}
+
+/**
+ * Update a chat message (useful for streaming updates)
+ * Calls: PUT /api/chat/messages/:messageId
+ */
+export async function updateChatMessageBackend(
+  token: string,
+  messageId: string,
+  content?: string,
+  products?: any[]
+): Promise<ChatMessageResponse> {
+  const response = await fetch(`${API_URL}/api/chat/messages/${messageId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ content, products }),
+  });
+
+  const responseData: ApiSuccessResponse<{ message: ChatMessageResponse }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to update chat message');
+  }
+
+  return (responseData as ApiSuccessResponse<{ message: ChatMessageResponse }>).data.message;
+}
+
+/**
+ * Sync guest session and messages to database
+ * Calls: POST /api/chat/sync-guest-session
+ */
+export async function syncGuestSession(
+  token: string,
+  sessionData: { title: string; messages: Array<{ role: 'user' | 'assistant'; content: string; products?: any[] }> }
+): Promise<ChatSession> {
+  const response = await fetch(`${API_URL}/api/chat/sync-guest-session`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(sessionData),
+  });
+
+  const responseData: ApiSuccessResponse<{ session: ChatSession }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to sync guest session');
+  }
+
+  return (responseData as ApiSuccessResponse<{ session: ChatSession }>).data.session;
 }
 
 /**
@@ -527,6 +753,7 @@ export async function sendChatMessage(
   message: string,
   onChunk: (chunk: string) => void,
   onProducts?: (products: Product[]) => void,
+  onDone?: () => void,
   onError?: (error: Error) => void
 ): Promise<void> {
   try {
@@ -577,7 +804,10 @@ export async function sendChatMessage(
           const data = line.substring(6); // Remove "data: " prefix
 
           if (data.trim() === '[DONE]') {
-            // Stream completed
+            // Stream completed - notify callback
+            if (onDone) {
+              onDone();
+            }
             continue;
           }
 
@@ -617,6 +847,13 @@ export async function sendChatMessage(
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           const data = line.substring(6);
+          if (data.trim() === '[DONE]') {
+            // Stream completed - notify callback
+            if (onDone) {
+              onDone();
+            }
+            continue;
+          }
           if (data.trim() !== '[DONE]') {
             try {
               const parsed = JSON.parse(data);

@@ -2,7 +2,8 @@
 
 import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { saveAuthToken } from '@/lib/storage';
+import { saveAuthToken, getGuestSessionData, deleteGuestSession } from '@/lib/storage';
+import { syncGuestSession } from '@/lib/api';
 import { getAndClearRedirectPath } from '@/lib/auth';
 
 function GoogleAuthSuccessContent() {
@@ -10,37 +11,54 @@ function GoogleAuthSuccessContent() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    const token = searchParams.get('token');
-    const error = searchParams.get('error');
-    const redirect = searchParams.get('redirect') || '/';
+    const handleAuthSuccess = async () => {
+      const token = searchParams.get('token');
+      const error = searchParams.get('error');
+      const redirect = searchParams.get('redirect') || '/';
 
-    if (error) {
-      // Redirect to login with error
-      router.push('/login?error=oauth_failed');
-      return;
-    }
+      if (error) {
+        // Redirect to login with error
+        router.push('/login?error=oauth_failed');
+        return;
+      }
 
-    if (token) {
-      try {
-        // Store token
-        saveAuthToken(token);
-        
-        // Get redirect path from stored path or use provided/default
-        const redirectPath = getAndClearRedirectPath() || redirect;
-        
-        // Reload page to trigger AuthContext to refresh
-        // Or redirect after a short delay
-        setTimeout(() => {
-          window.location.href = redirectPath;
-        }, 500);
-      } catch (err) {
-        console.error('Error storing token:', err);
+      if (token) {
+        try {
+          // Store token
+          saveAuthToken(token);
+          
+          // Sync guest session if exists
+          const guestData = getGuestSessionData();
+          if (guestData) {
+            try {
+              await syncGuestSession(token, guestData);
+              // Clear guest session after successful sync
+              deleteGuestSession();
+            } catch (syncError) {
+              console.error('Error syncing guest session:', syncError);
+              // Continue even if sync fails - user is still logged in
+            }
+          }
+          
+          // Get redirect path from stored path or use provided/default
+          const redirectPath = getAndClearRedirectPath() || redirect;
+          
+          // Reload page to trigger AuthContext to refresh
+          // Or redirect after a short delay
+          setTimeout(() => {
+            window.location.href = redirectPath;
+          }, 500);
+        } catch (err) {
+          console.error('Error storing token:', err);
+          router.push('/login?error=oauth_failed');
+        }
+      } else {
+        // No token received, redirect to login
         router.push('/login?error=oauth_failed');
       }
-    } else {
-      // No token received, redirect to login
-      router.push('/login?error=oauth_failed');
-    }
+    };
+
+    handleAuthSuccess();
   }, [searchParams, router]);
 
   return (

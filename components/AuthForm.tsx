@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { login, signup, getGoogleAuthUrl } from '@/lib/api';
-import { saveAuthToken } from '@/lib/storage';
+import { login, signup, getGoogleAuthUrl, syncGuestSession } from '@/lib/api';
+import { saveAuthToken, getGuestSessionData, deleteGuestSession } from '@/lib/storage';
 import { getAndClearRedirectPath } from '@/lib/auth';
 
 type AuthMode = 'login' | 'signup';
@@ -72,25 +72,38 @@ export default function AuthForm({ mode }: AuthFormProps) {
     setIsSubmitting(true);
 
     try {
+      let result;
       if (isLogin) {
         // Call backend login endpoint
-        const result = await login(email, password);
-        saveAuthToken(result.token);
-        // Redirect to stored path or home
-        const redirectPath = getAndClearRedirectPath();
-        router.push(redirectPath || '/');
+        result = await login(email, password);
       } else {
         // Signup: backend expects email, password, name
-        const result = await signup({
+        result = await signup({
           email,
           password,
           name,
         });
-        // Save token and redirect to stored path or home after successful signup
-        saveAuthToken(result.token);
-        const redirectPath = getAndClearRedirectPath();
-        router.push(redirectPath || '/');
       }
+      
+      // Save token
+        saveAuthToken(result.token);
+      
+      // Sync guest session if exists
+      const guestData = getGuestSessionData();
+      if (guestData) {
+        try {
+          await syncGuestSession(result.token, guestData);
+          // Clear guest session after successful sync
+          deleteGuestSession();
+        } catch (syncError) {
+          console.error('Error syncing guest session:', syncError);
+          // Continue even if sync fails - user is still logged in
+        }
+      }
+      
+      // Redirect to stored path or home
+      const redirectPath = getAndClearRedirectPath();
+        router.push(redirectPath || '/');
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);

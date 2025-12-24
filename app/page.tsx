@@ -4,12 +4,14 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ChatContainer from '@/components/ChatContainer';
 import Sidebar from '@/components/Sidebar';
-import { getCurrentUser, type CurrentUser } from '@/lib/api';
-import {
-  getAuthToken,
-  clearAuthToken,
-  getStoredSessions,
+import { getCurrentUser, type CurrentUser, getChatSessions, ChatSession as BackendChatSession } from '@/lib/api';
+import { 
+  getAuthToken, 
+  clearAuthToken, 
   ChatSession,
+  getGuestSession,
+  saveGuestSession,
+  deleteGuestSession,
 } from '@/lib/storage';
 
 export default function Home() {
@@ -25,6 +27,15 @@ export default function Home() {
       const token = getAuthToken();
       if (!token) {
         // Don't redirect - allow user to browse without login
+        // Load guest session from localStorage
+        const guestSession = getGuestSession();
+        if (guestSession) {
+          setSessions([guestSession]);
+          setCurrentSessionId(guestSession.id);
+        } else {
+          setSessions([]);
+          setCurrentSessionId(null);
+        }
         setIsCheckingAuth(false);
         return;
       }
@@ -32,13 +43,27 @@ export default function Home() {
       try {
         const user = await getCurrentUser(token);
         setCurrentUser(user);
-        // If successful, load sessions
-        const storedSessions = getStoredSessions();
-        setSessions(storedSessions);
+        // If successful, load sessions from backend
+        try {
+          const backendSessions = await getChatSessions(token);
+          // Convert backend sessions to frontend format
+          const convertedSessions: ChatSession[] = backendSessions.map((s) => ({
+            id: s._id,
+            title: s.title,
+            createdAt: new Date(s.createdAt).getTime(),
+            updatedAt: new Date(s.updatedAt).getTime(),
+          }));
+          setSessions(convertedSessions);
+        } catch (error) {
+          console.error('Error loading sessions from backend:', error);
+          // On error, don't load any sessions
+          setSessions([]);
+        }
       } catch {
         // Token is invalid, clear it but don't redirect
         clearAuthToken();
         setCurrentUser(null);
+        setSessions([]);
       } finally {
         setIsCheckingAuth(false);
       }
@@ -48,13 +73,36 @@ export default function Home() {
   }, [router]);
 
   const handleNewChat = () => {
-    setCurrentSessionId(null);
+    const token = getAuthToken();
+    if (!token) {
+      // If not authenticated, clear guest session and start new one
+      deleteGuestSession();
+      setSessions([]);
+      setCurrentSessionId(null);
+    } else {
+      // If authenticated, just clear current session
+      setCurrentSessionId(null);
+    }
+  };
+
+  const handleSessionSelect = (sessionId: string) => {
+    setCurrentSessionId(sessionId);
+  };
+
+  const handleSessionDelete = async (sessionId: string) => {
+    // Remove from local state
+    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    
+    // If deleted session was current, clear it
+    if (currentSessionId === sessionId) {
+      setCurrentSessionId(null);
+    }
   };
 
   const handleLogout = () => {
     clearAuthToken();
     setCurrentUser(null);
-    router.push('/login');
+    router.push('/');
   };
 
   if (isCheckingAuth) {
@@ -74,6 +122,10 @@ export default function Home() {
         onToggle={() => setSidebarOpen(!sidebarOpen)}
         currentUser={currentUser}
         onLogout={handleLogout}
+        sessions={sessions}
+        currentSessionId={currentSessionId}
+        onSessionSelect={handleSessionSelect}
+        onSessionDelete={handleSessionDelete}
       />
 
       {/* Main Chat Area */}
@@ -103,8 +155,38 @@ export default function Home() {
         <ChatContainer
           currentSessionId={currentSessionId}
           onSessionUpdate={() => {
-            const storedSessions = getStoredSessions();
-            setSessions(storedSessions);
+            // Defer state updates to avoid setState during render
+            setTimeout(async () => {
+              const token = getAuthToken();
+              if (token) {
+                try {
+                  // Reload sessions from backend
+                  const backendSessions = await getChatSessions(token);
+                  const convertedSessions: ChatSession[] = backendSessions.map((s) => ({
+                    id: s._id,
+                    title: s.title,
+                    createdAt: new Date(s.createdAt).getTime(),
+                    updatedAt: new Date(s.updatedAt).getTime(),
+                  }));
+                  setSessions(convertedSessions);
+                } catch (error) {
+                  console.error('Error reloading sessions from backend:', error);
+                  setSessions([]);
+                }
+              } else {
+                // Reload guest session from localStorage
+                const guestSession = getGuestSession();
+                if (guestSession) {
+                  setSessions([guestSession]);
+                  setCurrentSessionId((prevId) => {
+                    // Only update if not already set to avoid unnecessary re-renders
+                    return prevId || guestSession.id;
+                  });
+                } else {
+                  setSessions([]);
+                }
+              }
+            }, 0);
           }}
         />
       </div>
