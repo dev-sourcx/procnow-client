@@ -440,16 +440,36 @@ export default function ChatContainer({
 
 
   return (
-    <div className="flex h-full w-full flex-col">
-      {/* Header */}
-      <div className="flex h-12 items-center justify-center border-b border-gray-700 bg-[#343541] px-4">
-        <h1 className="text-lg font-semibold text-white">Chat Assistant</h1>
-        <div className="ml-auto flex items-center gap-3">
-          {/* Brief Button */}
-          <button
-            onClick={() => router.push('/brief')}
-            className="px-3 py-1.5 text-sm font-medium text-white bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors flex items-center gap-2"
+    <div className="flex h-full w-full flex-col bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+      {/* AI Product Assistant Label */}
+      <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div className="flex items-center gap-2">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-teal-600 dark:text-teal-400"
           >
+            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+            <path d="M2 17l10 5 10-5"></path>
+            <path d="M2 12l10 5 10-5"></path>
+          </svg>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">AI Product Assistant</h2>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-800 px-6 py-4">
+        {messages.length === 0 ? (
+          <div className="flex items-start pt-4">
+            <div className="flex gap-3 max-w-[85%]">
+              {/* Avatar */}
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-100 dark:bg-teal-900 text-teal-600 dark:text-teal-400">
             <svg
               width="16"
               height="16"
@@ -460,45 +480,19 @@ export default function ChatContainer({
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-              <line x1="16" y1="13" x2="8" y2="13"></line>
-              <line x1="16" y1="17" x2="8" y2="17"></line>
+                  <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                  <path d="M2 17l10 5 10-5"></path>
+                  <path d="M2 12l10 5 10-5"></path>
             </svg>
-            Add Product
-          </button>
-          {/* API Connection Status */}
-          {isApiConnected !== null && (
-            <div className="flex items-center gap-2">
-              <div
-                className={`h-2 w-2 rounded-full ${
-                  isApiConnected ? 'bg-green-500' : 'bg-red-500'
-                }`}
-                title={
-                  isApiConnected
-                    ? 'Backend connected'
-                    : 'Backend not connected'
-                }
-              />
-              <span className="text-xs text-gray-400">
-                {isApiConnected ? 'Connected' : 'Disconnected'}
-              </span>
+              </div>
+              {/* Greeting Message */}
+              <div className="flex flex-col">
+                <div className="rounded-2xl px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                  <div className="whitespace-pre-wrap break-words text-sm">
+                    Hello! I'm your product discovery assistant. I can help you find the right products for your needs. What are you looking for today?
             </div>
-          )}
         </div>
       </div>
-
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto">
-        {messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center">
-            <div className="text-center">
-              <h2 className="mb-2 text-2xl font-semibold text-gray-300">
-                How can I help you today?
-              </h2>
-              <p className="text-gray-500">
-                Start a conversation by typing a message below.
-              </p>
             </div>
           </div>
         ) : (

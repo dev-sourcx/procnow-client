@@ -7,6 +7,7 @@ import { getCurrentUser, type CurrentUser, getProductSheet, ProductSheetItem, ge
 import { getAuthToken, ChatSession } from '@/lib/storage';
 import Sidebar from '@/components/Sidebar';
 import CreatableSelect from '@/components/CreatableSelect';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface BriefProduct {
   id: string;
@@ -19,6 +20,7 @@ interface BriefProduct {
 
 export default function ProductSheetPage() {
   const router = useRouter();
+  const { theme, toggleTheme } = useTheme();
   const [products, setProducts] = useState<BriefProduct[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
@@ -617,7 +619,7 @@ export default function ProductSheetPage() {
   });
 
   return (
-    <main className="flex h-screen w-full bg-gray-50">
+    <main className="flex h-screen w-full bg-gray-50 dark:bg-gray-900">
       {/* Sidebar */}
       <Sidebar
         onNewChat={handleNewChat}
@@ -636,10 +638,58 @@ export default function ProductSheetPage() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col relative overflow-hidden">
+        {/* Top Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="text-gray-700 dark:text-gray-300 font-medium">
+            Welcome, {currentUser?.name || 'Client'}
+          </div>
+          <button 
+            onClick={toggleTheme}
+            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+            aria-label="Toggle theme"
+          >
+            {theme === 'light' ? (
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+              </svg>
+            ) : (
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+            )}
+          </button>
+        </div>
+
         {/* Sidebar Toggle Button (Mobile) */}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white text-gray-700 rounded-lg hover:bg-gray-100 shadow-md"
+          className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 shadow-md"
           aria-label="Toggle sidebar"
         >
           <svg
@@ -659,13 +709,13 @@ export default function ProductSheetPage() {
         </button>
 
         {/* Main Content */}
-        <div className="flex-1 overflow-y-auto bg-gray-50">
-          <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
+          <div className="w-full">
             {/* Header Section */}
-            <div className="mb-8">
+            {/* <div className="mb-8">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h1 className="text-2xl font-semibold text-gray-900 mb-1">
+                  <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-1">
                     Welcome, {currentUser?.name || 'Client'}
                   </h1>
                 </div>
@@ -693,67 +743,33 @@ export default function ProductSheetPage() {
                 </button>
               </div>
               <div>
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">My Products</h2>
-                <p className="text-gray-600">Manage your products and create enquiries</p>
+                <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">My Products</h2>
+                <p className="text-gray-600 dark:text-gray-400">Manage your products and create enquiries</p>
               </div>
-            </div>
+            </div> */}
 
-            {/* Main Card with Tabs, Search, and AI Generation */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              {/* Card Header */}
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gray-100 rounded-lg">
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="text-gray-700"
-                    >
-                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                      <line x1="3" y1="9" x2="21" y2="9"></line>
-                      <line x1="9" y1="21" x2="9" y2="9"></line>
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900">My Products</h3>
-                  <span className="px-2.5 py-1 bg-gray-100 text-gray-700 text-sm font-medium rounded-full">
-                    {productCount} products
-                  </span>
-                </div>
-                <div className="relative">
-                  <svg
-                    className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
-                  </svg>
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search products..."
-                    className="pl-10 pr-4 py-2 w-64 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-gray-900 placeholder-gray-400"
-                  />
-                </div>
+            {/* AI Generation Section - Separate on Top */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 my-6">
+              <div className="flex items-center gap-2 mb-4">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-teal-600 dark:text-teal-400"
+                >
+                  <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                </svg>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Generate Products with AI</h3>
               </div>
-
-              {/* AI Generation Input */}
-              <div className="flex items-center gap-3 mb-6">
+              <div className="flex items-center gap-3">
                 <div className="flex-1 relative">
                   <svg
-                    className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -775,7 +791,7 @@ export default function ProductSheetPage() {
                       }
                     }}
                     placeholder="Enter product keyword (e.g., Industrial Valve, Steel Pipe)..."
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-gray-900 placeholder-gray-400"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500"
                   />
                 </div>
                 <button
@@ -798,12 +814,91 @@ export default function ProductSheetPage() {
                   {isGenerating ? 'Generating...' : 'Generate with AI'}
                 </button>
               </div>
+            </div>
+
+            {/* Main Card with Tabs, Search */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              {/* Card Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="text-gray-700 dark:text-gray-300"
+                      >
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="3" y1="9" x2="21" y2="9"></line>
+                        <line x1="9" y1="21" x2="9" y2="9"></line>
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">My Products</h3>
+                    <span className="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-full">
+                      {productCount} products
+                    </span>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-400">Manage your products and create enquiries</p>
+                </div>
+                <div className="relative flex items-center gap-3">
+                  <div className="relative">
+                  <svg
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search products..."
+                    className="pl-10 pr-4 py-2 w-64 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500"
+                  />
+                  </div>
+                  <button
+                  onClick={handleCreateEnquiry}
+                  disabled={selectedProductIds.length === 0}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-teal-500 hover:bg-teal-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                  </svg>
+                  Create Enquiry {selectedProductIds.length > 0 && `(${selectedProductIds.length} selected)`}
+                </button>
+                </div>
+              </div>
 
               {/* Products List or Empty State */}
               {isLoadingProducts ? (
                 <div className="flex flex-col items-center justify-center py-16 min-h-[400px]">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500 mb-4"></div>
-                  <p className="text-gray-600">Loading products...</p>
+                  <p className="text-gray-600 dark:text-gray-400">Loading products...</p>
                 </div>
               ) : filteredProducts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 min-h-[400px]">
@@ -822,13 +917,13 @@ export default function ProductSheetPage() {
                       <line x1="9" y1="21" x2="9" y2="9"></line>
                     </svg>
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No products yet</h3>
-                  <p className="text-gray-600 mb-6 text-center">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No products yet</h3>
+                  <p className="text-gray-600 dark:text-gray-400 mb-6 text-center">
                     Generate products with AI above or discover products
                   </p>
                   <button
                     onClick={() => router.push('/')}
-                    className="flex items-center gap-2 px-6 py-3 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition-colors shadow-sm"
+                    className="flex items-center gap-2 px-6 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors shadow-sm"
                   >
                     <svg
                       width="18"
@@ -866,25 +961,14 @@ export default function ProductSheetPage() {
                             />
                           </label>
                         </th>
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Product Name</th>
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Category</th>
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Specifications</th>
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Base Price</th>
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Action</th>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Product Name</th>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Specifications</th>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredProducts.map((product) => {
                         const isSelected = selectedProductIds.includes(product.id);
-                        // Extract description from specifications or use default
-                        const descriptionSpec = product.specifications.find(s => 
-                          s.toLowerCase().includes('description')
-                        );
-                        const description = descriptionSpec 
-                          ? descriptionSpec.includes(':') 
-                            ? descriptionSpec.split(':').slice(1).join(':').trim() || `Custom ${product.name} with specific requirements`
-                            : `Custom ${product.name} with specific requirements`
-                          : `Custom ${product.name} with specific requirements`;
                         
                         // Parse specifications to show as key: value badges (exclude description and price)
                         const specBadges = product.specifications
@@ -905,8 +989,8 @@ export default function ProductSheetPage() {
                         return (
                           <tr
                             key={product.id}
-                            className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
-                              isSelected ? 'bg-teal-50' : ''
+                            className={`border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
+                              isSelected ? 'bg-teal-50 dark:bg-teal-900/20' : ''
                             }`}
                           >
                             {/* Checkbox */}
@@ -929,17 +1013,7 @@ export default function ProductSheetPage() {
 
                             {/* Product Name */}
                             <td className="py-4 px-4">
-                              <div>
-                                <div className="font-medium text-gray-900">{product.name}</div>
-                                <div className="text-sm text-gray-500 mt-1">{description}</div>
-                              </div>
-                            </td>
-
-                            {/* Category */}
-                            <td className="py-4 px-4">
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                                {product.category}
-                              </span>
+                              <div className="font-medium text-gray-900 dark:text-white">{product.name}</div>
                             </td>
 
                             {/* Specifications */}
@@ -965,16 +1039,11 @@ export default function ProductSheetPage() {
                               </div>
                             </td>
 
-                            {/* Base Price */}
-                            <td className="py-4 px-4">
-                              <span className="text-gray-900">$0</span>
-                            </td>
-
                             {/* Action */}
                             <td className="py-4 px-4">
                               <button
                                 onClick={() => handleDeleteProduct(product.id)}
-                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                                 aria-label="Delete product"
                               >
                                 <svg

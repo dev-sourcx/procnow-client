@@ -19,12 +19,12 @@ export default function Message({ message }: MessageProps) {
   }, [message.content]);
 
   return (
-    <div className={`w-full px-4 py-2 flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+    <div className={`w-full py-3 flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div className={`flex gap-3 max-w-[85%] ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
         {/* Avatar */}
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
           {isUser ? (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-600 text-white">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-600 text-white">
               <svg
                 width="16"
                 height="16"
@@ -40,7 +40,7 @@ export default function Message({ message }: MessageProps) {
               </svg>
             </div>
           ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-600 text-white">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-100 dark:bg-teal-900 text-teal-600 dark:text-teal-400">
               <svg
                 width="16"
                 height="16"
@@ -63,15 +63,15 @@ export default function Message({ message }: MessageProps) {
         <div className="flex flex-col">
           <div
             ref={contentRef}
-            className={`rounded-2xl px-4 py-2 ${
+            className={`rounded-2xl px-4 py-3 ${
               isUser
-                ? 'bg-blue-600 text-white'
-                : 'bg-[#444654] text-gray-100'
+                ? 'bg-teal-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
             }`}
           >
             <div className="whitespace-pre-wrap break-words text-sm">
               {message.content || (
-                <span className="text-gray-400">Thinking...</span>
+                <span className="text-gray-500 dark:text-gray-400">Thinking...</span>
               )}
             </div>
           </div>

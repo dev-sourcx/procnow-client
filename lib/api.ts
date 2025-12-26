@@ -962,3 +962,41 @@ export async function generateFieldsFromDescription(data: Record<string, any>): 
   return response.json();
 }
 
+// Quote Types
+export interface Quote {
+  _id?: string;
+  vendorAssignmentId: any;
+  unitPrice?: string;
+  deliveryDate?: string | Date;
+  validTill?: string | Date;
+  description?: string;
+  attachment?: string;
+  visibletoClient: boolean;
+  quoteStatus: string;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
+}
+
+/**
+ * Get all quotes for the authenticated buyer (quotes visible to client)
+ * Calls: GET /api/enquiries/quotes
+ */
+export async function getBuyerQuotes(token: string): Promise<Quote[]> {
+  const response = await fetch(`${API_URL}/api/enquiries/quotes`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const responseData: ApiSuccessResponse<{ quotes: Quote[] }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to get quotes');
+  }
+
+  return (responseData as ApiSuccessResponse<{ quotes: Quote[] }>).data.quotes;
+}
+

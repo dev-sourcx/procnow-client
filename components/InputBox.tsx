@@ -37,26 +37,25 @@ export default function InputBox({ onSendMessage, isLoading }: InputBoxProps) {
   };
 
   return (
-    <div className="w-full border-t border-gray-700 bg-[#343541] px-4 pt-4">
-      <div className="m-auto max-w-3xl">
-        <form onSubmit={handleSubmit} className="relative flex items-center">
+    <div className="w-full border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-4">
+      <form onSubmit={handleSubmit} className="relative flex items-center gap-3">
           <textarea
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Message..."
+          placeholder="Ask about products..."
             disabled={isLoading}
             rows={1}
-            className="max-h-[200px] w-full resize-none rounded-lg border border-gray-600 bg-[#40414f] px-4 py-3 pr-12 text-white placeholder:text-gray-400 focus:border-gray-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex-1 resize-none rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 px-4 py-3 pr-14 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-teal-500 dark:focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:ring-opacity-20 disabled:cursor-not-allowed disabled:opacity-50"
             style={{
-              minHeight: '52px',
+            minHeight: '48px',
             }}
           />
           <button
             type="submit"
             disabled={!input.trim() || isLoading}
-            className="absolute bottom-2 right-2 rounded-lg bg-transparent p-1 text-gray-400 hover:bg-gray-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-12 w-12 rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center transition-colors"
             aria-label="Send message"
           >
             {isLoading ? (
@@ -90,7 +89,6 @@ export default function InputBox({ onSendMessage, isLoading }: InputBoxProps) {
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="mb-1"
               >
                 <line x1="22" y1="2" x2="11" y2="13"></line>
                 <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
@@ -98,10 +96,6 @@ export default function InputBox({ onSendMessage, isLoading }: InputBoxProps) {
             )}
           </button>
         </form>
-        <div className="mt-2 text-center text-xs text-gray-500">
-          Press Enter to send, Shift+Enter for new line
-        </div>
-      </div>
     </div>
   );
 }

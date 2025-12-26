@@ -75,17 +75,17 @@ export default function CreatableSelect({
     <div className={`relative ${className}`} ref={dropdownRef}>
       {/* Searchable Input */}
       <div className="relative">
-        <div className="w-full min-h-[44px] px-3 py-2.5 text-gray-900 bg-white border border-gray-200 rounded-lg shadow-sm focus-within:ring-2 focus-within:ring-gray-900/10 focus-within:border-gray-300 flex flex-wrap items-center gap-2">
+        <div className="w-full min-h-[44px] px-3 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus-within:ring-2 focus-within:ring-gray-900/10 dark:focus-within:ring-gray-100/10 focus-within:border-gray-300 dark:focus-within:border-gray-500 flex flex-wrap items-center gap-2">
           {value.map((val) => (
             <span
               key={val}
-              className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-100"
+              className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded-full border border-blue-100 dark:border-blue-800"
             >
               {val}
               <button
                 type="button"
                 onClick={() => handleRemoveValue(val)}
-                className="text-blue-500 hover:text-blue-700"
+                className="text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
                 aria-label={`Remove ${val}`}
               >
                 ×
@@ -110,14 +110,14 @@ export default function CreatableSelect({
               }
             }}
             placeholder={value.length ? '' : placeholder}
-            className="flex-1 min-w-[120px] text-sm text-gray-900 outline-none placeholder:text-gray-400"
+            className="flex-1 min-w-[120px] text-sm text-gray-900 dark:text-gray-100 bg-transparent outline-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
             required={required && value.length === 0}
           />
           {/* Dropdown Arrow */}
           <button
             type="button"
             onClick={() => setIsOpen(!isOpen)}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
           >
             <svg
               width="16"
@@ -138,7 +138,7 @@ export default function CreatableSelect({
 
       {/* Dropdown Options */}
       {isOpen && (
-        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
           {filteredOptions.length > 0 ? (
             <>
               {filteredOptions.map((option, index) => {
@@ -147,20 +147,20 @@ export default function CreatableSelect({
                   <div
                     key={index}
                     onClick={() => handleSelectOption(option)}
-                    className={`px-3 py-2 cursor-pointer hover:bg-gray-50 flex items-center justify-between ${
-                      isSelected ? 'bg-blue-50' : ''
+                    className={`px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-between ${
+                      isSelected ? 'bg-blue-50 dark:bg-blue-900/30' : ''
                     }`}
                   >
-                    <span className="text-gray-900">{option}</span>
+                    <span className="text-gray-900 dark:text-gray-100">{option}</span>
                     {isSelected && (
-                      <span className="ml-2 text-xs text-blue-600">Selected</span>
+                      <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">Selected</span>
                     )}
                   </div>
                 );
               })}
             </>
           ) : (
-            <div className="px-3 py-2 text-gray-500 text-sm">
+            <div className="px-3 py-2 text-gray-500 dark:text-gray-400 text-sm">
               No options found
             </div>
           )}
