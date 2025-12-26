@@ -489,7 +489,7 @@ export default function ChatContainer({
               <div className="flex flex-col">
                 <div className="rounded-2xl px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100">
                   <div className="whitespace-pre-wrap break-words text-sm">
-                    Hello! I'm your product discovery assistant. I can help you find the right products for your needs. What are you looking for today?
+                    Hello! I&apos;m your product discovery assistant. I can help you find the right products for your needs. What are you looking for today?
             </div>
         </div>
       </div>
