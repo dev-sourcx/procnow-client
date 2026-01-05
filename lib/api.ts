@@ -35,6 +35,7 @@ export interface ProductSheetItem {
   adminProductId?: string | null;
   externalRef?: string | null;
   displayName?: string | null;
+  item?: string | null;
   category?: string | null;
   userAttributes?: Record<string, any>;
 }
@@ -430,12 +431,14 @@ export interface ChatRequest {
 export interface Product {
   _id: string;
   product_name: string;
+  item?: string | null;
   usage: string[];
   product_category: string;
   description: string;
   dynamic_attributes: Record<string, string>;
   vendor: string;
   image_link: string;
+  image: string;
 }
 
 /**
@@ -757,6 +760,41 @@ export async function sendChatMessage(
   onError?: (error: Error) => void
 ): Promise<void> {
   try {
+    // Helper to fetch products using the dedicated Procnow products API
+    const fetchProductsForPrompt = async (prompt: any): Promise<Product[] | null> => {
+      try {
+        const response = await fetch('https://api.procnow.com/generate_shopping_products', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ chat_conversation: fullHistory }),
+        });
+
+        if (!response.ok) {
+          console.error(
+            'Failed to fetch products from generate_shipping_products:',
+            response.status,
+            response.statusText
+          );
+          return null;
+        }
+
+        const data = await response.json();
+        // Assume API returns either { products: [...] } or the array directly
+        // if (Array.isArray(data)) {
+        //   return data as Product[];
+        // }
+        // if (Array.isArray((data as any).products)) {
+        //   return (data as any).products as Product[];
+        // }
+        return data?.products.shopping_results;
+      } catch (error) {
+        console.error('Error calling generate_shipping_products API:', error);
+        return null;
+      }
+    };
+
     // Add the latest user message to history
     const fullHistory: ChatMessage[] = [...history, { role: 'user', content: message }];
 
@@ -813,17 +851,25 @@ export async function sendChatMessage(
 
           try {
             const parsed = JSON.parse(data);
-
+            
             // Handle streaming assistant text tokens
             if (parsed.type === 'token' && parsed.text) {
               // Stream the token text directly for incremental rendering
               onChunk(parsed.text);
             }
 
-            
-            // Handle dedicated products event
-            if (parsed.type === 'products' && parsed.data && onProducts) {
-              onProducts(parsed.data);
+            // Handle dedicated products event - treat as end of stream and
+            // fetch products from the Procnow products API for this prompt
+            if (parsed.type === 'products' && onProducts) {
+              const apiProducts = await fetchProductsForPrompt(fullHistory);
+              if (apiProducts) {
+                onProducts(apiProducts);
+              }
+              // Consider "products" as the end of the stream
+              if (onDone) {
+                onDone();
+              }
+              return;
             }
           } catch (parseError) {
             // If it's not JSON, check if it contains product data as Python dict
@@ -861,8 +907,16 @@ export async function sendChatMessage(
                 // Stream the token text directly for incremental rendering
                 onChunk(parsed.text);
               }
-              if (parsed.type === 'products' && parsed.data && onProducts) {
-                onProducts(parsed.data);
+              // Handle dedicated products event at the tail of the stream as well
+              if (parsed.type === 'products' && onProducts) {
+                const apiProducts = await fetchProductsForPrompt(message);
+                if (apiProducts) {
+                  onProducts(apiProducts);
+                }
+                if (onDone) {
+                  onDone();
+                }
+                return;
               }
             } catch {
               // If not JSON, check if it contains product data as Python dict

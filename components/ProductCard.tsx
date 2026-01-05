@@ -3,9 +3,10 @@
 import { Product, generateFieldsFromKeyword, GeneratedFieldsResponse, addProductItem } from '@/lib/api';
 import { getAuthToken } from '@/lib/storage';
 import { requireAuth } from '@/lib/auth';
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import CreatableSelect from './CreatableSelect';
+import Image from 'next/image';
 
 interface ProductCardProps {
   product: Product;
@@ -26,6 +27,7 @@ export default function ProductCard({
   const [isFavorite, setIsFavorite] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const [generatedFields, setGeneratedFields] = useState<GeneratedFieldsResponse | null>(null);
   const [formData, setFormData] = useState<Record<string, string | number | File | null | string[]>>({});
   const [error, setError] = useState<string | null>(null);
@@ -191,6 +193,90 @@ export default function ProductCard({
       return updated;
     });
   };
+
+  // Validate if a string is valid base64
+  function isValidBase64(str: string): boolean {
+    if (!str || typeof str !== 'string') return false;
+    
+    // Remove data:image/... prefix if present
+    const base64Data = str.includes(',') ? str.split(',')[1] : str;
+    
+    // Base64 regex: only allows A-Z, a-z, 0-9, +, /, and = (with padding)
+    const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+    
+    // Check if it matches base64 pattern and has reasonable length
+    return base64Regex.test(base64Data.trim()) && base64Data.trim().length > 0;
+  }
+
+  // Data URI placeholder for a simple gray square
+  const placeholderDataUri = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YzZjRmNiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5Y2EzYWYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5Qcm9kdWN0IEltYWdlPC90ZXh0Pjwvc3ZnPg==';
+
+  // Reset error state when product changes
+  useEffect(() => {
+    setImageError(false);
+  }, [product.image, product.image_link]);
+
+  // Memoize the image URL to prevent repeated calls
+  const imageUrl = useMemo(() => {
+    // If image error occurred, use placeholder
+    if (imageError) {
+      return placeholderDataUri;
+    }
+    
+    if (!product.image) {
+      return product.image_link || placeholderDataUri;
+    }
+    
+    // Check if it's already a URL
+    if (product.image.startsWith('http://') || product.image.startsWith('https://') || product.image.startsWith('/')) {
+      return product.image;
+    }
+    
+    // Validate base64 before attempting to decode
+    if (!isValidBase64(product.image)) {
+      console.warn('Invalid base64 string, falling back to image_link');
+      return product.image_link || placeholderDataUri;
+    }
+    
+    try {
+      let base64Data: string;
+      let mime = 'image/webp';
+      
+      if (product.image.includes(',')) {
+        // Handle data:image/... format
+        const [meta, data] = product.image.split(",");
+        if (!data) return product.image_link || placeholderDataUri;
+        
+        mime = meta.match(/:(.*?);/)?.[1] || "image/webp";
+        base64Data = data.trim();
+      } else {
+        // Raw base64 data
+        base64Data = product.image.trim();
+      }
+      
+      // Clean the base64 data
+      const cleanData = base64Data.replace(/\\x3d/g, "=").replace(/\\/g, "").trim();
+      
+      // Final validation before atob
+      if (!/^[A-Za-z0-9+/]*={0,2}$/.test(cleanData)) {
+        return product.image_link || placeholderDataUri;
+      }
+      
+      const bytes = atob(cleanData);
+      const array = new Uint8Array(bytes.length);
+      
+      for (let i = 0; i < bytes.length; i++) {
+        array[i] = bytes.charCodeAt(i);
+      }
+      
+      const blob = new Blob([array], { type: mime });
+      return URL.createObjectURL(blob);
+    } catch (error) {
+      console.error('Error converting base64 to blob URL:', error);
+      return product.image_link || placeholderDataUri;
+    }
+  }, [product.image, product.image_link, imageError, placeholderDataUri]);
+  
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -673,11 +759,15 @@ export default function ProductCard({
 
         {/* Product Image */}
         <img
-          src={product.image_link || '/placeholder-product.jpg'}
-          alt={product.product_name}
-          className="w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-300"
+          src={product.image}
+          alt={product.item || product.product_name || 'Product image'}
+          className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
           onError={(e) => {
-            (e.target as HTMLImageElement).src = '/placeholder-product.jpg';
+            const target = e.target as HTMLImageElement;
+            // Only set error state if we haven't already, and if it's not already the placeholder
+            if (!imageError && !target.src.includes('data:image/svg+xml')) {
+              setImageError(true);
+            }
           }}
         />
       </div>
@@ -685,11 +775,11 @@ export default function ProductCard({
       {/* Content */}
       <div className="flex flex-col p-4 gap-2">
         {/* Category Tag */}
-        <span className="text-xs text-gray-500 font-medium">{category}</span>
+        {/* <span className="text-xs text-gray-500 font-medium">{category}</span> */}
 
         {/* Product Name */}
         <h3 className="text-base font-semibold text-gray-900 line-clamp-1">
-          {product.product_name}
+          {product.item}
         </h3>
 
         {/* Description */}

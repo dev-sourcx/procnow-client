@@ -84,7 +84,12 @@ export default function ChatContainer({
           if (guestSession) {
             sessionIdRef.current = guestSession.id;
             const guestMessages = getGuestMessages();
-            setMessages(guestMessages);
+            // Normalize products to ensure they're always arrays
+            const normalizedMessages = guestMessages.map((msg) => ({
+              ...msg,
+              products: Array.isArray(msg.products) ? msg.products : (msg.products ? [msg.products] : []),
+            }));
+            setMessages(normalizedMessages);
           } else {
             setMessages([]);
           }
@@ -98,7 +103,18 @@ export default function ChatContainer({
       if (currentSessionId.startsWith('guest_')) {
         sessionIdRef.current = currentSessionId;
         const guestMessages = getGuestMessages();
-        setMessages(guestMessages);
+        // Normalize products to ensure they're always arrays
+        const normalizedMessages = guestMessages.map((msg) => ({
+          ...msg,
+          products: Array.isArray(msg.products) ? msg.products : (msg.products ? [msg.products] : []),
+        }));
+        // Log products for debugging
+        normalizedMessages.forEach((msg) => {
+          if (msg.products && msg.products.length > 0) {
+            console.log(`Loaded guest message ${msg.id} with ${msg.products.length} products:`, msg.products);
+          }
+        });
+        setMessages(normalizedMessages);
         return;
       }
 
@@ -109,7 +125,18 @@ export default function ChatContainer({
         const guestSession = getGuestSession();
         if (guestSession && guestSession.id === currentSessionId) {
           const guestMessages = getGuestMessages();
-          setMessages(guestMessages);
+          // Normalize products to ensure they're always arrays
+          const normalizedMessages = guestMessages.map((msg) => ({
+            ...msg,
+            products: Array.isArray(msg.products) ? msg.products : (msg.products ? [msg.products] : []),
+          }));
+          // Log products for debugging
+          normalizedMessages.forEach((msg) => {
+            if (msg.products && msg.products.length > 0) {
+              console.log(`Loaded guest message ${msg.id} with ${msg.products.length} products:`, msg.products);
+            }
+          });
+          setMessages(normalizedMessages);
         } else {
           setMessages([]);
         }
@@ -130,12 +157,21 @@ export default function ChatContainer({
       try {
         const backendMessages = await getChatMessages(token, currentSessionId);
         // Convert backend messages to frontend format
-        const convertedMessages: Message[] = backendMessages.map((msg) => ({
-          id: msg._id,
-          role: msg.role,
-          content: msg.content,
-          products: msg.products || [],
-        }));
+        const convertedMessages: Message[] = backendMessages.map((msg) => {
+          // Ensure products is always an array
+          const products = Array.isArray(msg.products) ? msg.products : (msg.products ? [msg.products] : []);
+          const message: Message = {
+            id: msg._id,
+            role: msg.role,
+            content: msg.content,
+            products: products,
+          };
+          // Log products for debugging
+          if (message.products && message.products.length > 0) {
+            console.log(`Loaded message ${message.id} with ${message.products.length} products:`, message.products);
+          }
+          return message;
+        });
         setMessages(convertedMessages);
         
         // If messages already exist, mark title as set

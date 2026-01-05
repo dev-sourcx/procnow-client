@@ -47,7 +47,7 @@ export default function ProductSection({ products }: ProductSectionProps) {
             const pricing = getProductPricing(product, index);
             return (
               <ProductCard
-                key={product._id}
+                key={index}
                 product={product}
                 discount={pricing.discount || undefined}
                 originalPrice={pricing.original || undefined}
