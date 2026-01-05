@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { login, signup, getGoogleAuthUrl, syncGuestSession } from '@/lib/api';
 import { saveAuthToken, getGuestSessionData, deleteGuestSession } from '@/lib/storage';
 import { getAndClearRedirectPath } from '@/lib/auth';
+import { useTheme } from '@/contexts/ThemeContext';
 
 type AuthMode = 'login' | 'signup';
 
@@ -17,6 +18,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const isLogin = mode === 'login';
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { theme, toggleTheme } = useTheme();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -85,6 +87,9 @@ export default function AuthForm({ mode }: AuthFormProps) {
         });
       }
       
+      // Mark that user came from login to prevent beforeunload from clearing guest session
+      localStorage.setItem('came_from_login', 'true');
+      
       // Save token
         saveAuthToken(result.token);
       
@@ -92,9 +97,13 @@ export default function AuthForm({ mode }: AuthFormProps) {
       const guestData = getGuestSessionData();
       if (guestData) {
         try {
-          await syncGuestSession(result.token, guestData);
-          // Clear guest session after successful sync
-          deleteGuestSession();
+          const syncedSession = await syncGuestSession(result.token, guestData);
+          // Store synced session ID in sessionStorage so it can be loaded after redirect
+          if (syncedSession && syncedSession._id) {
+            sessionStorage.setItem('synced_session_id', syncedSession._id);
+          }
+          // Keep guest session in localStorage - don't delete it
+          // deleteGuestSession(); // Removed - keep guest session in localStorage
         } catch (syncError) {
           console.error('Error syncing guest session:', syncError);
           // Continue even if sync fails - user is still logged in
@@ -116,17 +125,63 @@ export default function AuthForm({ mode }: AuthFormProps) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#343541] px-4">
-      <div className="w-full max-w-md rounded-xl border border-white/10 bg-[#202123] p-8 shadow-xl">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-[#343541] px-4">
+      <div className="w-full max-w-md rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#202123] p-8 shadow-xl">
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-semibold text-white">{title}</h1>
-          <p className="mt-2 text-sm text-gray-400">{subtitle}</p>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex-1"></div>
+            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white flex-1">{title}</h1>
+            <div className="flex-1 flex justify-end">
+              <button 
+                onClick={toggleTheme}
+                className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                aria-label="Toggle theme"
+              >
+                {theme === 'light' ? (
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="5"></circle>
+                    <line x1="12" y1="1" x2="12" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="23"></line>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                    <line x1="1" y1="12" x2="3" y2="12"></line>
+                    <line x1="21" y1="12" x2="23" y2="12"></line>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                  </svg>
+                ) : (
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{subtitle}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && (
             <div>
-              <label className="mb-1 block text-sm text-gray-300" htmlFor="name">
+              <label className="mb-1 block text-sm text-gray-700 dark:text-gray-300" htmlFor="name">
                 Name
               </label>
               <input
@@ -136,13 +191,13 @@ export default function AuthForm({ mode }: AuthFormProps) {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Your full name"
                 required
-                className="w-full rounded-lg border border-gray-700 bg-[#2b2c36] px-3 py-2 text-white outline-none transition focus:border-gray-500"
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#2b2c36] px-3 py-2 text-gray-900 dark:text-white outline-none transition focus:border-gray-500 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
               />
             </div>
           )}
 
           <div>
-            <label className="mb-1 block text-sm text-gray-300" htmlFor="email">
+            <label className="mb-1 block text-sm text-gray-700 dark:text-gray-300" htmlFor="email">
               Email
             </label>
             <input
@@ -152,12 +207,12 @@ export default function AuthForm({ mode }: AuthFormProps) {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
               required
-              className="w-full rounded-lg border border-gray-700 bg-[#2b2c36] px-3 py-2 text-white outline-none transition focus:border-gray-500"
+              className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#2b2c36] px-3 py-2 text-gray-900 dark:text-white outline-none transition focus:border-gray-500 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm text-gray-300" htmlFor="password">
+            <label className="mb-1 block text-sm text-gray-700 dark:text-gray-300" htmlFor="password">
               Password
             </label>
             <input
@@ -167,7 +222,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
-              className="w-full rounded-lg border border-gray-700 bg-[#2b2c36] px-3 py-2 text-white outline-none transition focus:border-gray-500"
+              className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#2b2c36] px-3 py-2 text-gray-900 dark:text-white outline-none transition focus:border-gray-500 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
             />
           </div>
 
@@ -189,10 +244,10 @@ export default function AuthForm({ mode }: AuthFormProps) {
         {/* Divider */}
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-700"></div>
+            <div className="w-full border-t border-gray-300 dark:border-gray-700"></div>
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-[#202123] text-gray-400">Or continue with</span>
+            <span className="px-2 bg-white dark:bg-[#202123] text-gray-600 dark:text-gray-400">Or continue with</span>
           </div>
         </div>
 
@@ -201,7 +256,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
           type="button"
           onClick={handleGoogleSignIn}
           disabled={googleLoading || isSubmitting}
-          className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-700 bg-[#2b2c36] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#353640] disabled:opacity-60 disabled:cursor-not-allowed"
+          className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#2b2c36] px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-white transition hover:bg-gray-50 dark:hover:bg-[#353640] disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path
@@ -224,18 +279,18 @@ export default function AuthForm({ mode }: AuthFormProps) {
           {googleLoading ? 'Loading...' : 'Continue with Google'}
         </button>
 
-        <div className="mt-6 text-center text-sm text-gray-400">
+        <div className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
           {isLogin ? (
             <span>
-              Don’t have an account?{' '}
-              <Link href="/signup" className="text-indigo-400 hover:underline">
+              Don&apos;t have an account?{' '}
+              <Link href="/signup" className="text-indigo-600 dark:text-indigo-400 hover:underline">
                 Sign up
               </Link>
             </span>
           ) : (
             <span>
               Already have an account?{' '}
-              <Link href="/login" className="text-indigo-400 hover:underline">
+              <Link href="/login" className="text-indigo-600 dark:text-indigo-400 hover:underline">
                 Log in
               </Link>
             </span>

@@ -87,6 +87,15 @@ export default function Sidebar({
   };
 
   const handleLoginClick = () => {
+    const token = getAuthToken();
+    if (!token) {
+      try {
+        // Mark that user initiated login from the UI while unauthenticated
+        localStorage.setItem('came_from_login', 'true');
+      } catch {
+        // Ignore storage errors
+      }
+    }
     router.push('/login');
     onToggle(); // Close sidebar on mobile
   };
@@ -150,13 +159,30 @@ export default function Sidebar({
         }`}
       >
         <div className="flex h-full flex-col">
-          {/* Header */}
-          <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600 text-white font-bold text-lg">
-              C
+          {/* New Chat Button - only show when user is logged in */}
+          {currentUser && (
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+              <button
+                onClick={onNewChat}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-medium text-sm transition-colors shadow-sm"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                New Chat
+              </button>
             </div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Client Portal</h2>
-          </div>
+          )}
 
           <div className="flex-1 flex flex-col gap-1 overflow-y-auto px-3 py-4">
             {/* Navigation Links */}
@@ -259,16 +285,57 @@ export default function Sidebar({
                   </div>
                 )}
               </div>
-              <div>
-                <button
-                  onClick={handleProductSheetClick}
-                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors ${
-                    pathname === '/product-sheet'
-                      ? 'bg-teal-600 text-white'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
+              {currentUser && (
+                <div>
+                  <button
+                    onClick={handleProductSheetClick}
+                    className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                      pathname === '/product-sheet'
+                        ? 'bg-teal-600 text-white'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                      </svg>
+                      My Products
+                    </div>
+                    {productCount > 0 && (
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                        pathname === '/product-sheet'
+                          ? 'bg-teal-700 text-white'
+                          : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                      }`}>
+                        {productCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
+              {currentUser && (
+                <div>
+                  <button
+                    onClick={handleEnquiriesClick}
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                      pathname === '/enquiries' || pathname?.startsWith('/enquiries/')
+                        ? 'bg-teal-600 text-white'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
                     <svg
                       width="16"
                       height="16"
@@ -279,50 +346,13 @@ export default function Sidebar({
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     >
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                      <polyline points="14 2 14 8 20 8"></polyline>
-                      <line x1="16" y1="13" x2="8" y2="13"></line>
-                      <line x1="16" y1="17" x2="8" y2="17"></line>
-                      <polyline points="10 9 9 9 8 9"></polyline>
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                      <polyline points="22,6 12,13 2,6"></polyline>
                     </svg>
-                    My Products
-                  </div>
-                  {productCount > 0 && (
-                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                      pathname === '/product-sheet'
-                        ? 'bg-teal-700 text-white'
-                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                    }`}>
-                      {productCount}
-                    </span>
-                  )}
-                </button>
-              </div>
-              <div>
-                <button
-                  onClick={handleEnquiriesClick}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
-                    pathname === '/enquiries' || pathname?.startsWith('/enquiries/')
-                      ? 'bg-teal-600 text-white'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                    <polyline points="22,6 12,13 2,6"></polyline>
-                  </svg>
-                  My Enquiries
-                </button>
-              </div>
+                    My Enquiries
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

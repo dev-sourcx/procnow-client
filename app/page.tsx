@@ -80,6 +80,29 @@ export default function Home() {
   const [specModalItems, setSpecModalItems] = useState<string[]>([]);
   const [specModalTitle, setSpecModalTitle] = useState<string>('Specifications');
 
+  // Clear guest chat when browser closes (only for non-authenticated users)
+  // But don't clear if user came from login
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      const token = getAuthToken();
+      // Check if user came from login (stored in localStorage)
+      const cameFromLogin = localStorage.getItem('came_from_login') === 'true';
+      
+      // Only clear guest session if:
+      // 1. User is not authenticated
+      // 2. User did not come from login
+      if (!token && !cameFromLogin) {
+        deleteGuestSession();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
+
   useEffect(() => {
     const checkAuth = async () => {
       const token = getAuthToken();
@@ -101,6 +124,10 @@ export default function Home() {
       try {
         const user = await getCurrentUser(token);
         setCurrentUser(user);
+        
+        // Clear the came_from_login flag since user is now authenticated
+        localStorage.removeItem('came_from_login');
+        
         // If successful, load sessions from backend
         try {
           const backendSessions = await getChatSessions(token);
@@ -112,6 +139,23 @@ export default function Home() {
             updatedAt: new Date(s.updatedAt).getTime(),
           }));
           setSessions(convertedSessions);
+          
+          // If there is a guest session from before login, prefer showing that first
+          const guestSession = getGuestSession();
+          if (guestSession) {
+            // Use the guest session ID so ChatContainer can load its messages from localStorage
+            setCurrentSessionId(guestSession.id);
+          } else {
+            // Fallback: if we have a synced session id from login, select that
+            const syncedSessionId = sessionStorage.getItem('synced_session_id');
+            if (syncedSessionId) {
+              const syncedSession = convertedSessions.find(s => s.id === syncedSessionId);
+              if (syncedSession) {
+                setCurrentSessionId(syncedSessionId);
+              }
+              sessionStorage.removeItem('synced_session_id');
+            }
+          }
         } catch (error) {
           console.error('Error loading sessions from backend:', error);
           // On error, don't load any sessions
@@ -516,10 +560,51 @@ export default function Home() {
           <div className="text-gray-700 dark:text-gray-300 font-medium">
             Welcome, {currentUser?.name || 'Client'}
           </div>
+          <button 
+            onClick={toggleTheme}
+            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+            aria-label="Toggle theme"
+          >
+            {theme === 'light' ? (
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+              </svg>
+            ) : (
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+            )}
+          </button>
         </div>
 
         {/* Main Title Section */}
-        <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700">
           <div className="px-6 py-4 flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">Product Discovery</h1>
@@ -527,12 +612,12 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-3">
               {/* Tab Switch Buttons */}
-              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
                 <button
                   onClick={() => setActiveMode('discover')}
-                  className={`relative px-4 py-2 font-medium flex items-center gap-2 transition-colors rounded-md ${
+                  className={`relative px-4 py-2 font-medium flex items-center gap-2 transition-all rounded-md ${
                     activeMode === 'discover'
-                      ? 'bg-white dark:bg-gray-800 text-teal-600 dark:text-teal-400 shadow-sm'
+                      ? 'bg-teal-600 dark:bg-teal-600 text-white shadow-sm'
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                   }`}
                 >
@@ -554,9 +639,9 @@ export default function Home() {
                 </button>
                 <button
                   onClick={() => setActiveMode('specify')}
-                  className={`relative px-4 py-2 font-medium flex items-center gap-2 transition-colors rounded-md ${
+                  className={`relative px-4 py-2 font-medium flex items-center gap-2 transition-all rounded-md ${
                     activeMode === 'specify'
-                      ? 'bg-white dark:bg-gray-800 text-teal-600 dark:text-teal-400 shadow-sm'
+                      ? 'bg-teal-600 dark:bg-teal-600 text-white shadow-sm'
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                   }`}
                 >
@@ -629,7 +714,7 @@ export default function Home() {
             <div className="w-full">
               <>
                   {/* Item Enquiry Input Card */}
-                  <div className="bg-white dark:bg-gray-800 shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+                  <div className="bg-white dark:bg-gray-700 shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
                     <div className="flex items-center gap-2 mb-4">
                       <svg
                         width="20"
@@ -656,7 +741,7 @@ export default function Home() {
                         value={itemInput}
                         onChange={(e) => setItemInput(e.target.value)}
                         placeholder="Enter item name (e.g., Laptop, Office Chair, Smartphone...)"
-                        className="flex-1 px-4 py-3 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                        className="flex-1 px-4 py-3 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
                       />
                       <button
                         onClick={handleGenerateWithAI}
@@ -707,7 +792,7 @@ export default function Home() {
 
                   {/* Generated Fields Form */}
                   {generatedFields && (
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+                    <div className="bg-white dark:bg-gray-700 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
                       <div className="flex items-center justify-between mb-6">
                         <div>
                           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -740,7 +825,7 @@ export default function Home() {
                             value={imageUrl}
                             onChange={(e) => setImageUrl(e.target.value)}
                             placeholder="https://example.com/image.jpg"
-                            className="w-full px-3 py-2 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                            className="w-full px-3 py-2 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
                           />
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             Enter a URL to an image of the product
@@ -793,7 +878,7 @@ export default function Home() {
                                   onChange={(e) => handleInputChange(field.label, e.target.value)}
                                   placeholder={field.placeholder}
                                   rows={3}
-                                  className="w-full px-3 py-2.5 min-h-[110px] text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 resize-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                                  className="w-full px-3 py-2.5 min-h-[110px] text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 resize-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
                                   required
                                 />
                               ) : field.type === 'number' ? (
@@ -802,7 +887,7 @@ export default function Home() {
                                   value={(formData[field.label] as number) || ''}
                                   onChange={(e) => handleInputChange(field.label, parseFloat(e.target.value) || 0)}
                                   placeholder={field.placeholder}
-                                  className="w-full h-11 px-3 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                                  className="w-full h-11 px-3 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
                                   required
                                 />
                               ) : field.type === 'file' ? (
@@ -814,7 +899,7 @@ export default function Home() {
                                       const file = e.target.files?.[0] || null;
                                       handleFileChange(field.label, file);
                                     }}
-                                    className="w-full h-11 px-3 py-2 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 file:mr-3 file:h-full file:px-3 file:py-0 file:rounded-md file:border file:border-gray-300 dark:file:border-gray-600 file:bg-white dark:file:bg-gray-800 file:text-gray-800 dark:file:text-gray-100 file:text-sm file:font-medium file:leading-normal hover:file:bg-gray-50 dark:hover:file:bg-gray-700 file:cursor-pointer"
+                                    className="w-full h-11 px-3 py-2 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 file:mr-3 file:h-full file:px-3 file:py-0 file:rounded-md file:border file:border-gray-300 dark:file:border-gray-600 file:bg-white dark:file:bg-gray-700 file:text-gray-800 dark:file:text-gray-100 file:text-sm file:font-medium file:leading-normal hover:file:bg-gray-50 dark:hover:file:bg-gray-600 file:cursor-pointer"
                                   />
                                   {formData[field.label] instanceof File && (
                                     <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
@@ -861,7 +946,7 @@ export default function Home() {
                                   value={(formData[field.label] as string) || ''}
                                   onChange={(e) => handleInputChange(field.label, e.target.value)}
                                   placeholder={field.placeholder}
-                                  className="w-full h-11 px-3 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                                  className="w-full h-11 px-3 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
                                   required
                                 />
                               )}
@@ -910,7 +995,7 @@ export default function Home() {
 
                   {/* Added Products Section */}
                   {products.length > 0 && (
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mt-6">
+                    <div className="bg-white dark:bg-gray-700 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mt-6">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                           Added Products ({products.length} item{products.length !== 1 ? 's' : ''})
@@ -1043,7 +1128,7 @@ export default function Home() {
           onClick={() => setSpecModalOpen(false)}
         >
           <div 
-            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[70vh] overflow-hidden flex flex-col"
+            className="bg-white dark:bg-gray-700 rounded-lg shadow-xl max-w-md w-full max-h-[70vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
@@ -1095,7 +1180,7 @@ export default function Home() {
           onClick={() => setIsAddFieldModalOpen(false)}
         >
           <div 
-            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full border border-gray-200 dark:border-gray-700"
+            className="bg-white dark:bg-gray-700 rounded-lg shadow-xl max-w-md w-full border border-gray-200 dark:border-gray-700"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
@@ -1130,7 +1215,7 @@ export default function Home() {
                   value={newFieldLabel}
                   onChange={(e) => setNewFieldLabel(e.target.value)}
                   placeholder="Enter field name"
-                  className="w-full px-3 py-2 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                  className="w-full px-3 py-2 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
                   autoFocus
                 />
               </div>
@@ -1164,7 +1249,7 @@ export default function Home() {
           onClick={handleCloseEnquiryModal}
         >
           <div 
-            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full"
+            className="bg-white dark:bg-gray-700 rounded-lg shadow-xl max-w-md w-full"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
@@ -1200,7 +1285,7 @@ export default function Home() {
                   value={enquiryName}
                   onChange={(e) => setEnquiryName(e.target.value)}
                   placeholder="Enter enquiry name"
-                  className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                  className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
                   autoFocus
                   required
                 />
@@ -1220,7 +1305,7 @@ export default function Home() {
                     }
                     placeholder="Street address"
                     required
-                    className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                    className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -1236,7 +1321,7 @@ export default function Home() {
                       }
                       placeholder="City"
                       required
-                      className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                      className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
                     />
                   </div>
                   <div>
@@ -1251,7 +1336,7 @@ export default function Home() {
                       }
                       placeholder="State"
                       required
-                      className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                      className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
                     />
                   </div>
                 </div>
@@ -1268,7 +1353,7 @@ export default function Home() {
                       }
                       placeholder="ZIP"
                       required
-                      className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                      className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
                     />
                   </div>
                   <div>
@@ -1283,7 +1368,7 @@ export default function Home() {
                       }
                       placeholder="Country"
                       required
-                      className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                      className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
                     />
                   </div>
                 </div>

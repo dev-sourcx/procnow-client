@@ -7,9 +7,11 @@ import { saveProduct, getStoredProducts, deleteProduct, BriefProduct, getStoredE
 import { requireAuth } from '@/lib/auth';
 import Sidebar from '@/components/Sidebar';
 import CreatableSelect from '@/components/CreatableSelect';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function BriefPage() {
   const router = useRouter();
+  const { theme, toggleTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -1268,10 +1270,51 @@ export default function BriefPage() {
           </button>
 
           {/* Content Container */}
-          <div className="flex h-full w-full flex-col bg-gray-50">
+          <div className="flex h-full w-full flex-col bg-gray-50 dark:bg-gray-900">
             {/* Header */}
-            <div className="flex h-12 items-center justify-center border-b border-gray-200 bg-white px-4 shadow-sm">
-              <h1 className="text-lg font-semibold text-gray-900">Brief</h1>
+            <div className="flex h-12 items-center justify-between border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 shadow-sm">
+              <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Brief</h1>
+              <button 
+                onClick={toggleTheme}
+                className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                aria-label="Toggle theme"
+              >
+                {theme === 'light' ? (
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="5"></circle>
+                    <line x1="12" y1="1" x2="12" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="23"></line>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                    <line x1="1" y1="12" x2="3" y2="12"></line>
+                    <line x1="21" y1="12" x2="23" y2="12"></line>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                  </svg>
+                ) : (
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                  </svg>
+                )}
+              </button>
             </div>
 
             {/* Scrollable Content */}

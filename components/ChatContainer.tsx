@@ -48,6 +48,7 @@ export default function ChatContainer({
   const currentAssistantProductsRef = useRef<Product[]>([]);
   const sessionIdRef = useRef<string | null>(currentSessionId);
   const currentAssistantMessageIdRef = useRef<string | null>(null);
+  const isStreamingRef = useRef<boolean>(false); // Track if we're currently streaming
   const token = getAuthToken();
   const isAuthenticated = !!token;
 
@@ -67,6 +68,13 @@ export default function ChatContainer({
   // Load messages when session changes
   useEffect(() => {
     const loadMessages = async () => {
+      // Don't reload messages if we're currently streaming a response
+      if (isStreamingRef.current) {
+        console.log('Skipping message reload - currently streaming');
+        return;
+      }
+
+      // If no session selected, handle guest vs authenticated default
       if (!currentSessionId) {
         sessionIdRef.current = null;
         
@@ -86,6 +94,14 @@ export default function ChatContainer({
         return;
       }
 
+      // If this is a guest session (ID starting with 'guest_'), always load from localStorage
+      if (currentSessionId.startsWith('guest_')) {
+        sessionIdRef.current = currentSessionId;
+        const guestMessages = getGuestMessages();
+        setMessages(guestMessages);
+        return;
+      }
+
       // Load guest messages if not authenticated
       if (!isAuthenticated || !token) {
         sessionIdRef.current = currentSessionId;
@@ -97,6 +113,13 @@ export default function ChatContainer({
         } else {
           setMessages([]);
         }
+        return;
+      }
+
+      // Only reload if sessionId actually changed (avoid unnecessary reloads)
+      // If session hasn't changed and we're not streaming, skip reload to preserve existing messages
+      if (sessionIdRef.current === currentSessionId) {
+        console.log('Skipping message reload - session unchanged');
         return;
       }
 
@@ -239,6 +262,7 @@ export default function ChatContainer({
     currentAssistantMessageRef.current = ''; // Reset ref
     currentAssistantProductsRef.current = []; // Reset products ref
     currentAssistantMessageIdRef.current = null; // Reset backend ID ref
+    isStreamingRef.current = true; // Mark that we're starting to stream
 
     try {
       await sendChatMessage(
@@ -282,6 +306,7 @@ export default function ChatContainer({
         },
         async () => {
           // Called when [DONE] signal is received - save final message
+          isStreamingRef.current = false; // Mark streaming as complete
           const finalContent = currentAssistantMessageRef.current || '';
           const finalProducts = currentAssistantProductsRef.current || [];
           
@@ -392,6 +417,7 @@ export default function ChatContainer({
           }
         },
         (error) => {
+          isStreamingRef.current = false; // Mark streaming as complete (even on error)
           console.error('Error sending message:', error);
           setMessages((prev) => {
             const newMessages = [...prev];
@@ -407,6 +433,7 @@ export default function ChatContainer({
         }
       );
     } catch (error) {
+      isStreamingRef.current = false; // Mark streaming as complete (even on error)
       console.error('Error sending message:', error);
       setMessages((prev) => {
         const newMessages = [...prev];
@@ -434,6 +461,7 @@ export default function ChatContainer({
       });
     } finally {
       setIsLoading(false);
+      isStreamingRef.current = false; // Ensure streaming flag is reset
       // Final save is now handled by the onDone callback when [DONE] signal is received
     }
   };

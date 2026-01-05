@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import { getStoredProducts, BriefProduct, ChatSession } from '@/lib/storage';
 import { requireAuth } from '@/lib/auth';
 import { getAuthToken } from '@/lib/storage';
-import { getCurrentUser, type CurrentUser, getProductSheet, ProductSheetItem, getEnquiries, createEnquiry, updateEnquiry, deleteEnquiry, type Enquiry as ApiEnquiry, generateFieldsFromKeyword, type GeneratedFieldsResponse, type GeneratedField, addProductItem } from '@/lib/api';
+import { getCurrentUser, type CurrentUser, getProductSheet, ProductSheetItem, getEnquiries, createEnquiry, updateEnquiry, deleteEnquiry, type Enquiry as ApiEnquiry, generateFieldsFromKeyword, type GeneratedFieldsResponse, type GeneratedField, addProductItem, getBuyerQuotes, type Quote } from '@/lib/api';
 import Sidebar from '@/components/Sidebar';
 import CreatableSelect from '@/components/CreatableSelect';
+import EnquiryTabs from '@/components/EnquiryTabs';
 import { useTheme } from '@/contexts/ThemeContext';
 
 interface EnquiryProduct {
@@ -76,6 +77,9 @@ export default function EnquiriesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedEnquiryForDetail, setSelectedEnquiryForDetail] = useState<string | null>(null);
+  // Product view modal for Quote Requested tab
+  const [isProductViewModalOpen, setIsProductViewModalOpen] = useState(false);
+  const [selectedEnquiryForProductView, setSelectedEnquiryForProductView] = useState<string | null>(null);
   // Edit enquiry form state
   const [editEnquiryName, setEditEnquiryName] = useState('');
   const [editShippingAddress, setEditShippingAddress] = useState({
@@ -104,6 +108,27 @@ export default function EnquiriesPage() {
   const [isUpdatingEnquiry, setIsUpdatingEnquiry] = useState(false);
   const [editEnquirySelectedProductIds, setEditEnquirySelectedProductIds] = useState<string[]>([]);
   const [isEditEnquiryProductModalOpen, setIsEditEnquiryProductModalOpen] = useState(false);
+  // Submit mode state - tracks if we're submitting an existing enquiry vs creating new
+  const [isSubmitMode, setIsSubmitMode] = useState(false);
+  const [enquiryIdForSubmit, setEnquiryIdForSubmit] = useState<string | null>(null);
+  // Tab state for filtering enquiries
+  const [activeTab, setActiveTab] = useState<'draft' | 'sentToAdmin' | 'vendorAssigned'>('draft');
+  // Quotes state for vendor assigned tab
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [quotesLoading, setQuotesLoading] = useState(false);
+
+  // Helper function to filter enquiries based on active tab
+  const getFilteredEnquiries = (): ApiEnquiry[] => {
+    if (activeTab === 'draft') {
+      return enquiries.filter(e => e.enquiryStatus === 'draft');
+    } else if (activeTab === 'sentToAdmin') {
+      return enquiries.filter(e => e.enquiryStatus === 'submitted');
+    } else if (activeTab === 'vendorAssigned') {
+      // For now, show submitted enquiries. Can be enhanced to check actual vendor assignments
+      return enquiries.filter(e => e.enquiryStatus === 'submitted');
+    }
+    return enquiries;
+  };
 
   const loadEnquiries = async () => {
     try {
@@ -130,6 +155,25 @@ export default function EnquiriesPage() {
     }
   };
 
+  const loadQuotes = async () => {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        setQuotes([]);
+        return;
+      }
+
+      setQuotesLoading(true);
+      const fetchedQuotes = await getBuyerQuotes(token);
+      setQuotes(fetchedQuotes);
+    } catch (error) {
+      console.error('Error loading quotes:', error);
+      setQuotes([]);
+    } finally {
+      setQuotesLoading(false);
+    }
+  };
+
   const loadProducts = async () => {
     try {
       const token = getAuthToken();
@@ -150,6 +194,11 @@ export default function EnquiriesPage() {
     const initialize = async () => {
       setIsLoading(true);
 
+      // Check authentication first - redirect if not logged in
+      if (!requireAuth()) {
+        return;
+      }
+
       // Check authentication
       const token = getAuthToken();
       if (token) {
@@ -162,7 +211,7 @@ export default function EnquiriesPage() {
       }
 
       // Load data
-      await Promise.all([loadEnquiries(), loadProducts()]);
+      await Promise.all([loadEnquiries(), loadProducts(), loadQuotes()]);
     };
 
     initialize();
@@ -245,10 +294,12 @@ export default function EnquiriesPage() {
       return;
     }
 
-    // Pre-fill shipping address from enquiry if it already exists, so user can review/edit
+    // Pre-populate all form fields with enquiry data
+    setEnquiryName(enquiry.enquiryName || '');
+    
+    // Pre-fill shipping address
     if (enquiry.shippingAddress) {
       const addr = enquiry.shippingAddress;
-      // If shippingAddress is a string, try to parse it, otherwise use it directly
       if (typeof addr === 'string') {
         try {
           const parsed = JSON.parse(addr);
@@ -263,7 +314,6 @@ export default function EnquiriesPage() {
             email: parsed.email || '',
           });
         } catch {
-          // If parsing fails, split by newline or comma
           setShippingAddress({
             addressLine1: addr || '',
             addressLine2: '',
@@ -300,7 +350,7 @@ export default function EnquiriesPage() {
       });
     }
 
-    // Pre-fill billing address if it exists
+    // Pre-fill billing address
     if (enquiry.billingAddress) {
       const addr = enquiry.billingAddress;
       if (typeof addr === 'string') {
@@ -328,12 +378,57 @@ export default function EnquiriesPage() {
             email: '',
           });
         }
+      } else {
+        setBillingAddress({
+          addressLine1: (addr as any).addressLine1 || '',
+          addressLine2: (addr as any).addressLine2 || '',
+          city: (addr as any).city || '',
+          state: (addr as any).state || '',
+          zipCode: (addr as any).zipCode || '',
+          country: (addr as any).country || '',
+          phone: (addr as any).phone || '',
+          email: (addr as any).email || '',
+        });
       }
+    } else {
+      setBillingAddress({
+        addressLine1: '',
+        addressLine2: '',
+        city: '',
+        state: '',
+        zipCode: '',
+        country: '',
+        phone: '',
+        email: '',
+      });
     }
 
-    // Open the submit modal
-    setSelectedEnquiryForSubmit(enquiryId);
-    setIsSubmitModalOpen(true);
+    // Pre-fill expected delivery date
+    if (enquiry.expectedDeliveryDate) {
+      const date = new Date(enquiry.expectedDeliveryDate);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      setExpectedDeliveryDate(`${year}-${month}-${day}`);
+    } else {
+      setExpectedDeliveryDate('');
+    }
+
+    // Pre-fill enquiry notes
+    setEnquiryNotes(enquiry.enquiryNotes || '');
+
+    // Pre-fill selected product IDs
+    const productIds = enquiry.enquiryProducts?.map((ep: any) => 
+      typeof ep === 'string' ? ep : ep.productId || ep._id
+    ) || [];
+    setNewEnquirySelectedProductIds(productIds);
+
+    // Set submit mode and enquiry ID
+    setIsSubmitMode(true);
+    setEnquiryIdForSubmit(enquiryId);
+    
+    // Open the sidebar form (same as create enquiry)
+    setIsNewEnquiryModalOpen(true);
     setOpenMenuId(null);
   };
 
@@ -491,6 +586,10 @@ export default function EnquiriesPage() {
       return;
     }
 
+    // Reset submit mode
+    setIsSubmitMode(false);
+    setEnquiryIdForSubmit(null);
+
     setIsNewEnquiryModalOpen(true);
     setEnquiryName('');
     setShippingAddress({
@@ -517,10 +616,13 @@ export default function EnquiriesPage() {
     setEnquiryStatus('draft');
     setEnquiryNotes('');
     setSelectedProductIds([]);
+    setNewEnquirySelectedProductIds([]);
   };
 
   const handleCloseNewEnquiryModal = () => {
     setIsNewEnquiryModalOpen(false);
+    setIsSubmitMode(false);
+    setEnquiryIdForSubmit(null);
     setEnquiryName('');
     setShippingAddress({
       addressLine1: '',
@@ -708,6 +810,44 @@ export default function EnquiriesPage() {
         return;
       }
 
+      // Check if we're in submit mode (updating existing enquiry)
+      if (isSubmitMode && enquiryIdForSubmit) {
+        // Update existing enquiry and change status to 'submitted'
+        await updateEnquiry(token, enquiryIdForSubmit, {
+          enquiryName: enquiryName.trim(),
+          shippingAddress: {
+            addressLine1: shippingAddress.addressLine1,
+            addressLine2: shippingAddress.addressLine2 || undefined,
+            city: shippingAddress.city,
+            state: shippingAddress.state,
+            zipCode: shippingAddress.zipCode,
+            country: shippingAddress.country,
+            phone: shippingAddress.phone || undefined,
+            email: shippingAddress.email || undefined,
+          },
+          billingAddress: {
+            addressLine1: billingAddress.addressLine1,
+            addressLine2: billingAddress.addressLine2 || undefined,
+            city: billingAddress.city,
+            state: billingAddress.state,
+            zipCode: billingAddress.zipCode,
+            country: billingAddress.country,
+            phone: billingAddress.phone || undefined,
+            email: billingAddress.email || undefined,
+          },
+          expectedDeliveryDate: new Date(expectedDeliveryDate).toISOString(),
+          enquiryStatus: 'submitted',
+          enquiryNotes: enquiryNotes || undefined,
+          enquiryProducts: newEnquirySelectedProductIds.length > 0 ? newEnquirySelectedProductIds : [],
+        });
+
+        await loadEnquiries();
+        const enquiry = enquiries.find((e) => e._id === enquiryIdForSubmit);
+        const enquiryProducts = enquiry?.enquiryProducts || [];
+        alert(`Enquiry "${enquiryName}" has been submitted successfully with ${enquiryProducts.length} product(s).`);
+        handleCloseNewEnquiryModal();
+      } else {
+        // Create new enquiry
       await createEnquiry(token, {
         enquiryName: enquiryName.trim(),
         shippingAddress: {
@@ -738,9 +878,10 @@ export default function EnquiriesPage() {
 
       await loadEnquiries();
     handleCloseNewEnquiryModal();
+      }
     } catch (error: any) {
-      console.error('Error creating enquiry:', error);
-      alert(error.message || 'Failed to create enquiry. Please try again.');
+      console.error('Error saving enquiry:', error);
+      alert(error.message || `Failed to ${isSubmitMode ? 'submit' : 'create'} enquiry. Please try again.`);
     } finally {
       setIsSubmitting(false);
     }
@@ -828,6 +969,16 @@ export default function EnquiriesPage() {
     setEditEnquiryStatus('draft');
     setEditEnquiryNotes('');
     setEditEnquirySelectedProductIds([]);
+  };
+
+  const handleOpenProductViewModal = (enquiryId: string) => {
+    setSelectedEnquiryForProductView(enquiryId);
+    setIsProductViewModalOpen(true);
+  };
+
+  const handleCloseProductViewModal = () => {
+    setIsProductViewModalOpen(false);
+    setSelectedEnquiryForProductView(null);
   };
 
   const handleToggleEditEnquiryProductSelection = (productId: string) => {
@@ -1075,8 +1226,17 @@ export default function EnquiriesPage() {
               className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-label="Toggle theme"
             >
-              {theme === 'dark' ? (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              {theme === 'light' ? (
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <circle cx="12" cy="12" r="5"></circle>
                   <line x1="12" y1="1" x2="12" y2="3"></line>
                   <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -1088,7 +1248,16 @@ export default function EnquiriesPage() {
                   <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
                 </svg>
               ) : (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
                 </svg>
               )}
@@ -1103,6 +1272,15 @@ export default function EnquiriesPage() {
             </div>
           </div>
 
+          {/* Tabs Belt */}
+          <EnquiryTabs
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            draftCount={enquiries.filter(e => e.enquiryStatus === 'draft').length}
+            sentToAdminCount={enquiries.filter(e => e.enquiryStatus === 'submitted').length}
+            vendorAssignedCount={enquiries.filter(e => e.enquiryStatus === 'submitted').length}
+          />
+
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
             <div className="max-w-7xl mx-auto px-6 py-6">
@@ -1110,7 +1288,7 @@ export default function EnquiriesPage() {
               <div className="mb-6 flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
-                    {enquiries.length} Enquir{enquiries.length !== 1 ? 'ies' : 'y'}
+                    {getFilteredEnquiries().length} Enquir{getFilteredEnquiries().length !== 1 ? 'ies' : 'y'}
                   </h2>
                 </div>
                 <button
@@ -1141,7 +1319,7 @@ export default function EnquiriesPage() {
                     <p className="text-gray-600 dark:text-gray-400">Loading enquiries...</p>
                   </div>
                 </div>
-              ) : enquiries.length === 0 ? (
+              ) : getFilteredEnquiries().length === 0 ? (
                 <div className="flex h-full items-center justify-center min-h-[400px]">
                   <div className="text-center">
                     <svg
@@ -1159,16 +1337,20 @@ export default function EnquiriesPage() {
                       <polyline points="22,6 12,13 2,6"></polyline>
                     </svg>
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                      No enquiries yet
+                      {activeTab === 'draft' ? 'No draft enquiries' : 
+                       activeTab === 'sentToAdmin' ? 'No quote requests' : 
+                       'No quotes received'}
                     </h3>
                     <p className="text-gray-600 dark:text-gray-400 mb-6">
-                      Create your first enquiry
+                      {activeTab === 'draft' ? 'Create your first enquiry' : 
+                       activeTab === 'sentToAdmin' ? 'Submit an enquiry to request quotes' : 
+                       'No quotes have been received yet'}
                     </p>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {enquiries.map((enquiry) => {
+                  {getFilteredEnquiries().map((enquiry) => {
                     const enquiryId = enquiry._id || '';
                     const isExpanded = expandedEnquiries.has(enquiryId);
                     const enquiryProducts = Array.isArray(enquiry.enquiryProducts) 
@@ -1176,6 +1358,377 @@ export default function EnquiriesPage() {
                       : [];
                     const totalProducts = enquiryProducts.length;
 
+                    // Format enquiry ID for display (e.g., ENQ-D-001)
+                    const enquiryRef = enquiry._id ? `ENQ-${enquiry._id.slice(-6).toUpperCase()}` : 'ENQ-XXXXXX';
+                    const lastModified = enquiry.updatedAt && enquiry.updatedAt !== enquiry.createdAt 
+                      ? formatDate(enquiry.updatedAt as string)
+                      : formatDate(enquiry.createdAt as string);
+
+                    // Get product names for tags (limit to first few for display)
+                    const productTags = enquiryProducts.slice(0, 3).map((product: any) => {
+                      const productId = typeof product === 'string' ? product : (product._id || product.id);
+                      const productData = typeof product === 'string' 
+                        ? getProductById(productId)
+                        : product;
+                      
+                      if (!productData) return null;
+                      
+                      const productName = productData.displayName || productData.externalRef || 'Unknown Product';
+                      // Try to get quantity from product data or default to 1
+                      const quantity = productData.quantity || product.quantity || 1;
+                      
+                      return { name: productName, quantity };
+                    }).filter(Boolean);
+
+                    // Use different UI for draft tab
+                    if (activeTab === 'draft') {
+                      return (
+                        <div
+                          key={enquiryId}
+                          className="bg-gray-800 dark:bg-gray-800 rounded-lg border border-gray-600 dark:border-gray-600 overflow-hidden"
+                        >
+                          <div className="flex items-center justify-between p-6">
+                            {/* Left Section */}
+                            <div className="flex-1">
+                              {/* Title and Draft Badge */}
+                              <div className="flex items-center gap-3 mb-3">
+                                <h3 className="text-xl font-bold text-white">
+                                  {enquiry.enquiryName}
+                                </h3>
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded border border-gray-500 dark:border-gray-500 bg-gray-800 dark:bg-gray-800">
+                                  <svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    className="text-white"
+                                  >
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                    <line x1="10" y1="9" x2="8" y2="9"></line>
+                                    <line x1="16" y1="9" x2="14" y2="9"></line>
+                                  </svg>
+                                  <span className="text-white text-xs font-medium">Draft</span>
+                                </span>
+                              </div>
+
+                              {/* Reference and Last Modified */}
+                              <div className="text-sm text-gray-400 mb-4">
+                                {enquiryRef} • Last modified {lastModified}
+                              </div>
+
+                              {/* Product Tags */}
+                              {productTags.length > 0 && (
+                                <div className="flex flex-wrap gap-2">
+                                  {productTags.map((tag: any, index: number) => (
+                                    <span
+                                      key={index}
+                                      className="inline-flex items-center px-3 py-1 rounded border border-gray-500 dark:border-gray-500 bg-gray-800 dark:bg-gray-800 text-white text-sm"
+                                    >
+                                      {tag.name} x{tag.quantity}
+                                    </span>
+                                  ))}
+                                  {totalProducts > 3 && (
+                                    <span className="inline-flex items-center px-3 py-1 rounded border border-gray-500 dark:border-gray-500 bg-gray-800 dark:bg-gray-800 text-white text-sm">
+                                      +{totalProducts - 3} more
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Right Section - Continue Editing Button */}
+                            <div className="ml-6">
+                              <button
+                                onClick={() => handleOpenDetailModal(enquiryId)}
+                                className="px-4 py-2.5 bg-gray-700 dark:bg-gray-700 hover:bg-gray-600 dark:hover:bg-gray-600 text-white rounded-lg font-medium flex items-center gap-2 transition-colors"
+                              >
+                                Continue Editing
+                                <svg
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <polyline points="9 18 15 12 9 6"></polyline>
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Use same UI design for Quote Requested tab
+                    if (activeTab === 'sentToAdmin') {
+                      // Format enquiry ID for display (e.g., ENQ-S-001 for submitted)
+                      const submittedEnquiryRef = enquiry._id ? `ENQ-S-${enquiry._id.slice(-6).toUpperCase()}` : 'ENQ-XXXXXX';
+                      const sentDate = formatDate(enquiry.createdAt as string);
+                      
+                      // Determine status - for submitted enquiries, show "Processing" or similar
+                      const statusText = 'Processing';
+                      const statusColor = 'text-orange-500';
+
+                      return (
+                        <div
+                          key={enquiryId}
+                          className="bg-gray-800 dark:bg-gray-800 rounded-lg border border-teal-500 dark:border-teal-500 overflow-hidden"
+                        >
+                          <div className="flex items-center justify-between p-6">
+                            {/* Left Section */}
+                            <div className="flex-1">
+                              {/* Title */}
+                              <div className="flex items-center gap-3 mb-3">
+                                <h3 className="text-xl font-bold text-white">
+                                  {enquiry.enquiryName}
+                                </h3>
+                              </div>
+
+                              {/* Reference and Sent Date */}
+                              <div className="text-sm text-gray-400 mb-4">
+                                {submittedEnquiryRef} • Sent on {sentDate}
+                              </div>
+
+                              {/* Product Tags */}
+                              {productTags.length > 0 && (
+                                <div className="flex flex-wrap gap-2">
+                                  {productTags.map((tag: any, index: number) => (
+                                    <span
+                                      key={index}
+                                      className="inline-flex items-center px-3 py-1 rounded border border-gray-500 dark:border-gray-500 bg-gray-800 dark:bg-gray-800 text-white text-sm"
+                                    >
+                                      {tag.name} x{tag.quantity}
+                                    </span>
+                                  ))}
+                                  {totalProducts > 3 && (
+                                    <span className="inline-flex items-center px-3 py-1 rounded border border-gray-500 dark:border-gray-500 bg-gray-800 dark:bg-gray-800 text-white text-sm">
+                                      +{totalProducts - 3} more
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Right Section - Status and View Details Button */}
+                            <div className="ml-6 flex items-center gap-4">
+                              {/* Status */}
+                              <div className="flex flex-col items-end">
+                                <span className="text-sm text-gray-400 mb-1">Status</span>
+                                <span className={`text-base font-medium ${statusColor}`}>
+                                  {statusText}
+                                </span>
+                              </div>
+
+                              {/* View Details Button */}
+                              <button
+                                onClick={() => handleOpenProductViewModal(enquiryId)}
+                                className="px-4 py-2.5 bg-gray-700 dark:bg-gray-700 hover:bg-gray-600 dark:hover:bg-gray-600 text-white rounded-lg font-medium flex items-center gap-2 transition-colors"
+                              >
+                                View Details
+                                <svg
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <polyline points="9 18 15 12 9 6"></polyline>
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Use same UI design for Quote Received tab
+                    if (activeTab === 'vendorAssigned') {
+                      // Format enquiry ID for display (e.g., ENQ-V-001 for vendor assigned)
+                      const vendorEnquiryRef = enquiry._id ? `ENQ-V-${enquiry._id.slice(-6).toUpperCase()}` : 'ENQ-XXXXXX';
+                      const createdDate = formatDate(enquiry.createdAt as string);
+
+                      // Get quotes for this enquiry
+                      const enquiryQuotes = quotes.filter((quote) => {
+                        if (!quote.visibletoClient) return false;
+                        const assignment = quote.vendorAssignmentId as any;
+                        const enquiryProduct = assignment?.enquiryProductId as any;
+                        const quoteEnquiryId = enquiryProduct?.enquiryId?._id?.toString() || 
+                                             enquiryProduct?.enquiryId?.toString() ||
+                                             enquiryProduct?.enquiryId;
+                        return quoteEnquiryId === enquiryId;
+                      });
+
+                      // Get unique vendors and product-vendor mappings
+                      const vendorMap = new Map<string, { name: string; products: Array<{ productName: string; quantity: number }> }>();
+                      const vendorIds = new Set<string>();
+
+                      enquiryQuotes.forEach((quote) => {
+                        const assignment = quote.vendorAssignmentId as any;
+                        const vendor = assignment?.vendorId as any;
+                        const enquiryProduct = assignment?.enquiryProductId as any;
+                        const product = enquiryProduct?.productsheetitemid as any;
+                        
+                        if (!vendor || !product) return;
+
+                        const vendorId = typeof vendor === 'string' ? vendor : (vendor._id || vendor.id);
+                        const vendorName = typeof vendor === 'object' ? (vendor.auth?.name || vendor.name || 'Unknown Vendor') : 'Unknown Vendor';
+                        const productName = product?.displayName || product?.externalRef || 'Unknown Product';
+                        const quantity = product?.quantity || enquiryProduct?.quantity || 1;
+
+                        vendorIds.add(vendorId);
+
+                        if (!vendorMap.has(vendorId)) {
+                          vendorMap.set(vendorId, { name: vendorName, products: [] });
+                        }
+                        vendorMap.get(vendorId)!.products.push({ productName, quantity });
+                      });
+
+                      const vendorsCount = vendorIds.size;
+                      const quotesCount = enquiryQuotes.length;
+
+                      // Get product-vendor items for display (first few)
+                      const productVendorItems: Array<{ productName: string; quantity: number; vendorName: string }> = [];
+                      vendorMap.forEach((vendorData) => {
+                        vendorData.products.forEach((product) => {
+                          productVendorItems.push({
+                            productName: product.productName,
+                            quantity: product.quantity,
+                            vendorName: vendorData.name
+                          });
+                        });
+                      });
+
+                      return (
+                        <div
+                          key={enquiryId}
+                          className="bg-gray-800 dark:bg-gray-800 rounded-lg border border-teal-500 dark:border-teal-500 overflow-hidden"
+                        >
+                          <div className="flex items-center justify-between p-6">
+                            {/* Left Section */}
+                            <div className="flex-1">
+                              {/* Title and Vendors Assigned Badge */}
+                              <div className="flex items-center gap-3 mb-3">
+                                <h3 className="text-xl font-bold text-white">
+                                  {enquiry.enquiryName}
+                                </h3>
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded border border-green-500 dark:border-green-500 bg-green-600 dark:bg-green-600">
+                                  <svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    className="text-white"
+                                  >
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                  </svg>
+                                  <span className="text-white text-xs font-medium">Vendors Assigned</span>
+                                </span>
+                              </div>
+
+                              {/* Reference and Created Date */}
+                              <div className="text-sm text-gray-400 mb-4">
+                                {vendorEnquiryRef} • Created {createdDate}
+                              </div>
+
+                              {/* Product-Vendor Items */}
+                              {productVendorItems.length > 0 && (
+                                <div className="flex flex-wrap gap-2">
+                                  {productVendorItems.slice(0, 3).map((item: any, index: number) => (
+                                    <span
+                                      key={index}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded border border-gray-500 dark:border-gray-500 bg-gray-700 dark:bg-gray-700 text-white text-sm"
+                                    >
+                                      <svg
+                                        width="12"
+                                        height="12"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        className="text-gray-400"
+                                      >
+                                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                                      </svg>
+                                      {item.productName} x{item.quantity} → <span className="text-green-400">{item.vendorName}</span>
+                                    </span>
+                                  ))}
+                                  {productVendorItems.length > 3 && (
+                                    <span className="inline-flex items-center px-3 py-1 rounded border border-gray-500 dark:border-gray-500 bg-gray-700 dark:bg-gray-700 text-white text-sm">
+                                      +{productVendorItems.length - 3} more
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Right Section - Vendors/Quotes Count and View Details Button */}
+                            <div className="ml-6 flex items-center gap-4">
+                              {/* Vendors Count */}
+                              <div className="flex flex-col items-end">
+                                <span className="text-sm text-white mb-1">Vendors</span>
+                                <span className="text-xl font-bold text-green-500">
+                                  {vendorsCount}
+                                </span>
+                              </div>
+
+                              {/* Quotes Count */}
+                              <div className="flex flex-col items-end">
+                                <span className="text-sm text-white mb-1">Quotes</span>
+                                <span className="text-xl font-bold text-white">
+                                  {quotesCount}
+                                </span>
+                              </div>
+
+                              {/* View Details Button */}
+                              <button
+                                onClick={() => router.push(`/enquiries/${enquiryId}`)}
+                                className="px-4 py-2.5 bg-gray-700 dark:bg-gray-700 hover:bg-gray-600 dark:hover:bg-gray-600 text-white rounded-lg font-medium flex items-center gap-2 transition-colors"
+                              >
+                                View Details
+                                <svg
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <polyline points="9 18 15 12 9 6"></polyline>
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Original UI for other tabs
                     return (
                       <div
                         key={enquiryId}
@@ -1490,8 +2043,8 @@ export default function EnquiriesPage() {
         </div>
       </div>
 
-      {/* Submit Enquiry Modal with Shipping Address Form */}
-      {isSubmitModalOpen && selectedEnquiryForSubmit && (
+      {/* Submit Enquiry Modal - Removed: Now using sidebar form for submitting */}
+      {false && isSubmitModalOpen && selectedEnquiryForSubmit && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={handleCloseSubmitModal}
@@ -1963,18 +2516,18 @@ export default function EnquiriesPage() {
       {/* Specifications Modal */}
       {specModalOpen && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50"
           onClick={() => setSpecModalOpen(false)}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[70vh] overflow-hidden flex flex-col"
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[70vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">{specModalTitle}</h3>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{specModalTitle}</h3>
               <button
                 onClick={() => setSpecModalOpen(false)}
-                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
                 <svg
                   width="20"
@@ -1992,18 +2545,18 @@ export default function EnquiriesPage() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto px-4 py-3">
-              <ul className="space-y-2 text-sm text-gray-800">
+              <ul className="space-y-2 text-sm text-gray-800 dark:text-gray-200">
                 {specModalItems.map((item, idx) => (
-                  <li key={idx} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+                  <li key={idx} className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
                     {item}
                   </li>
                 ))}
               </ul>
             </div>
-            <div className="px-4 py-3 border-t border-gray-200 flex justify-end">
+            <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end">
               <button
                 onClick={() => setSpecModalOpen(false)}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg transition-colors"
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg transition-colors"
               >
                 Close
               </button>
@@ -2028,10 +2581,10 @@ export default function EnquiriesPage() {
             <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
                 <div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Create new enquiry
+                    {isSubmitMode ? 'Submit Enquiry' : 'Create new enquiry'}
               </h2>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    Fill in the details to create a new enquiry
+                    {isSubmitMode ? 'Review and update the details before submitting' : 'Fill in the details to create a new enquiry'}
                   </p>
                 </div>
               <button
@@ -2435,6 +2988,38 @@ export default function EnquiriesPage() {
                     </div>
                   </div>
 
+                  {/* Enquiry Notes Section */}
+                  <div className="space-y-4 pt-4 border-t border-gray-600">
+                    <div className="flex items-center gap-2 mb-1">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="text-gray-400"
+                      >
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                      </svg>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Enquiry Notes
+                      </label>
+                    </div>
+                    <textarea
+                      value={enquiryNotes}
+                      onChange={(e) => setEnquiryNotes(e.target.value)}
+                      placeholder="Add any additional notes or requirements..."
+                      rows={4}
+                      className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400 resize-none"
+                    />
+                  </div>
+
                   {/* Products Section */}
                   <div className="space-y-4 pt-4 border-t border-gray-600">
                     <div className="flex items-center justify-between mb-4">
@@ -2579,7 +3164,9 @@ export default function EnquiriesPage() {
                         disabled={isSubmitting}
                         className="px-4 py-2 text-sm font-medium text-white bg-teal-500 hover:bg-teal-600 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg transition-colors"
                 >
-                        {isSubmitting ? 'Creating...' : 'Create Enquiry'}
+                        {isSubmitting 
+                          ? (isSubmitMode ? 'Submitting...' : 'Creating...') 
+                          : (isSubmitMode ? 'Submit Enquiry' : 'Create Enquiry')}
                 </button>
                     </div>
               </div>
@@ -3657,6 +4244,214 @@ export default function EnquiriesPage() {
           </div>
         </div>
       )}
+
+      {/* Product View Modal for Quote Requested Tab */}
+      {/* Product View Sidebar */}
+      {isProductViewModalOpen && selectedEnquiryForProductView && (() => {
+        const enquiry = enquiries.find((e) => e._id === selectedEnquiryForProductView);
+        if (!enquiry) return null;
+
+        const enquiryProducts = Array.isArray(enquiry.enquiryProducts) 
+          ? enquiry.enquiryProducts 
+          : [];
+
+        return (
+          <>
+            {/* Overlay */}
+            <div 
+              className="fixed inset-0 bg-black/50 z-50 transition-opacity"
+              onClick={handleCloseProductViewModal}
+            />
+            
+            {/* Sidebar */}
+            <div className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl bg-white dark:bg-gray-800 shadow-xl transform transition-transform duration-300 ease-in-out flex flex-col">
+              {/* Sidebar Header */}
+              <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {enquiry.enquiryName}
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Products in this enquiry
+                  </p>
+                </div>
+                <button
+                  onClick={handleCloseProductViewModal}
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                  aria-label="Close sidebar"
+                >
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+
+              {/* Sidebar Body */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {enquiryProducts.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                    <svg
+                      className="mx-auto h-16 w-16 text-gray-400 dark:text-gray-500 mb-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                      />
+                    </svg>
+                    <p className="text-lg font-medium text-gray-600 dark:text-gray-400">
+                      No products added to this enquiry yet.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {enquiryProducts.map((product: any, index: number) => {
+                      const productId = typeof product === 'string' ? product : (product._id || product.id);
+                      const productData = typeof product === 'string' 
+                        ? getProductById(productId)
+                        : product;
+                      
+                      if (!productData) {
+                        return (
+                          <div
+                            key={index}
+                            className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-100"
+                          >
+                            Product not found (ID: {productId})
+                          </div>
+                        );
+                      }
+
+                      // Extract specifications from userAttributes
+                      const specifications: string[] = [];
+                      if (productData.userAttributes) {
+                        Object.entries(productData.userAttributes).forEach(([key, value]) => {
+                          if (value !== '' && value !== 0 && value !== null) {
+                            if (Array.isArray(value)) {
+                              specifications.push(`${key}: ${value.join(', ')}`);
+                            } else {
+                              specifications.push(`${key}: ${value}`);
+                            }
+                          }
+                        });
+                      }
+
+                      const imageLink = productData.userAttributes?.image_link || 
+                                        productData.userAttributes?.Image_Attachment || '';
+
+                      const quantity = productData.quantity || product.quantity || 1;
+
+                      return (
+                        <div
+                          key={index}
+                          className="flex items-start gap-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          {/* Product Image */}
+                          <div className="flex-shrink-0">
+                            {imageLink ? (
+                              <img
+                                src={imageLink}
+                                alt={productData.displayName || 'Product'}
+                                className="w-20 h-20 object-cover rounded-lg"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = '/placeholder-product.jpg';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                                <svg
+                                  width="24"
+                                  height="24"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  className="text-gray-400 dark:text-gray-500"
+                                >
+                                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                  <polyline points="21 15 16 10 5 21"></polyline>
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Product Details */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                {/* Product Name */}
+                                <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
+                                  {productData.displayName || 'Unnamed Product'}
+                                </h4>
+
+                                {/* Quantity */}
+                                <div className="mb-2">
+                                  <span className="text-sm text-gray-600 dark:text-gray-400">Quantity: </span>
+                                  <span className="text-sm font-medium text-gray-900 dark:text-white">{quantity}</span>
+                                </div>
+
+                                {/* Specifications */}
+                                {specifications.length > 0 && (
+                                  <div className="flex flex-wrap gap-2 mt-2 mb-3">
+                                    {specifications.slice(0, 5).map((spec, specIndex) => (
+                                      <span
+                                        key={specIndex}
+                                        className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded"
+                                      >
+                                        {spec}
+                                      </span>
+                                    ))}
+                                    {specifications.length > 5 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => openSpecModal(specifications, productData.displayName || 'Product Specifications')}
+                                        className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-gray-900 dark:hover:text-gray-200 transition-colors cursor-pointer"
+                                      >
+                                        +{specifications.length - 5} more
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Sidebar Footer */}
+              <div className="border-t border-gray-200 dark:border-gray-700 p-4 flex justify-end">
+                <button
+                  onClick={handleCloseProductViewModal}
+                  className="px-4 py-2 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* Loading Overlay */}
       {isLoading && (

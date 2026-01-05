@@ -29,6 +29,13 @@ export function requireAuth(redirectPath?: string): boolean {
   const path = redirectPath || (typeof window !== 'undefined' ? window.location.pathname : '/');
   if (typeof window !== 'undefined') {
     sessionStorage.setItem(REDIRECT_KEY, path);
+    // Mark that user is entering a login flow so other logic (like guest chat cleanup)
+    // can know this navigation came from a login attempt
+    try {
+      localStorage.setItem('came_from_login', 'true');
+    } catch {
+      // Ignore storage errors
+    }
   }
 
   // Redirect to login

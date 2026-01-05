@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface CreatableSelectProps {
   value: string[];
@@ -21,6 +22,7 @@ export default function CreatableSelect({
   className = '',
   label,
 }: CreatableSelectProps) {
+  const { theme } = useTheme();
   const [searchValue, setSearchValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -41,7 +43,9 @@ export default function CreatableSelect({
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchValue(e.target.value);
-    setIsOpen(true);
+    if (options.length > 0) {
+      setIsOpen(true);
+    }
   };
 
   const handleSelectOption = (option: string) => {
@@ -75,17 +79,25 @@ export default function CreatableSelect({
     <div className={`relative ${className}`} ref={dropdownRef}>
       {/* Searchable Input */}
       <div className="relative">
-        <div className="w-full min-h-[44px] px-3 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus-within:ring-2 focus-within:ring-gray-900/10 dark:focus-within:ring-gray-100/10 focus-within:border-gray-300 dark:focus-within:border-gray-500 flex flex-wrap items-center gap-2">
+        <div className={`w-full min-h-[44px] px-3 py-2.5 border rounded-lg shadow-sm focus-within:ring-2 flex flex-wrap items-center gap-2 ${
+          theme === 'dark' 
+            ? 'text-gray-100 bg-gray-800 border-gray-600 focus-within:ring-gray-100/10 focus-within:border-gray-500' 
+            : 'text-gray-900 bg-white border-gray-200 focus-within:ring-gray-900/10 focus-within:border-gray-300'
+        }`}>
           {value.map((val) => (
             <span
               key={val}
-              className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded-full border border-blue-100 dark:border-blue-800"
+              className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-full border ${
+                theme === 'dark'
+                  ? 'bg-blue-900/30 text-blue-300 border-blue-800'
+                  : 'bg-blue-50 text-blue-700 border-blue-100'
+              }`}
             >
               {val}
               <button
                 type="button"
                 onClick={() => handleRemoveValue(val)}
-                className="text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                className={theme === 'dark' ? 'text-blue-400 hover:text-blue-300' : 'text-blue-500 hover:text-blue-700'}
                 aria-label={`Remove ${val}`}
               >
                 ×
@@ -96,7 +108,11 @@ export default function CreatableSelect({
             type="text"
             value={searchValue}
             onChange={handleSearchChange}
-            onFocus={() => setIsOpen(true)}
+            onFocus={() => {
+              if (options.length > 0) {
+                setIsOpen(true);
+              }
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && searchValue.trim()) {
                 e.preventDefault();
@@ -110,35 +126,45 @@ export default function CreatableSelect({
               }
             }}
             placeholder={value.length ? '' : placeholder}
-            className="flex-1 min-w-[120px] text-sm text-gray-900 dark:text-gray-100 bg-transparent outline-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
+            className={`flex-1 min-w-[120px] text-sm bg-transparent outline-none ${
+              theme === 'dark' 
+                ? 'text-gray-100 placeholder:text-gray-500' 
+                : 'text-gray-900 placeholder:text-gray-400'
+            }`}
             required={required && value.length === 0}
           />
-          {/* Dropdown Arrow */}
-          <button
-            type="button"
-            onClick={() => setIsOpen(!isOpen)}
-            className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className={`transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          {/* Dropdown Arrow - Only show if there are options */}
+          {options.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsOpen(!isOpen)}
+              className={theme === 'dark' ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'}
             >
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-          </button>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={`transition-transform ${isOpen ? 'rotate-180' : ''}`}
+              >
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Dropdown Options */}
-      {isOpen && (
-        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+      {/* Dropdown Options - Only show if there are options */}
+      {isOpen && options.length > 0 && (
+        <div className={`absolute z-10 w-full mt-1 border rounded-lg shadow-lg max-h-60 overflow-y-auto ${
+          theme === 'dark' 
+            ? 'bg-gray-800 border-gray-600' 
+            : 'bg-white border-gray-200'
+        }`}>
           {filteredOptions.length > 0 ? (
             <>
               {filteredOptions.map((option, index) => {
@@ -147,20 +173,22 @@ export default function CreatableSelect({
                   <div
                     key={index}
                     onClick={() => handleSelectOption(option)}
-                    className={`px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-between ${
-                      isSelected ? 'bg-blue-50 dark:bg-blue-900/30' : ''
+                    className={`px-3 py-2 cursor-pointer flex items-center justify-between ${
+                      theme === 'dark'
+                        ? `hover:bg-gray-700 ${isSelected ? 'bg-blue-900/30' : ''}`
+                        : `hover:bg-gray-50 ${isSelected ? 'bg-blue-50' : ''}`
                     }`}
                   >
-                    <span className="text-gray-900 dark:text-gray-100">{option}</span>
+                    <span className={theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}>{option}</span>
                     {isSelected && (
-                      <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">Selected</span>
+                      <span className={`ml-2 text-xs ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>Selected</span>
                     )}
                   </div>
                 );
               })}
             </>
           ) : (
-            <div className="px-3 py-2 text-gray-500 dark:text-gray-400 text-sm">
+            <div className={`px-3 py-2 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
               No options found
             </div>
           )}

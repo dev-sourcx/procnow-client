@@ -972,7 +972,9 @@ export interface Quote {
   description?: string;
   attachment?: string;
   visibletoClient: boolean;
-  quoteStatus: string;
+  adminStatus: string;
+  buyerStatus: string;
+  vendorStatus: 'sent' | 'accepted' | 'rejected';
   createdAt?: string | Date;
   updatedAt?: string | Date;
 }
@@ -998,5 +1000,33 @@ export async function getBuyerQuotes(token: string): Promise<Quote[]> {
   }
 
   return (responseData as ApiSuccessResponse<{ quotes: Quote[] }>).data.quotes;
+}
+
+/**
+ * Update buyer status for a quote
+ * Calls: PUT /api/enquiries/quotes/:quoteId/status
+ */
+export async function updateBuyerQuoteStatus(
+  token: string,
+  quoteId: string,
+  buyerStatus: 'Pending' | 'Accepted' | 'Rejected'
+): Promise<Quote> {
+  const response = await fetch(`${API_URL}/api/enquiries/quotes/${quoteId}/status`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ buyerStatus }),
+  });
+
+  const responseData: ApiSuccessResponse<{ quote: Quote }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to update quote status');
+  }
+
+  return (responseData as ApiSuccessResponse<{ quote: Quote }>).data.quote;
 }
 

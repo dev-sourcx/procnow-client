@@ -97,19 +97,19 @@ export default function ProductSheetPage() {
     }
 
     // Use backend createdAt timestamp if available, otherwise use current date
-    let addedDate = new Date().toLocaleDateString('en-US', {
-      month: '2-digit',
-      day: '2-digit',
-      year: 'numeric',
-    });
+    const formatDate = (date: Date): string => {
+      const day = date.getDate().toString().padStart(2, '0');
+      const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+      const month = monthNames[date.getMonth()];
+      const year = date.getFullYear();
+      return `${day}-${month}-${year}`;
+    };
+
+    let addedDate = formatDate(new Date());
     
     if (item.createdAt) {
       try {
-        addedDate = new Date(item.createdAt).toLocaleDateString('en-US', {
-          month: '2-digit',
-          day: '2-digit',
-          year: 'numeric',
-        });
+        addedDate = formatDate(new Date(item.createdAt));
       } catch (e) {
         // If date parsing fails, use current date
         console.warn('Failed to parse createdAt date:', e);
@@ -319,6 +319,11 @@ export default function ProductSheetPage() {
   };
 
   useEffect(() => {
+    // Check authentication first - redirect if not logged in
+    if (!requireAuth()) {
+      return;
+    }
+
     // Load products and enquiry count
     loadProducts();
     loadEnquiryCount();
@@ -1014,6 +1019,7 @@ export default function ProductSheetPage() {
                             {/* Product Name */}
                             <td className="py-4 px-4">
                               <div className="font-medium text-gray-900 dark:text-white">{product.name}</div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{product.addedDate}</div>
                             </td>
 
                             {/* Specifications */}
@@ -1167,15 +1173,15 @@ export default function ProductSheetPage() {
       {/* Specifications Modal for AI Generated Products */}
       {isSpecModalOpen && generatedFields && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                 Specify Requirements for {generatedFields.item}
               </h2>
               <button
                 onClick={handleCloseSpecModal}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-400 hover:text-gray-600"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                 aria-label="Close modal"
               >
                 <svg
@@ -1208,7 +1214,7 @@ export default function ProductSheetPage() {
                     if (field.type === 'textarea') {
                       return (
                         <div key={index} className="md:col-span-2 space-y-2">
-                          <label className="block text-sm font-medium text-gray-700">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                             {field.label}
                             {isRequired && <span className="text-red-500 ml-1">*</span>}
                           </label>
@@ -1217,7 +1223,7 @@ export default function ProductSheetPage() {
                             onChange={(e) => handleSpecInputChange(field.label, e.target.value)}
                             placeholder={field.placeholder || `e.g., dedicated graphics card, webcam, specific port types (USB-C), lightweight`}
                             rows={4}
-                            className="w-full px-3 py-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none placeholder:text-gray-400"
+                            className="w-full px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
                             required={isRequired}
                           />
                         </div>
@@ -1226,7 +1232,7 @@ export default function ProductSheetPage() {
                     
                     return (
                       <div key={index} className="space-y-2">
-                        <label className="block text-sm font-medium text-gray-700">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                           {field.label}
                           {isRequired && <span className="text-red-500 ml-1">*</span>}
                         </label>
@@ -1245,7 +1251,7 @@ export default function ProductSheetPage() {
                             value={(specFormData[field.label] as number) || ''}
                             onChange={(e) => handleSpecInputChange(field.label, parseFloat(e.target.value) || 0)}
                             placeholder={field.placeholder || `e.g., 50`}
-                            className="w-full px-3 py-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-400"
+                            className="w-full px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
                             required={isRequired}
                           />
                         ) : (
@@ -1254,7 +1260,7 @@ export default function ProductSheetPage() {
                             value={(specFormData[field.label] as string) || ''}
                             onChange={(e) => handleSpecInputChange(field.label, e.target.value)}
                             placeholder={field.placeholder || `e.g., within 3-4 weeks`}
-                            className="w-full px-3 py-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-400"
+                            className="w-full px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
                             required={isRequired}
                           />
                         )}
@@ -1265,11 +1271,11 @@ export default function ProductSheetPage() {
               </div>
 
               {/* Modal Footer */}
-              <div className="flex items-center justify-end gap-3 mt-6 pt-6 border-t border-gray-200">
+              <div className="flex items-center justify-end gap-3 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
                 <button
                   type="button"
                   onClick={handleCloseSpecModal}
-                  className="px-6 py-2.5 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors font-medium"
+                  className="px-6 py-2.5 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 rounded-lg transition-colors font-medium"
                 >
                   Cancel
                 </button>
@@ -1307,14 +1313,14 @@ export default function ProductSheetPage() {
           onClick={() => setIsSpecModalOpen(false)}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[70vh] overflow-hidden flex flex-col"
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[70vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">{specModalTitle}</h3>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{specModalTitle}</h3>
               <button
                 onClick={() => setIsSpecModalOpen(false)}
-                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
                 <svg
                   width="20"
@@ -1332,18 +1338,18 @@ export default function ProductSheetPage() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto px-4 py-3">
-              <ul className="space-y-2 text-sm text-gray-800">
+              <ul className="space-y-2 text-sm text-gray-800 dark:text-gray-200">
                 {specModalItems.map((item, idx) => (
-                  <li key={idx} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+                  <li key={idx} className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
                     {item}
                   </li>
                 ))}
               </ul>
             </div>
-            <div className="px-4 py-3 border-t border-gray-200 flex justify-end">
+            <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end">
               <button
                 onClick={() => setIsSpecModalOpen(false)}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg transition-colors"
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg transition-colors"
               >
                 Close
               </button>
@@ -1937,11 +1943,11 @@ export default function ProductSheetPage() {
           onClick={handleCloseNewEnquiryProductModal}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col"
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-2">
                 <svg
                   width="20"
@@ -1952,7 +1958,7 @@ export default function ProductSheetPage() {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="text-gray-600"
+                  className="text-gray-600 dark:text-gray-400"
                 >
                   <line x1="8" y1="6" x2="21" y2="6"></line>
                   <line x1="8" y1="12" x2="21" y2="12"></line>
@@ -1961,11 +1967,11 @@ export default function ProductSheetPage() {
                   <line x1="3" y1="12" x2="3.01" y2="12"></line>
                   <line x1="3" y1="18" x2="3.01" y2="18"></line>
                 </svg>
-                <h3 className="text-lg font-semibold text-gray-900">Select from Product Sheet</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Select from Product Sheet</h3>
               </div>
               <button
                 onClick={handleCloseNewEnquiryProductModal}
-                className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
                 <svg
                   width="20"
@@ -1986,7 +1992,7 @@ export default function ProductSheetPage() {
             {/* Modal Body - Product List */}
             <div className="flex-1 overflow-y-auto px-4 py-3">
               {productSheetItems.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                   <p>No products available in your product sheet.</p>
                 </div>
               ) : (
@@ -1996,22 +2002,22 @@ export default function ProductSheetPage() {
                     return (
                       <div
                         key={product._id}
-                        className="bg-white rounded-lg border border-gray-200 p-3 hover:bg-gray-50 transition-colors"
+                        className="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-3 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">
                               {product.displayName || product.category || 'Unnamed Product'}
                             </p>
-                            <p className="text-xs text-gray-500 mt-0.5">AI Generated</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">AI Generated</p>
                           </div>
                           <button
                             type="button"
                             onClick={() => handleToggleNewEnquiryProductSelection(product._id || '')}
                             className={`ml-3 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
                               isSelected
-                                ? 'bg-gray-100 text-gray-700 border-gray-300'
-                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                ? 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-500'
+                                : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
                             }`}
                           >
                             {isSelected ? 'Added' : '+ Add'}
@@ -2025,11 +2031,11 @@ export default function ProductSheetPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-4 py-3 border-t border-gray-200">
+            <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
               <button
                 type="button"
                 onClick={handleDoneNewEnquiryProductSelection}
-                className="w-full px-4 py-2 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                className="w-full px-4 py-2 text-sm font-medium text-gray-900 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
               >
                 Done
               </button>
@@ -2045,11 +2051,11 @@ export default function ProductSheetPage() {
           onClick={handleCloseGenerateProductModal}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-md w-full h-[80vh] overflow-hidden flex flex-col"
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full h-[80vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-2">
                 <svg
                   width="20"
@@ -2060,15 +2066,15 @@ export default function ProductSheetPage() {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="text-gray-600"
+                  className="text-gray-600 dark:text-gray-400"
                 >
                   <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                 </svg>
-                <h3 className="text-lg font-semibold text-gray-900">Generate Product with AI</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Generate Product with AI</h3>
               </div>
               <button
                 onClick={handleCloseGenerateProductModal}
-                className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
                 <svg
                   width="20"
@@ -2090,7 +2096,7 @@ export default function ProductSheetPage() {
             <div className="px-4 py-4 flex-1 overflow-y-auto">
               {!generatedFieldsForEnquiry ? (
                 <>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Enter product keyword
                   </label>
                   <div className="flex gap-2">
@@ -2099,7 +2105,7 @@ export default function ProductSheetPage() {
                       value={productKeyword}
                       onChange={(e) => setProductKeyword(e.target.value)}
                       placeholder="e.g., laptop, office chair, printer"
-                      className="flex-1 px-3 py-2 border border-teal-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-400"
+                      className="flex-1 px-3 py-2 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-teal-300 dark:border-teal-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
                       onKeyPress={(e) => {
                         if (e.key === 'Enter') {
                           handleGenerateProduct();
@@ -2141,25 +2147,25 @@ export default function ProductSheetPage() {
                       )}
                     </button>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                     Enter a product type and AI will generate relevant specification fields
                   </p>
                 </>
               ) : (
-                <div className="bg-gray-100 rounded-lg p-4 space-y-4">
+                <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 space-y-4">
                   {/* Product Header */}
                   <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-base font-semibold text-gray-900">
+                    <h4 className="text-base font-semibold text-gray-900 dark:text-white">
                       {generatedFieldsForEnquiry.item}
                     </h4>
-                    <span className="text-xs text-gray-500">AI Generated</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">AI Generated</span>
                   </div>
 
                   {/* Generated Fields */}
                   <div className="space-y-4">
                     {generatedFieldsForEnquiry.fields.map((field, index) => (
                       <div key={index} className="space-y-1">
-                        <label className="block text-sm font-medium text-gray-700">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                           {field.label}
                           {field.type !== 'textarea' && <span className="text-red-500 ml-1">*</span>}
                         </label>
@@ -2178,7 +2184,7 @@ export default function ProductSheetPage() {
                             onChange={(e) => handleSpecInputChangeForEnquiry(field.label, e.target.value)}
                             placeholder={field.placeholder || `e.g., Specific brand preferences, desired features like touchscreen, backlit keyboard, ideal delivery date.`}
                             rows={4}
-                            className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-y placeholder:text-gray-400"
+                            className="w-full px-3 py-2 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-y placeholder:text-gray-400 dark:placeholder:text-gray-500"
                           />
                         ) : field.type === 'number' ? (
                           <input
@@ -2186,7 +2192,7 @@ export default function ProductSheetPage() {
                             value={(specFormDataForEnquiry[field.label] as number) || ''}
                             onChange={(e) => handleSpecInputChangeForEnquiry(field.label, parseFloat(e.target.value) || 0)}
                             placeholder={field.placeholder || `e.g., 50`}
-                            className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-400"
+                            className="w-full px-3 py-2 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
                             required
                           />
                         ) : (
@@ -2195,7 +2201,7 @@ export default function ProductSheetPage() {
                             value={(specFormDataForEnquiry[field.label] as string) || ''}
                             onChange={(e) => handleSpecInputChangeForEnquiry(field.label, e.target.value)}
                             placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
-                            className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-400"
+                            className="w-full px-3 py-2 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
                             required
                           />
                         )}
@@ -2207,7 +2213,7 @@ export default function ProductSheetPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-4 py-3 border-t border-gray-200 space-y-2">
+            <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
               {generatedFieldsForEnquiry ? (
                 <>
                   <button
@@ -2233,7 +2239,7 @@ export default function ProductSheetPage() {
                   <button
                     type="button"
                     onClick={handleCloseGenerateProductModal}
-                    className="w-full px-4 py-2 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="w-full px-4 py-2 text-sm font-medium text-gray-900 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
                   >
                     Close
                   </button>
@@ -2242,7 +2248,7 @@ export default function ProductSheetPage() {
                 <button
                   type="button"
                   onClick={handleCloseGenerateProductModal}
-                  className="w-full px-4 py-2 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="w-full px-4 py-2 text-sm font-medium text-gray-900 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
                 >
                   Close
                 </button>

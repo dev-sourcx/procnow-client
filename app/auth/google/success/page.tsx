@@ -24,6 +24,9 @@ function GoogleAuthSuccessContent() {
 
       if (token) {
         try {
+          // Mark that user came from login to prevent beforeunload from clearing guest session
+          localStorage.setItem('came_from_login', 'true');
+          
           // Store token
           saveAuthToken(token);
           
@@ -31,9 +34,13 @@ function GoogleAuthSuccessContent() {
           const guestData = getGuestSessionData();
           if (guestData) {
             try {
-              await syncGuestSession(token, guestData);
-              // Clear guest session after successful sync
-              deleteGuestSession();
+              const syncedSession = await syncGuestSession(token, guestData);
+              // Store synced session ID in sessionStorage so it can be loaded after redirect
+              if (syncedSession && syncedSession._id) {
+                sessionStorage.setItem('synced_session_id', syncedSession._id);
+              }
+              // Keep guest session in localStorage - don't delete it
+              // deleteGuestSession(); // Removed - keep guest session in localStorage
             } catch (syncError) {
               console.error('Error syncing guest session:', syncError);
               // Continue even if sync fails - user is still logged in
