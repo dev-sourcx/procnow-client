@@ -5,7 +5,27 @@ import { useRouter } from 'next/navigation';
 import { getStoredProducts, BriefProduct, ChatSession } from '@/lib/storage';
 import { requireAuth } from '@/lib/auth';
 import { getAuthToken } from '@/lib/storage';
-import { getCurrentUser, type CurrentUser, getProductSheet, ProductSheetItem, getEnquiries, createEnquiry, updateEnquiry, deleteEnquiry, type Enquiry as ApiEnquiry, generateFieldsFromKeyword, type GeneratedFieldsResponse, type GeneratedField, addProductItem, getBuyerQuotes, type Quote } from '@/lib/api';
+import {
+  getCurrentUser,
+  type CurrentUser,
+  getProductSheet,
+  ProductSheetItem,
+  getEnquiries,
+  createEnquiry,
+  updateEnquiry,
+  deleteEnquiry,
+  type Enquiry as ApiEnquiry,
+  generateFieldsFromKeyword,
+  type GeneratedFieldsResponse,
+  type GeneratedField,
+  addProductItem,
+  getBuyerQuotes,
+  type Quote,
+  uploadFile,
+  getBuyerProfile,
+  type BuyerProfile,
+} from '@/lib/api';
+import { showToast } from '@/lib/toast';
 import Sidebar from '@/components/Sidebar';
 import CreatableSelect from '@/components/CreatableSelect';
 import EnquiryTabs from '@/components/EnquiryTabs';
@@ -16,6 +36,7 @@ interface EnquiryProduct {
   quantity: number;
   deliveryDate: string;
   targetPrice: number;
+  unit?: string;
 }
 
 export default function EnquiriesPage() {
@@ -31,6 +52,7 @@ export default function EnquiriesPage() {
   const [selectedEnquiryForSubmit, setSelectedEnquiryForSubmit] = useState<string | null>(null);
   const [isNewEnquiryModalOpen, setIsNewEnquiryModalOpen] = useState(false);
   const [enquiryName, setEnquiryName] = useState('');
+  // Simplified address fields: single text input for shipping and billing
   const [shippingAddress, setShippingAddress] = useState({
     addressLine1: '',
     addressLine2: '',
@@ -38,8 +60,6 @@ export default function EnquiriesPage() {
     state: '',
     zipCode: '',
     country: '',
-    phone: '',
-    email: '',
   });
   const [billingAddress, setBillingAddress] = useState({
     addressLine1: '',
@@ -48,12 +68,24 @@ export default function EnquiriesPage() {
     state: '',
     zipCode: '',
     country: '',
-    phone: '',
-    email: '',
   });
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('');
   const [enquiryStatus, setEnquiryStatus] = useState('draft');
   const [enquiryNotes, setEnquiryNotes] = useState('');
+  // Buyer profile addresses
+  const [buyerProfile, setBuyerProfile] = useState<BuyerProfile | null>(null);
+  const [selectedShippingAddressIndex, setSelectedShippingAddressIndex] = useState<number | null>(null);
+  const [selectedBillingAddressIndex, setSelectedBillingAddressIndex] = useState<number | null>(null);
+  const [useNewShippingAddress, setUseNewShippingAddress] = useState(false);
+  const [useNewBillingAddress, setUseNewBillingAddress] = useState(false);
+  // Inline product generation for sidebar
+  const [inlineProductKeyword, setInlineProductKeyword] = useState('');
+  const [isGeneratingInline, setIsGeneratingInline] = useState(false);
+  const [inlineGeneratedFields, setInlineGeneratedFields] = useState<GeneratedFieldsResponse | null>(null);
+  const [inlineSpecFormData, setInlineSpecFormData] = useState<Record<string, any>>({});
+  const [inlineTextInputValues, setInlineTextInputValues] = useState<Record<string, string>>({});
+  const [enquiryAttachment, setEnquiryAttachment] = useState<File | null>(null);
+  const [enquiryAttachmentUrl, setEnquiryAttachmentUrl] = useState<string>('');
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isDrawerAnimating, setIsDrawerAnimating] = useState(false);
   const [selectedEnquiryId, setSelectedEnquiryId] = useState<string | null>(null);
@@ -89,8 +121,6 @@ export default function EnquiriesPage() {
     state: '',
     zipCode: '',
     country: '',
-    phone: '',
-    email: '',
   });
   const [editBillingAddress, setEditBillingAddress] = useState({
     addressLine1: '',
@@ -99,15 +129,19 @@ export default function EnquiriesPage() {
     state: '',
     zipCode: '',
     country: '',
-    phone: '',
-    email: '',
   });
   const [editExpectedDeliveryDate, setEditExpectedDeliveryDate] = useState('');
   const [editEnquiryStatus, setEditEnquiryStatus] = useState('draft');
   const [editEnquiryNotes, setEditEnquiryNotes] = useState('');
+  const [editEnquiryAttachment, setEditEnquiryAttachment] = useState<File | null>(null);
+  const [editEnquiryAttachmentUrl, setEditEnquiryAttachmentUrl] = useState<string>('');
   const [isUpdatingEnquiry, setIsUpdatingEnquiry] = useState(false);
   const [editEnquirySelectedProductIds, setEditEnquirySelectedProductIds] = useState<string[]>([]);
   const [isEditEnquiryProductModalOpen, setIsEditEnquiryProductModalOpen] = useState(false);
+  // Product details state: maps productId to { quantity, targetPrice, unit }
+  const [productDetails, setProductDetails] = useState<Record<string, { quantity: number; targetPrice: number; unit: string }>>({});
+  // Track which product details are expanded (collapsible)
+  const [expandedProductDetails, setExpandedProductDetails] = useState<Set<string>>(new Set());
   // Submit mode state - tracks if we're submitting an existing enquiry vs creating new
   const [isSubmitMode, setIsSubmitMode] = useState(false);
   const [enquiryIdForSubmit, setEnquiryIdForSubmit] = useState<string | null>(null);
@@ -117,15 +151,101 @@ export default function EnquiriesPage() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [quotesLoading, setQuotesLoading] = useState(false);
 
+  // Attachment handlers - upload to S3 and store URL
+  const handleEnquiryAttachmentChange = async (file: File | null) => {
+    if (!file) {
+      setEnquiryAttachment(null);
+      setEnquiryAttachmentUrl('');
+      return;
+    }
+
+    const token = getAuthToken();
+    if (!token) {
+      showToast({
+        type: 'error',
+        message: 'Please log in to upload attachments.',
+      });
+      setEnquiryAttachment(null);
+      setEnquiryAttachmentUrl('');
+      return;
+    }
+
+    try {
+      setEnquiryAttachment(file);
+      const { url } = await uploadFile(token, file, 'buyer-enquiry-attachments');
+      setEnquiryAttachmentUrl(url);
+    } catch (error: any) {
+      console.error('Error uploading enquiry attachment to S3:', error);
+      showToast({
+        type: 'error',
+        message: error?.message || 'Failed to upload attachment. Please try again.',
+      });
+      setEnquiryAttachment(null);
+      setEnquiryAttachmentUrl('');
+    }
+  };
+
+  const handleEditEnquiryAttachmentChange = async (file: File | null) => {
+    if (!file) {
+      setEditEnquiryAttachment(null);
+      setEditEnquiryAttachmentUrl('');
+      return;
+    }
+
+    const token = getAuthToken();
+    if (!token) {
+      showToast({
+        type: 'error',
+        message: 'Please log in to upload attachments.',
+      });
+      setEditEnquiryAttachment(null);
+      setEditEnquiryAttachmentUrl('');
+      return;
+    }
+
+    try {
+      setEditEnquiryAttachment(file);
+      const { url } = await uploadFile(token, file, 'buyer-enquiry-attachments');
+      setEditEnquiryAttachmentUrl(url);
+    } catch (error: any) {
+      console.error('Error uploading enquiry attachment to S3 (edit):', error);
+      showToast({
+        type: 'error',
+        message: error?.message || 'Failed to upload attachment. Please try again.',
+      });
+      setEditEnquiryAttachment(null);
+      setEditEnquiryAttachmentUrl('');
+    }
+  };
+
+  // Helper: get set of enquiry IDs that have at least one visible quote
+  const getEnquiryIdsWithQuotes = (): Set<string> => {
+    return new Set(
+      quotes
+        .map((quote) => {
+          const assignment = quote.vendorAssignmentId as any;
+          const enquiryProduct = assignment?.enquiryProductId as any;
+          const quoteEnquiryId =
+            enquiryProduct?.enquiryId?._id?.toString() ||
+            enquiryProduct?.enquiryId?.toString() ||
+            enquiryProduct?.enquiryId;
+          return quoteEnquiryId as string | undefined;
+        })
+        .filter((id): id is string => !!id)
+    );
+  };
+
   // Helper function to filter enquiries based on active tab
   const getFilteredEnquiries = (): ApiEnquiry[] => {
     if (activeTab === 'draft') {
-      return enquiries.filter(e => e.enquiryStatus === 'draft');
+      return enquiries.filter((e) => e.enquiryStatus === 'draft');
     } else if (activeTab === 'sentToAdmin') {
-      return enquiries.filter(e => e.enquiryStatus === 'submitted');
+      return enquiries.filter((e) => e.enquiryStatus === 'submitted');
     } else if (activeTab === 'vendorAssigned') {
-      // For now, show submitted enquiries. Can be enhanced to check actual vendor assignments
-      return enquiries.filter(e => e.enquiryStatus === 'submitted');
+      const enquiryIdsWithQuotes = getEnquiryIdsWithQuotes();
+      return enquiries.filter(
+        (e) => e.enquiryStatus === 'submitted' && enquiryIdsWithQuotes.has(e._id || '')
+      );
     }
     return enquiries;
   };
@@ -165,7 +285,9 @@ export default function EnquiriesPage() {
 
       setQuotesLoading(true);
       const fetchedQuotes = await getBuyerQuotes(token);
-      setQuotes(fetchedQuotes);
+      // Only keep quotes that are visible to the client (sent by admin)
+      const visibleQuotes = fetchedQuotes.filter((quote) => quote.visibletoClient);
+      setQuotes(visibleQuotes);
     } catch (error) {
       console.error('Error loading quotes:', error);
       setQuotes([]);
@@ -269,7 +391,7 @@ export default function EnquiriesPage() {
       setOpenMenuId(null);
     } catch (error: any) {
       console.error('Error deleting enquiry:', error);
-      alert(error.message || 'Failed to delete enquiry. Please try again.');
+      showToast({ type: 'error', message: error.message || 'Failed to delete enquiry. Please try again.' });
     }
   };
 
@@ -289,7 +411,7 @@ export default function EnquiriesPage() {
     const enquiryProducts = enquiry.enquiryProducts || [];
     
     if (enquiryProducts.length === 0) {
-      alert('Please add at least one product to the enquiry before submitting.');
+      showToast({ type: 'error', message: 'Please add at least one product to the enquiry before submitting.' });
       setOpenMenuId(null);
       return;
     }
@@ -310,8 +432,6 @@ export default function EnquiriesPage() {
             state: parsed.state || '',
             zipCode: parsed.zipCode || '',
             country: parsed.country || '',
-            phone: parsed.phone || '',
-            email: parsed.email || '',
           });
         } catch {
           setShippingAddress({
@@ -321,8 +441,6 @@ export default function EnquiriesPage() {
             state: '',
             zipCode: '',
             country: '',
-            phone: '',
-            email: '',
           });
         }
       } else {
@@ -333,8 +451,6 @@ export default function EnquiriesPage() {
           state: (addr as any).state || '',
           zipCode: (addr as any).zipCode || '',
           country: (addr as any).country || '',
-          phone: (addr as any).phone || '',
-          email: (addr as any).email || '',
       });
       }
     } else {
@@ -345,8 +461,6 @@ export default function EnquiriesPage() {
         state: '',
         zipCode: '',
         country: '',
-        phone: '',
-        email: '',
       });
     }
 
@@ -363,8 +477,6 @@ export default function EnquiriesPage() {
             state: parsed.state || '',
             zipCode: parsed.zipCode || '',
             country: parsed.country || '',
-            phone: parsed.phone || '',
-            email: parsed.email || '',
           });
         } catch {
           setBillingAddress({
@@ -374,8 +486,6 @@ export default function EnquiriesPage() {
             state: '',
             zipCode: '',
             country: '',
-            phone: '',
-            email: '',
           });
         }
       } else {
@@ -386,8 +496,6 @@ export default function EnquiriesPage() {
           state: (addr as any).state || '',
           zipCode: (addr as any).zipCode || '',
           country: (addr as any).country || '',
-          phone: (addr as any).phone || '',
-          email: (addr as any).email || '',
         });
       }
     } else {
@@ -398,8 +506,6 @@ export default function EnquiriesPage() {
         state: '',
         zipCode: '',
         country: '',
-        phone: '',
-        email: '',
       });
     }
 
@@ -416,6 +522,14 @@ export default function EnquiriesPage() {
 
     // Pre-fill enquiry notes
     setEnquiryNotes(enquiry.enquiryNotes || '');
+    
+    // Pre-fill attachment
+    if (enquiry.attachment) {
+      setEnquiryAttachmentUrl(enquiry.attachment);
+    } else {
+      setEnquiryAttachmentUrl('');
+      setEnquiryAttachment(null);
+    }
 
     // Pre-fill selected product IDs
     const productIds = enquiry.enquiryProducts?.map((ep: any) => 
@@ -442,8 +556,6 @@ export default function EnquiriesPage() {
       state: '',
       zipCode: '',
       country: '',
-      phone: '',
-      email: '',
     });
     setBillingAddress({
       addressLine1: '',
@@ -452,9 +564,19 @@ export default function EnquiriesPage() {
       state: '',
       zipCode: '',
       country: '',
-      phone: '',
-      email: '',
     });
+  };
+
+  // Helper function to format address as comma-separated string
+  const formatAddressAsString = (address: { addressLine1?: string; addressLine2?: string; city?: string; state?: string; zipCode?: string; country?: string }): string => {
+    const parts = [];
+    if (address.addressLine1) parts.push(address.addressLine1);
+    if (address.addressLine2) parts.push(address.addressLine2);
+    if (address.city) parts.push(address.city);
+    if (address.state) parts.push(address.state);
+    if (address.zipCode) parts.push(address.zipCode);
+    if (address.country) parts.push(address.country);
+    return parts.join(', ');
   };
 
   const handleShippingAddressChange = (field: string, value: string) => {
@@ -462,6 +584,22 @@ export default function EnquiriesPage() {
       ...prev,
       [field]: value,
     }));
+  };
+
+  // Get formatted shipping address string for display
+  const getShippingAddressString = (): string => {
+    if (selectedShippingAddressIndex !== null && buyerProfile?.shippingAddress?.[selectedShippingAddressIndex] && !useNewShippingAddress) {
+      return formatAddressAsString(buyerProfile.shippingAddress[selectedShippingAddressIndex]);
+    }
+    return formatAddressAsString(shippingAddress);
+  };
+
+  // Get formatted billing address string for display
+  const getBillingAddressString = (): string => {
+    if (selectedBillingAddressIndex !== null && buyerProfile?.billingAddress?.[selectedBillingAddressIndex] && !useNewBillingAddress) {
+      return formatAddressAsString(buyerProfile.billingAddress[selectedBillingAddressIndex]);
+    }
+    return formatAddressAsString(billingAddress);
   };
 
   const handleSubmitEnquiryForm = async (e: React.FormEvent) => {
@@ -478,18 +616,19 @@ export default function EnquiriesPage() {
     const enquiry = enquiries.find((e) => e._id === selectedEnquiryForSubmit);
     if (!enquiry) return;
 
-    // Validate required fields
-    if (!shippingAddress.addressLine1.trim() || !shippingAddress.city.trim() || 
-        !shippingAddress.state.trim() || !shippingAddress.zipCode.trim() || 
-        !shippingAddress.country.trim()) {
-      alert('Please fill in all required shipping address fields.');
+    // Validate required fields - check if saved address selected or new address entered
+    const hasShippingAddress = (selectedShippingAddressIndex !== null && buyerProfile?.shippingAddress?.[selectedShippingAddressIndex]) 
+      || shippingAddress.addressLine1.trim();
+    const hasBillingAddress = (selectedBillingAddressIndex !== null && buyerProfile?.billingAddress?.[selectedBillingAddressIndex])
+      || billingAddress.addressLine1.trim();
+
+    if (!hasShippingAddress) {
+      showToast({ type: 'error', message: 'Please enter a shipping address.' });
       return;
     }
 
-    if (!billingAddress.addressLine1.trim() || !billingAddress.city.trim() || 
-        !billingAddress.state.trim() || !billingAddress.zipCode.trim() || 
-        !billingAddress.country.trim()) {
-      alert('Please fill in all required billing address fields.');
+    if (!hasBillingAddress) {
+      showToast({ type: 'error', message: 'Please enter a billing address.' });
       return;
     }
 
@@ -502,40 +641,59 @@ export default function EnquiriesPage() {
       }
 
       // Update the enquiry with shipping/billing address and status
+      // Use selected address from buyer profile if selected, otherwise use entered address
+      let finalShippingAddress;
+      if (selectedShippingAddressIndex !== null && buyerProfile?.shippingAddress?.[selectedShippingAddressIndex]) {
+        // Use the complete address object from buyer profile
+        finalShippingAddress = buyerProfile.shippingAddress[selectedShippingAddressIndex];
+      } else {
+        // If user entered a new address, use the shippingAddress state which may have been updated from input
+        finalShippingAddress = {
+          addressLine1: shippingAddress.addressLine1.trim() || '',
+          addressLine2: shippingAddress.addressLine2?.trim() || undefined,
+          city: shippingAddress.city?.trim() || shippingAddress.addressLine1.trim(),
+          state: shippingAddress.state?.trim() || shippingAddress.addressLine1.trim(),
+          zipCode: shippingAddress.zipCode?.trim() || shippingAddress.addressLine1.trim(),
+          country: shippingAddress.country?.trim() || shippingAddress.addressLine1.trim(),
+        };
+      }
+
+      let finalBillingAddress;
+      if (selectedBillingAddressIndex !== null && buyerProfile?.billingAddress?.[selectedBillingAddressIndex]) {
+        // Use the complete address object from buyer profile
+        finalBillingAddress = buyerProfile.billingAddress[selectedBillingAddressIndex];
+      } else {
+        // If user entered a new address, use the billingAddress state which may have been updated from input
+        finalBillingAddress = {
+          addressLine1: billingAddress.addressLine1.trim() || '',
+          addressLine2: billingAddress.addressLine2?.trim() || undefined,
+          city: billingAddress.city?.trim() || billingAddress.addressLine1.trim(),
+          state: billingAddress.state?.trim() || billingAddress.addressLine1.trim(),
+          zipCode: billingAddress.zipCode?.trim() || billingAddress.addressLine1.trim(),
+          country: billingAddress.country?.trim() || billingAddress.addressLine1.trim(),
+        };
+      }
+
       await updateEnquiry(token, selectedEnquiryForSubmit, {
-        shippingAddress: {
-          addressLine1: shippingAddress.addressLine1,
-          addressLine2: shippingAddress.addressLine2 || undefined,
-          city: shippingAddress.city,
-          state: shippingAddress.state,
-          zipCode: shippingAddress.zipCode,
-          country: shippingAddress.country,
-          phone: shippingAddress.phone || undefined,
-          email: shippingAddress.email || undefined,
-        },
-        billingAddress: {
-          addressLine1: billingAddress.addressLine1,
-          addressLine2: billingAddress.addressLine2 || undefined,
-          city: billingAddress.city,
-          state: billingAddress.state,
-          zipCode: billingAddress.zipCode,
-          country: billingAddress.country,
-          phone: billingAddress.phone || undefined,
-          email: billingAddress.email || undefined,
-        },
+        shippingAddress: finalShippingAddress,
+        billingAddress: finalBillingAddress,
         enquiryStatus: 'submitted',
+        attachment: enquiryAttachmentUrl || undefined,
       });
 
       await loadEnquiries();
     
     // Show success message
       const enquiryProducts = enquiry.enquiryProducts || [];
-      alert(`Enquiry "${enquiry.enquiryName}" has been submitted successfully with ${enquiryProducts.length} product(s).`);
+      showToast({
+        type: 'success',
+        message: `Enquiry "${enquiry.enquiryName}" has been submitted successfully with ${enquiryProducts.length} product(s).`,
+      });
     
     handleCloseSubmitModal();
     } catch (error: any) {
       console.error('Error submitting enquiry:', error);
-      alert(error.message || 'Failed to submit enquiry. Please try again.');
+      showToast({ type: 'error', message: error.message || 'Failed to submit enquiry. Please try again.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -580,7 +738,19 @@ export default function EnquiriesPage() {
     }
   };
 
-  const handleCreateEnquiry = () => {
+  const loadBuyerProfile = async () => {
+    try {
+      const token = getAuthToken();
+      if (!token) return;
+      
+      const profile = await getBuyerProfile(token);
+      setBuyerProfile(profile);
+    } catch (error) {
+      console.error('Error loading buyer profile:', error);
+    }
+  };
+
+  const handleCreateEnquiry = async () => {
     // Require authentication before creating enquiry
     if (!requireAuth()) {
       return;
@@ -589,6 +759,9 @@ export default function EnquiriesPage() {
     // Reset submit mode
     setIsSubmitMode(false);
     setEnquiryIdForSubmit(null);
+
+    // Load buyer profile to get addresses
+    await loadBuyerProfile();
 
     setIsNewEnquiryModalOpen(true);
     setEnquiryName('');
@@ -599,8 +772,6 @@ export default function EnquiriesPage() {
       state: '',
       zipCode: '',
       country: '',
-      phone: '',
-      email: '',
     });
     setBillingAddress({
       addressLine1: '',
@@ -609,14 +780,21 @@ export default function EnquiriesPage() {
       state: '',
       zipCode: '',
       country: '',
-      phone: '',
-      email: '',
     });
     setExpectedDeliveryDate('');
     setEnquiryStatus('draft');
     setEnquiryNotes('');
+    setEnquiryAttachment(null);
+    setSelectedShippingAddressIndex(null);
+    setSelectedBillingAddressIndex(null);
+    setUseNewShippingAddress(false);
+    setUseNewBillingAddress(false);
+    setEnquiryAttachmentUrl('');
     setSelectedProductIds([]);
     setNewEnquirySelectedProductIds([]);
+    setInlineProductKeyword('');
+    setInlineGeneratedFields(null);
+    setInlineSpecFormData({});
   };
 
   const handleCloseNewEnquiryModal = () => {
@@ -631,8 +809,6 @@ export default function EnquiriesPage() {
       state: '',
       zipCode: '',
       country: '',
-      phone: '',
-      email: '',
     });
     setBillingAddress({
       addressLine1: '',
@@ -641,12 +817,12 @@ export default function EnquiriesPage() {
       state: '',
       zipCode: '',
       country: '',
-      phone: '',
-      email: '',
     });
     setExpectedDeliveryDate('');
     setEnquiryStatus('draft');
     setEnquiryNotes('');
+    setEnquiryAttachment(null);
+    setEnquiryAttachmentUrl('');
     setSelectedProductIds([]);
     setNewEnquirySelectedProductIds([]);
   };
@@ -711,6 +887,222 @@ export default function EnquiriesPage() {
 
   const handleSpecInputChange = (label: string, value: string | number | string[]) => {
     setSpecFormData((prev) => ({ ...prev, [label]: value }));
+  };
+
+  // Handle adding multiple values to text fields on Enter key (for modal)
+  const handleTextInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, fieldLabel: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const input = e.currentTarget;
+      const currentValue = input.value.trim();
+      
+      if (currentValue) {
+        const existingValue = specFormData[fieldLabel];
+        let values: string[] = [];
+        
+        // If existing value is an array, use it; if string, convert to array; otherwise start fresh
+        if (Array.isArray(existingValue)) {
+          values = [...existingValue];
+        } else if (typeof existingValue === 'string' && existingValue.trim()) {
+          // Split by comma if it's a comma-separated string, otherwise treat as single value
+          values = existingValue.includes(',') 
+            ? existingValue.split(',').map(v => v.trim()).filter(v => v)
+            : [existingValue.trim()];
+        }
+        
+        // Add new value if it doesn't already exist
+        if (!values.includes(currentValue)) {
+          values.push(currentValue);
+          handleSpecInputChange(fieldLabel, values);
+        }
+        
+        // Clear the input field
+        input.value = '';
+      }
+    }
+  };
+
+  // Remove a value from a multi-value text field (for modal)
+  const handleRemoveValue = (fieldLabel: string, valueToRemove: string) => {
+    const existingValue = specFormData[fieldLabel];
+    if (Array.isArray(existingValue)) {
+      const newValues = existingValue.filter(v => v !== valueToRemove);
+      handleSpecInputChange(fieldLabel, newValues.length > 0 ? newValues : '');
+    }
+  };
+
+  const handleProductDetailChange = (productId: string, field: 'quantity' | 'targetPrice' | 'unit', value: string | number) => {
+    setProductDetails((prev) => ({
+      ...prev,
+      [productId]: {
+        ...prev[productId],
+        quantity: prev[productId]?.quantity || 0,
+        targetPrice: prev[productId]?.targetPrice || 0,
+        unit: prev[productId]?.unit || '',
+        [field]: value,
+      },
+    }));
+  };
+
+  // Helper function to map product IDs to objects with details
+  const mapProductIdsToEnquiryProducts = (productIds: string[]): string[] | { productId: string; quantity?: number; targetPrice?: number; unit?: string }[] => {
+    const hasAnyDetails = productIds.some((productId) => {
+      const details = productDetails[productId];
+      return details && (details.quantity || details.targetPrice || details.unit);
+    });
+    
+    if (!hasAnyDetails) {
+      return productIds; // Return as string array if no details
+    }
+    
+    // Return as object array with details
+    return productIds.map((productId) => {
+      const details = productDetails[productId];
+      if (details && (details.quantity || details.targetPrice || details.unit)) {
+        return {
+          productId,
+          quantity: details.quantity || undefined,
+          targetPrice: details.targetPrice || undefined,
+          unit: details.unit || undefined,
+        };
+      }
+      return { productId }; // Return as object even if no details to maintain consistency
+    });
+  };
+
+  const handleInlineGenerateProduct = async () => {
+    if (!inlineProductKeyword.trim()) {
+      alert('Please enter a product keyword');
+      return;
+    }
+
+    setIsGeneratingInline(true);
+    try {
+      // Call backend to generate fields from keyword
+      const fields = await generateFieldsFromKeyword(inlineProductKeyword.trim());
+      
+      // Initialize form data with empty values
+      const initialData: Record<string, string | number | string[]> = {};
+      fields.fields.forEach((field) => {
+        if (field.type === 'dropdown') {
+          initialData[field.label] = [];
+        } else if (field.type === 'number') {
+          initialData[field.label] = 0;
+        } else {
+          initialData[field.label] = '';
+        }
+      });
+      
+      setInlineSpecFormData(initialData);
+      setInlineGeneratedFields(fields);
+    } catch (error) {
+      console.error('Error generating fields:', error);
+      alert(error instanceof Error ? error.message : 'Failed to generate fields. Please try again.');
+    } finally {
+      setIsGeneratingInline(false);
+    }
+  };
+
+  const handleInlineSpecInputChange = (label: string, value: string | number | string[]) => {
+    setInlineSpecFormData((prev) => ({ ...prev, [label]: value }));
+  };
+
+  // Handle adding multiple values to text fields on Enter key
+  const handleInlineTextInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, fieldLabel: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const input = e.currentTarget;
+      const currentValue = input.value.trim();
+      
+      if (currentValue) {
+        const existingValue = inlineSpecFormData[fieldLabel];
+        let values: string[] = [];
+        
+        // If existing value is an array, use it; if string, convert to array; otherwise start fresh
+        if (Array.isArray(existingValue)) {
+          values = [...existingValue];
+        } else if (typeof existingValue === 'string' && existingValue.trim()) {
+          // Split by comma if it's a comma-separated string, otherwise treat as single value
+          values = existingValue.includes(',') 
+            ? existingValue.split(',').map(v => v.trim()).filter(v => v)
+            : [existingValue.trim()];
+        }
+        
+        // Add new value if it doesn't already exist
+        if (!values.includes(currentValue)) {
+          values.push(currentValue);
+          handleInlineSpecInputChange(fieldLabel, values);
+        }
+        
+        // Clear the input field
+        input.value = '';
+      }
+    }
+  };
+
+
+  // Remove a value from a multi-value text field
+  const handleInlineRemoveValue = (fieldLabel: string, valueToRemove: string) => {
+    const existingValue = inlineSpecFormData[fieldLabel];
+    if (Array.isArray(existingValue)) {
+      const newValues = existingValue.filter(v => v !== valueToRemove);
+      handleInlineSpecInputChange(fieldLabel, newValues.length > 0 ? newValues : '');
+    }
+  };
+
+  const handleAddInlineGeneratedProduct = async () => {
+    if (!inlineGeneratedFields) return;
+
+    // Require authentication
+    if (!requireAuth()) {
+      return;
+    }
+
+    const token = getAuthToken();
+    if (!token) {
+      requireAuth();
+      return;
+    }
+
+    try {
+      // Convert form data to userAttributes format
+      const userAttributes: Record<string, any> = {};
+      Object.entries(inlineSpecFormData).forEach(([label, value]) => {
+        if (value !== '' && value !== 0 && value !== null && value !== undefined) {
+          if (Array.isArray(value) && value.length === 0) {
+            return; // Skip empty arrays
+          }
+          userAttributes[label] = value;
+        }
+      });
+
+      // Create product item
+      const newProduct = await addProductItem(token, {
+        productSource: 'ai_generated',
+        displayName: inlineGeneratedFields.item || inlineProductKeyword,
+        category: inlineGeneratedFields.item || 'General',
+        userAttributes: userAttributes,
+        adminProductId: null,
+        externalRef: null,
+      });
+
+      // Reload product sheet items
+      await loadProducts();
+
+      // Add to new enquiry products
+      if (newProduct._id) {
+        setNewEnquirySelectedProductIds((prev) => [...prev, newProduct._id]);
+      }
+
+      // Reset inline generation state
+      setInlineProductKeyword('');
+      setInlineGeneratedFields(null);
+      setInlineSpecFormData({});
+      alert('Product generated and added to enquiry successfully!');
+    } catch (error: any) {
+      console.error('Error adding generated product:', error);
+      alert(error.message || 'Failed to add product. Please try again.');
+    }
   };
 
   const handleAddGeneratedProductToEnquiry = async () => {
@@ -782,18 +1174,19 @@ export default function EnquiriesPage() {
       return;
     }
 
-    // Validate required address fields
-    if (!shippingAddress.addressLine1.trim() || !shippingAddress.city.trim() || 
-        !shippingAddress.state.trim() || !shippingAddress.zipCode.trim() || 
-        !shippingAddress.country.trim()) {
-      alert('Please fill in all required shipping address fields.');
+    // Validate required address fields - check if saved address selected or new address entered
+    const hasShippingAddress = (selectedShippingAddressIndex !== null && buyerProfile?.shippingAddress?.[selectedShippingAddressIndex]) 
+      || shippingAddress.addressLine1.trim();
+    const hasBillingAddress = (selectedBillingAddressIndex !== null && buyerProfile?.billingAddress?.[selectedBillingAddressIndex])
+      || billingAddress.addressLine1.trim();
+
+    if (!hasShippingAddress) {
+      alert('Please enter a shipping address.');
       return;
     }
 
-    if (!billingAddress.addressLine1.trim() || !billingAddress.city.trim() || 
-        !billingAddress.state.trim() || !billingAddress.zipCode.trim() || 
-        !billingAddress.country.trim()) {
-      alert('Please fill in all required billing address fields.');
+    if (!hasBillingAddress) {
+      alert('Please enter a billing address.');
       return;
     }
 
@@ -812,33 +1205,49 @@ export default function EnquiriesPage() {
 
       // Check if we're in submit mode (updating existing enquiry)
       if (isSubmitMode && enquiryIdForSubmit) {
+        // Use selected address from buyer profile if selected, otherwise use entered address
+        let finalShippingAddress;
+        if (selectedShippingAddressIndex !== null && buyerProfile?.shippingAddress?.[selectedShippingAddressIndex]) {
+          // Use the complete address object from buyer profile
+          finalShippingAddress = buyerProfile.shippingAddress[selectedShippingAddressIndex];
+        } else {
+          // If user entered a new address, use the shippingAddress state
+          finalShippingAddress = {
+            addressLine1: shippingAddress.addressLine1.trim() || '',
+            addressLine2: shippingAddress.addressLine2?.trim() || undefined,
+            city: shippingAddress.city?.trim() || shippingAddress.addressLine1.trim(),
+            state: shippingAddress.state?.trim() || shippingAddress.addressLine1.trim(),
+            zipCode: shippingAddress.zipCode?.trim() || shippingAddress.addressLine1.trim(),
+            country: shippingAddress.country?.trim() || shippingAddress.addressLine1.trim(),
+          };
+        }
+
+        let finalBillingAddress;
+        if (selectedBillingAddressIndex !== null && buyerProfile?.billingAddress?.[selectedBillingAddressIndex]) {
+          // Use the complete address object from buyer profile
+          finalBillingAddress = buyerProfile.billingAddress[selectedBillingAddressIndex];
+        } else {
+          // If user entered a new address, use the billingAddress state
+          finalBillingAddress = {
+            addressLine1: billingAddress.addressLine1.trim() || '',
+            addressLine2: billingAddress.addressLine2?.trim() || undefined,
+            city: billingAddress.city?.trim() || billingAddress.addressLine1.trim(),
+            state: billingAddress.state?.trim() || billingAddress.addressLine1.trim(),
+            zipCode: billingAddress.zipCode?.trim() || billingAddress.addressLine1.trim(),
+            country: billingAddress.country?.trim() || billingAddress.addressLine1.trim(),
+          };
+        }
+
         // Update existing enquiry and change status to 'submitted'
         await updateEnquiry(token, enquiryIdForSubmit, {
           enquiryName: enquiryName.trim(),
-          shippingAddress: {
-            addressLine1: shippingAddress.addressLine1,
-            addressLine2: shippingAddress.addressLine2 || undefined,
-            city: shippingAddress.city,
-            state: shippingAddress.state,
-            zipCode: shippingAddress.zipCode,
-            country: shippingAddress.country,
-            phone: shippingAddress.phone || undefined,
-            email: shippingAddress.email || undefined,
-          },
-          billingAddress: {
-            addressLine1: billingAddress.addressLine1,
-            addressLine2: billingAddress.addressLine2 || undefined,
-            city: billingAddress.city,
-            state: billingAddress.state,
-            zipCode: billingAddress.zipCode,
-            country: billingAddress.country,
-            phone: billingAddress.phone || undefined,
-            email: billingAddress.email || undefined,
-          },
+          shippingAddress: finalShippingAddress,
+          billingAddress: finalBillingAddress,
           expectedDeliveryDate: new Date(expectedDeliveryDate).toISOString(),
           enquiryStatus: 'submitted',
           enquiryNotes: enquiryNotes || undefined,
-          enquiryProducts: newEnquirySelectedProductIds.length > 0 ? newEnquirySelectedProductIds : [],
+          attachment: enquiryAttachmentUrl || undefined,
+          enquiryProducts: newEnquirySelectedProductIds.length > 0 ? mapProductIdsToEnquiryProducts(newEnquirySelectedProductIds) as string[] | { productId: string; quantity?: number; targetPrice?: number; unit?: string }[] : [],
         });
 
         await loadEnquiries();
@@ -848,32 +1257,48 @@ export default function EnquiriesPage() {
         handleCloseNewEnquiryModal();
       } else {
         // Create new enquiry
-      await createEnquiry(token, {
-        enquiryName: enquiryName.trim(),
-        shippingAddress: {
-          addressLine1: shippingAddress.addressLine1,
-          addressLine2: shippingAddress.addressLine2 || undefined,
-          city: shippingAddress.city,
-          state: shippingAddress.state,
-          zipCode: shippingAddress.zipCode,
-          country: shippingAddress.country,
-          phone: shippingAddress.phone || undefined,
-          email: shippingAddress.email || undefined,
-        },
-        billingAddress: {
-          addressLine1: billingAddress.addressLine1,
-          addressLine2: billingAddress.addressLine2 || undefined,
-          city: billingAddress.city,
-          state: billingAddress.state,
-          zipCode: billingAddress.zipCode,
-          country: billingAddress.country,
-          phone: billingAddress.phone || undefined,
-          email: billingAddress.email || undefined,
-        },
+        // Use selected address from buyer profile if selected, otherwise use entered address
+        let finalShippingAddressCreate;
+        if (selectedShippingAddressIndex !== null && buyerProfile?.shippingAddress?.[selectedShippingAddressIndex]) {
+          // Use the complete address object from buyer profile
+          finalShippingAddressCreate = buyerProfile.shippingAddress[selectedShippingAddressIndex];
+        } else {
+          // If user entered a new address, use the shippingAddress state
+          finalShippingAddressCreate = {
+            addressLine1: shippingAddress.addressLine1.trim() || '',
+            addressLine2: shippingAddress.addressLine2?.trim() || undefined,
+            city: shippingAddress.city?.trim() || shippingAddress.addressLine1.trim(),
+            state: shippingAddress.state?.trim() || shippingAddress.addressLine1.trim(),
+            zipCode: shippingAddress.zipCode?.trim() || shippingAddress.addressLine1.trim(),
+            country: shippingAddress.country?.trim() || shippingAddress.addressLine1.trim(),
+          };
+        }
+
+        let finalBillingAddressCreate;
+        if (selectedBillingAddressIndex !== null && buyerProfile?.billingAddress?.[selectedBillingAddressIndex]) {
+          // Use the complete address object from buyer profile
+          finalBillingAddressCreate = buyerProfile.billingAddress[selectedBillingAddressIndex];
+        } else {
+          // If user entered a new address, use the billingAddress state
+          finalBillingAddressCreate = {
+            addressLine1: billingAddress.addressLine1.trim() || '',
+            addressLine2: billingAddress.addressLine2?.trim() || undefined,
+            city: billingAddress.city?.trim() || billingAddress.addressLine1.trim(),
+            state: billingAddress.state?.trim() || billingAddress.addressLine1.trim(),
+            zipCode: billingAddress.zipCode?.trim() || billingAddress.addressLine1.trim(),
+            country: billingAddress.country?.trim() || billingAddress.addressLine1.trim(),
+          };
+        }
+
+        await createEnquiry(token, {
+          enquiryName: enquiryName.trim(),
+          shippingAddress: finalShippingAddressCreate,
+          billingAddress: finalBillingAddressCreate,
         expectedDeliveryDate: new Date(expectedDeliveryDate).toISOString(),
         enquiryStatus: enquiryStatus,
         enquiryNotes: enquiryNotes || undefined,
-        enquiryProducts: newEnquirySelectedProductIds.length > 0 ? newEnquirySelectedProductIds : [],
+        attachment: enquiryAttachmentUrl || undefined,
+        enquiryProducts: newEnquirySelectedProductIds.length > 0 ? mapProductIdsToEnquiryProducts(newEnquirySelectedProductIds) : [],
       });
 
       await loadEnquiries();
@@ -909,8 +1334,6 @@ export default function EnquiriesPage() {
         state: enquiry.shippingAddress?.state || '',
         zipCode: enquiry.shippingAddress?.zipCode || '',
         country: enquiry.shippingAddress?.country || '',
-        phone: enquiry.shippingAddress?.phone || '',
-        email: enquiry.shippingAddress?.email || '',
       });
       setEditBillingAddress({
         addressLine1: enquiry.billingAddress?.addressLine1 || '',
@@ -919,8 +1342,6 @@ export default function EnquiriesPage() {
         state: enquiry.billingAddress?.state || '',
         zipCode: enquiry.billingAddress?.zipCode || '',
         country: enquiry.billingAddress?.country || '',
-        phone: enquiry.billingAddress?.phone || '',
-        email: enquiry.billingAddress?.email || '',
       });
       setEditExpectedDeliveryDate(
         enquiry.expectedDeliveryDate 
@@ -930,11 +1351,33 @@ export default function EnquiriesPage() {
       setEditEnquiryStatus(enquiry.enquiryStatus || 'draft');
       setEditEnquiryNotes(enquiry.enquiryNotes || '');
       
+      // Pre-fill attachment
+      if (enquiry.attachment) {
+        setEditEnquiryAttachmentUrl(enquiry.attachment);
+      } else {
+        setEditEnquiryAttachmentUrl('');
+        setEditEnquiryAttachment(null);
+      }
+      
       // Load existing products
       const enquiryProductIds = enquiry.enquiryProducts?.map((p: any) => 
         typeof p === 'string' ? p : (p._id || p.id || p.productId)
       ) || [];
       setEditEnquirySelectedProductIds(enquiryProductIds);
+
+      // Initialize product details from enquiry products
+      const details: Record<string, { quantity: number; targetPrice: number; unit: string }> = {};
+      enquiry.enquiryProducts?.forEach((p: any) => {
+        const productId = typeof p === 'string' ? p : (p._id || p.id || p.productId);
+        if (productId) {
+          details[productId] = {
+            quantity: typeof p === 'object' ? (parseFloat(p.quantity) || 0) : 0,
+            targetPrice: typeof p === 'object' ? (parseFloat(p.targetPrice || p.targetUnitPrice) || 0) : 0,
+            unit: typeof p === 'object' ? (p.unit || '') : '',
+          };
+        }
+      });
+      setProductDetails(details);
     }
 
     setIsDetailModalOpen(true);
@@ -952,8 +1395,6 @@ export default function EnquiriesPage() {
       state: '',
       zipCode: '',
       country: '',
-      phone: '',
-      email: '',
     });
     setEditBillingAddress({
       addressLine1: '',
@@ -962,12 +1403,12 @@ export default function EnquiriesPage() {
       state: '',
       zipCode: '',
       country: '',
-      phone: '',
-      email: '',
     });
     setEditExpectedDeliveryDate('');
     setEditEnquiryStatus('draft');
     setEditEnquiryNotes('');
+    setEditEnquiryAttachment(null);
+    setEditEnquiryAttachmentUrl('');
     setEditEnquirySelectedProductIds([]);
   };
 
@@ -1052,8 +1493,6 @@ export default function EnquiriesPage() {
           state: editShippingAddress.state,
           zipCode: editShippingAddress.zipCode,
           country: editShippingAddress.country,
-          phone: editShippingAddress.phone || undefined,
-          email: editShippingAddress.email || undefined,
         },
         billingAddress: {
           addressLine1: editBillingAddress.addressLine1,
@@ -1062,13 +1501,12 @@ export default function EnquiriesPage() {
           state: editBillingAddress.state,
           zipCode: editBillingAddress.zipCode,
           country: editBillingAddress.country,
-          phone: editBillingAddress.phone || undefined,
-          email: editBillingAddress.email || undefined,
         },
         expectedDeliveryDate: new Date(editExpectedDeliveryDate).toISOString(),
         enquiryStatus: 'submitted',
         enquiryNotes: editEnquiryNotes || undefined,
-        enquiryProducts: editEnquirySelectedProductIds,
+        attachment: editEnquiryAttachmentUrl || undefined,
+        enquiryProducts: editEnquirySelectedProductIds.length > 0 ? mapProductIdsToEnquiryProducts(editEnquirySelectedProductIds) : [],
       });
 
       await loadEnquiries();
@@ -1099,6 +1537,22 @@ export default function EnquiriesPage() {
       typeof p === 'string' ? p : p._id || p
     ) || [];
     setSelectedProductIds(enquiryProductIds);
+
+    // Initialize product details from enquiry products
+    const details: Record<string, { quantity: number; targetPrice: number; unit: string }> = {};
+    enquiry?.enquiryProducts?.forEach((p: any) => {
+      const productId = typeof p === 'string' ? p : (p._id || p.id || p.productId);
+      if (productId) {
+        // Try to get details from EnquiryProduct if available
+        const enquiryProduct = typeof p === 'object' && p.enquiryProduct ? p.enquiryProduct : null;
+        details[productId] = {
+          quantity: enquiryProduct?.quantity ? parseFloat(enquiryProduct.quantity) : (typeof p === 'object' ? (parseFloat(p.quantity) || 0) : 0),
+          targetPrice: enquiryProduct?.targetUnitPrice ? parseFloat(enquiryProduct.targetUnitPrice) : (typeof p === 'object' ? (parseFloat(p.targetPrice || p.targetUnitPrice) || 0) : 0),
+          unit: enquiryProduct?.unit || (typeof p === 'object' ? (p.unit || '') : ''),
+        };
+      }
+    });
+    setProductDetails(details);
     
     setIsProductModalOpen(true);
     // Trigger animation
@@ -1142,7 +1596,7 @@ export default function EnquiriesPage() {
 
     try {
       await updateEnquiry(token, selectedEnquiryId, {
-        enquiryProducts: selectedProductIds,
+        enquiryProducts: selectedProductIds.length > 0 ? mapProductIdsToEnquiryProducts(selectedProductIds) : [],
       });
 
       await loadEnquiries();
@@ -1278,7 +1732,12 @@ export default function EnquiriesPage() {
             onTabChange={setActiveTab}
             draftCount={enquiries.filter(e => e.enquiryStatus === 'draft').length}
             sentToAdminCount={enquiries.filter(e => e.enquiryStatus === 'submitted').length}
-            vendorAssignedCount={enquiries.filter(e => e.enquiryStatus === 'submitted').length}
+            vendorAssignedCount={(() => {
+              const enquiryIdsWithQuotes = getEnquiryIdsWithQuotes();
+              return enquiries.filter(
+                (e) => e.enquiryStatus === 'submitted' && enquiryIdsWithQuotes.has(e._id || '')
+              ).length;
+            })()}
           />
 
           {/* Scrollable Content */}
@@ -2023,6 +2482,50 @@ export default function EnquiriesPage() {
                                                 )}
                                               </div>
                                             )}
+
+                                            {/* Product Details: Quantity, Target Price, Unit */}
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                              <div>
+                                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                  Quantity
+                                                </label>
+                                                <input
+                                                  type="number"
+                                                  min="0"
+                                                  step="0.01"
+                                                  value={productDetails[productId]?.quantity || product.quantity || ''}
+                                                  onChange={(e) => handleProductDetailChange(productId, 'quantity', parseFloat(e.target.value) || 0)}
+                                                  placeholder="0"
+                                                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                                />
+                                              </div>
+                                              <div>
+                                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                  Target Price
+                                                </label>
+                                                <input
+                                                  type="number"
+                                                  min="0"
+                                                  step="0.01"
+                                                  value={productDetails[productId]?.targetPrice || product.targetPrice || ''}
+                                                  onChange={(e) => handleProductDetailChange(productId, 'targetPrice', parseFloat(e.target.value) || 0)}
+                                                  placeholder="0.00"
+                                                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                                />
+                                              </div>
+                                              <div>
+                                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                  Unit
+                                                </label>
+                                                <input
+                                                  type="text"
+                                                  value={productDetails[productId]?.unit || product.unit || ''}
+                                                  onChange={(e) => handleProductDetailChange(productId, 'unit', e.target.value)}
+                                                  placeholder="e.g., kg, pcs, m"
+                                                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                                />
+                                              </div>
+                                            </div>
                                               </div>
                                         </div>
                                       </div>
@@ -2183,33 +2686,6 @@ export default function EnquiriesPage() {
                   </div>
                 </div>
 
-                {/* Phone and Email */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Phone Number
-                    </label>
-                    <input
-                      type="tel"
-                      value={shippingAddress.phone}
-                      onChange={(e) => handleShippingAddressChange('phone', e.target.value)}
-                      placeholder="Phone number"
-                      className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Email Address
-                    </label>
-                    <input
-                      type="email"
-                      value={shippingAddress.email}
-                      onChange={(e) => handleShippingAddressChange('email', e.target.value)}
-                      placeholder="Email address"
-                      className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                    />
-                  </div>
-                </div>
               </div>
 
               {/* Modal Footer */}
@@ -2411,6 +2887,50 @@ export default function EnquiriesPage() {
                               </div>
                               ) : null;
                             })()}
+                          </div>
+
+                          {/* Product Details: Quantity, Target Price, Unit */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 pt-3 border-t border-gray-700">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-300 mb-1">
+                                Quantity
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={productDetails[product._id || '']?.quantity || ''}
+                                onChange={(e) => handleProductDetailChange(product._id || '', 'quantity', parseFloat(e.target.value) || 0)}
+                                placeholder="0"
+                                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-300 mb-1">
+                                Target Price
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={productDetails[product._id || '']?.targetPrice || ''}
+                                onChange={(e) => handleProductDetailChange(product._id || '', 'targetPrice', parseFloat(e.target.value) || 0)}
+                                placeholder="0.00"
+                                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-300 mb-1">
+                                Unit
+                              </label>
+                              <input
+                                type="text"
+                                value={productDetails[product._id || '']?.unit || ''}
+                                onChange={(e) => handleProductDetailChange(product._id || '', 'unit', e.target.value)}
+                                placeholder="e.g., kg, pcs, m"
+                                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -2668,128 +3188,97 @@ export default function EnquiriesPage() {
                       </svg>
                       <h3 className="text-lg font-semibold text-white">Shipping Address</h3>
                     </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Address Line 1 <span className="text-red-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={shippingAddress.addressLine1}
-                      onChange={(e) =>
-                        setShippingAddress((prev) => ({ ...prev, addressLine1: e.target.value }))
-                      }
-                      placeholder="Street address, P.O. box"
-                      required
+                    
+                    {/* Existing Shipping Addresses */}
+                    {buyerProfile?.shippingAddress && buyerProfile.shippingAddress.length > 0 && (
+                      <div className="space-y-2 mb-4">
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Select from saved addresses:
+                        </label>
+                        {buyerProfile.shippingAddress.map((address, index) => (
+                          <label
+                            key={index}
+                            className="flex items-start gap-3 p-3 bg-[#343541] rounded-lg border border-gray-600 hover:bg-[#4A4B5A] cursor-pointer transition-colors"
+                          >
+                            <input
+                              type="radio"
+                              name="shippingAddress"
+                              checked={selectedShippingAddressIndex === index && !useNewShippingAddress}
+                              onChange={() => {
+                                setSelectedShippingAddressIndex(index);
+                                setUseNewShippingAddress(false);
+                                setShippingAddress({
+                                  addressLine1: address.addressLine1 || '',
+                                  addressLine2: address.addressLine2 || '',
+                                  city: address.city || '',
+                                  state: address.state || '',
+                                  zipCode: address.zipCode || '',
+                                  country: address.country || '',
+                                });
+                              }}
+                              className="mt-1 w-4 h-4 text-teal-500 border-gray-600 focus:ring-teal-500"
+                            />
+                            <div className="flex-1">
+                              <p className="text-sm text-white">
+                                {address.addressLine1}
+                                {address.addressLine2 && `, ${address.addressLine2}`}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {address.city}, {address.state} {address.zipCode}
+                              </p>
+                              <p className="text-xs text-gray-400">{address.country}</p>
+                            </div>
+                          </label>
+                        ))}
+                        <label className="flex items-center gap-3 p-3 bg-[#343541] rounded-lg border border-gray-600 hover:bg-[#4A4B5A] cursor-pointer transition-colors">
+                          <input
+                            type="radio"
+                            name="shippingAddress"
+                            checked={useNewShippingAddress}
+                            onChange={() => {
+                              setUseNewShippingAddress(true);
+                              setSelectedShippingAddressIndex(null);
+                              setShippingAddress({
+                                addressLine1: '',
+                                addressLine2: '',
+                                city: '',
+                                state: '',
+                                zipCode: '',
+                                country: '',
+                              });
+                            }}
+                            className="w-4 h-4 text-teal-500 border-gray-600 focus:ring-teal-500"
+                          />
+                          <span className="text-sm text-white">Use new address</span>
+                        </label>
+                      </div>
+                    )}
+                    
+                    {/* Shipping Address Input */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Shipping Address <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={getShippingAddressString()}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setShippingAddress({
+                            addressLine1: value,
+                            addressLine2: '',
+                            city: '',
+                            state: '',
+                            zipCode: '',
+                            country: '',
+                          });
+                          setUseNewShippingAddress(true);
+                          setSelectedShippingAddressIndex(null);
+                        }}
+                        placeholder="Enter full shipping address"
+                        required
                         className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Address Line 2
-                    </label>
-                    <input
-                      type="text"
-                      value={shippingAddress.addressLine2}
-                      onChange={(e) =>
-                        setShippingAddress((prev) => ({ ...prev, addressLine2: e.target.value }))
-                      }
-                      placeholder="Apartment, suite, unit, building, floor, etc."
-                        className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        City <span className="text-red-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={shippingAddress.city}
-                        onChange={(e) =>
-                          setShippingAddress((prev) => ({ ...prev, city: e.target.value }))
-                        }
-                        placeholder="City"
-                        required
-                          className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
                       />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        State/Province <span className="text-red-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={shippingAddress.state}
-                        onChange={(e) =>
-                          setShippingAddress((prev) => ({ ...prev, state: e.target.value }))
-                        }
-                        placeholder="State or Province"
-                        required
-                          className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        ZIP/Postal Code <span className="text-red-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={shippingAddress.zipCode}
-                        onChange={(e) =>
-                          setShippingAddress((prev) => ({ ...prev, zipCode: e.target.value }))
-                        }
-                        placeholder="ZIP or Postal Code"
-                        required
-                          className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Country <span className="text-red-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={shippingAddress.country}
-                        onChange={(e) =>
-                          setShippingAddress((prev) => ({ ...prev, country: e.target.value }))
-                        }
-                        placeholder="Country"
-                        required
-                          className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Phone Number
-                      </label>
-                      <input
-                        type="tel"
-                        value={shippingAddress.phone}
-                        onChange={(e) =>
-                          setShippingAddress((prev) => ({ ...prev, phone: e.target.value }))
-                        }
-                        placeholder="Phone number"
-                          className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Email Address
-                      </label>
-                      <input
-                        type="email"
-                        value={shippingAddress.email}
-                        onChange={(e) =>
-                          setShippingAddress((prev) => ({ ...prev, email: e.target.value }))
-                        }
-                        placeholder="Email address"
-                          className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                      />
-                    </div>
                     </div>
                   </div>
 
@@ -2812,130 +3301,99 @@ export default function EnquiriesPage() {
                       </svg>
                       <h3 className="text-lg font-semibold text-white">Billing Address</h3>
                     </div>
+                    
+                    {/* Existing Billing Addresses */}
+                    {buyerProfile?.billingAddress && buyerProfile.billingAddress.length > 0 && (
+                      <div className="space-y-2 mb-4">
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Select from saved addresses:
+                        </label>
+                        {buyerProfile.billingAddress.map((address, index) => (
+                          <label
+                            key={index}
+                            className="flex items-start gap-3 p-3 bg-[#343541] rounded-lg border border-gray-600 hover:bg-[#4A4B5A] cursor-pointer transition-colors"
+                          >
+                            <input
+                              type="radio"
+                              name="billingAddress"
+                              checked={selectedBillingAddressIndex === index && !useNewBillingAddress}
+                              onChange={() => {
+                                setSelectedBillingAddressIndex(index);
+                                setUseNewBillingAddress(false);
+                                setBillingAddress({
+                                  addressLine1: address.addressLine1 || '',
+                                  addressLine2: address.addressLine2 || '',
+                                  city: address.city || '',
+                                  state: address.state || '',
+                                  zipCode: address.zipCode || '',
+                                  country: address.country || '',
+                                });
+                              }}
+                              className="mt-1 w-4 h-4 text-teal-500 border-gray-600 focus:ring-teal-500"
+                            />
+                            <div className="flex-1">
+                              <p className="text-sm text-white">
+                                {address.addressLine1}
+                                {address.addressLine2 && `, ${address.addressLine2}`}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {address.city}, {address.state} {address.zipCode}
+                              </p>
+                              <p className="text-xs text-gray-400">{address.country}</p>
+                            </div>
+                          </label>
+                        ))}
+                        <label className="flex items-center gap-3 p-3 bg-[#343541] rounded-lg border border-gray-600 hover:bg-[#4A4B5A] cursor-pointer transition-colors">
+                          <input
+                            type="radio"
+                            name="billingAddress"
+                            checked={useNewBillingAddress}
+                            onChange={() => {
+                              setUseNewBillingAddress(true);
+                              setSelectedBillingAddressIndex(null);
+                              setBillingAddress({
+                                addressLine1: '',
+                                addressLine2: '',
+                                city: '',
+                                state: '',
+                                zipCode: '',
+                                country: '',
+                              });
+                            }}
+                            className="w-4 h-4 text-teal-500 border-gray-600 focus:ring-teal-500"
+                          />
+                          <span className="text-sm text-white">Use new address</span>
+                        </label>
+                      </div>
+                    )}
+                    
+                    {/* Billing Address Input */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Address Line 1 <span className="text-red-400">*</span>
+                        Billing Address <span className="text-red-400">*</span>
                       </label>
                       <input
                         type="text"
-                        value={billingAddress.addressLine1}
-                        onChange={(e) =>
-                          setBillingAddress((prev) => ({ ...prev, addressLine1: e.target.value }))
-                        }
-                        placeholder="Street address, P.O. box"
+                        value={getBillingAddressString()}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setBillingAddress({
+                            addressLine1: value,
+                            addressLine2: '',
+                            city: '',
+                            state: '',
+                            zipCode: '',
+                            country: '',
+                          });
+                          setUseNewBillingAddress(true);
+                          setSelectedBillingAddressIndex(null);
+                        }}
+                        placeholder="Enter full billing address"
                         required
                         className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Address Line 2
-                      </label>
-                      <input
-                        type="text"
-                        value={billingAddress.addressLine2}
-                        onChange={(e) =>
-                          setBillingAddress((prev) => ({ ...prev, addressLine2: e.target.value }))
-                        }
-                        placeholder="Apartment, suite, unit, building, floor, etc."
-                        className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          City <span className="text-red-400">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={billingAddress.city}
-                          onChange={(e) =>
-                            setBillingAddress((prev) => ({ ...prev, city: e.target.value }))
-                          }
-                          placeholder="City"
-                          required
-                          className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          State/Province <span className="text-red-400">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={billingAddress.state}
-                          onChange={(e) =>
-                            setBillingAddress((prev) => ({ ...prev, state: e.target.value }))
-                          }
-                          placeholder="State or Province"
-                          required
-                          className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          ZIP/Postal Code <span className="text-red-400">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={billingAddress.zipCode}
-                          onChange={(e) =>
-                            setBillingAddress((prev) => ({ ...prev, zipCode: e.target.value }))
-                          }
-                          placeholder="ZIP or Postal Code"
-                          required
-                          className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Country <span className="text-red-400">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={billingAddress.country}
-                          onChange={(e) =>
-                            setBillingAddress((prev) => ({ ...prev, country: e.target.value }))
-                          }
-                          placeholder="Country"
-                          required
-                          className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Phone Number
-                        </label>
-                        <input
-                          type="tel"
-                          value={billingAddress.phone}
-                          onChange={(e) =>
-                            setBillingAddress((prev) => ({ ...prev, phone: e.target.value }))
-                          }
-                          placeholder="Phone number"
-                          className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Email Address
-                        </label>
-                        <input
-                          type="email"
-                          value={billingAddress.email}
-                          onChange={(e) =>
-                            setBillingAddress((prev) => ({ ...prev, email: e.target.value }))
-                          }
-                          placeholder="Email address"
-                          className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                        />
                   </div>
-                </div>
-              </div>
 
                   {/* Expected Delivery Date Section */}
                   <div className="space-y-4 pt-4 border-t border-gray-600">
@@ -3020,6 +3478,49 @@ export default function EnquiriesPage() {
                     />
                   </div>
 
+                  {/* Attachment Section */}
+                  <div className="space-y-4 pt-4 border-t border-gray-600">
+                    <div className="flex items-center gap-2 mb-1">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="text-gray-400"
+                      >
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                      </svg>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Attachment
+                      </label>
+                    </div>
+                    <input
+                      type="file"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        // Fire and forget; handler manages state and errors
+                        void handleEnquiryAttachmentChange(file);
+                      }}
+                      className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 dark:file:bg-teal-900 dark:file:text-teal-200"
+                    />
+                    {enquiryAttachment && (
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Selected: {enquiryAttachment.name}
+                      </p>
+                    )}
+                    {enquiryAttachmentUrl && !enquiryAttachment && (
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Current attachment exists
+                      </p>
+                    )}
+                  </div>
+
                   {/* Products Section */}
                   <div className="space-y-4 pt-4 border-t border-gray-600">
                     <div className="flex items-center justify-between mb-4">
@@ -3094,6 +3595,163 @@ export default function EnquiriesPage() {
                       </div>
                     </div>
 
+                    {/* Inline Product Generation Field */}
+                    <div className="space-y-3 p-3 bg-[#343541] rounded-lg border border-gray-600">
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Generate Product with AI
+                      </label>
+                      {!inlineGeneratedFields ? (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={inlineProductKeyword}
+                            onChange={(e) => setInlineProductKeyword(e.target.value)}
+                            placeholder="e.g., laptop, office chair, printer"
+                            className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter' && !isGeneratingInline) {
+                                handleInlineGenerateProduct();
+                              }
+                            }}
+                            disabled={isGeneratingInline}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleInlineGenerateProduct}
+                            disabled={isGeneratingInline || !inlineProductKeyword.trim()}
+                            className="px-4 py-2 bg-teal-500 hover:bg-teal-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center"
+                          >
+                            {isGeneratingInline ? (
+                              <svg
+                                className="animate-spin"
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                              >
+                                <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+                              </svg>
+                            ) : (
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="text-sm font-semibold text-white">
+                                {inlineGeneratedFields.item}
+                              </h4>
+                              <p className="text-xs text-gray-400 mt-0.5">AI Generated</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setInlineGeneratedFields(null);
+                                setInlineSpecFormData({});
+                                setInlineProductKeyword('');
+                              }}
+                              className="text-xs text-gray-400 hover:text-gray-300"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+
+                          {/* Generated Fields */}
+                          <div className="space-y-3 max-h-64 overflow-y-auto">
+                            {inlineGeneratedFields.fields.map((field, index) => (
+                              <div key={index} className="space-y-1">
+                                <label className="block text-xs font-medium text-gray-300">
+                                  {field.label}
+                                  {field.type !== 'textarea' && <span className="text-red-400 ml-1">*</span>}
+                                </label>
+                                {field.type === 'dropdown' && field.options ? (
+                                  <CreatableSelect
+                                    value={(inlineSpecFormData[field.label] as string[]) || []}
+                                    onChange={(value) => handleInlineSpecInputChange(field.label, value)}
+                                    options={field.options}
+                                    placeholder={`Select ${field.label.toLowerCase()}`}
+                                    required
+                                    className="w-full"
+                                  />
+                                ) : field.type === 'textarea' ? (
+                                  <textarea
+                                    value={(inlineSpecFormData[field.label] as string) || ''}
+                                    onChange={(e) => handleInlineSpecInputChange(field.label, e.target.value)}
+                                    placeholder={field.placeholder || `e.g., Specific requirements...`}
+                                    rows={3}
+                                    className="w-full px-3 py-2 text-xs rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
+                                  />
+                                ) : field.type === 'number' ? (
+                                  <input
+                                    type="number"
+                                    value={(inlineSpecFormData[field.label] as number) || ''}
+                                    onChange={(e) => handleInlineSpecInputChange(field.label, parseFloat(e.target.value) || 0)}
+                                    placeholder={field.placeholder || `e.g., 50`}
+                                    className="w-full px-3 py-2 text-xs rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                    required
+                                  />
+                                ) : (
+                                  <CreatableSelect
+                                    value={
+                                      Array.isArray(inlineSpecFormData[field.label])
+                                        ? (inlineSpecFormData[field.label] as string[])
+                                        : inlineSpecFormData[field.label]
+                                        ? String(inlineSpecFormData[field.label])
+                                            .split(',')
+                                            .map((v) => v.trim())
+                                            .filter((v) => v.length > 0)
+                                        : []
+                                    }
+                                    onChange={(value) => handleInlineSpecInputChange(field.label, value)}
+                                    options={[]}
+                                    placeholder={field.placeholder || `Type and press Enter to add ${field.label.toLowerCase()}`}
+                                    required
+                                    className="w-full"
+                                  />
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleAddInlineGeneratedProduct}
+                            className="w-full px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                          >
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <line x1="12" y1="5" x2="12" y2="19"></line>
+                              <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            Add Product
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Products List or Empty State */}
                     {newEnquirySelectedProductIds.length === 0 ? (
                       <div className="border-2 border-dashed border-gray-600 rounded-lg p-12 flex flex-col items-center justify-center bg-[#343541]/50">
@@ -3118,30 +3776,152 @@ export default function EnquiriesPage() {
                         </p>
                       </div>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {newEnquirySelectedProductIds.map((productId) => {
                           const product = productSheetItems.find((p) => p._id === productId);
                           if (!product) return null;
                           return (
                             <div
                               key={productId}
-                              className="flex items-center justify-between p-3 bg-[#343541] rounded-lg border border-gray-600"
+                              className="p-3 bg-[#343541] rounded-lg border border-gray-600 space-y-3"
                             >
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-white truncate">
-                                  {product.displayName || product.category || 'Unnamed Product'}
-                                </p>
-                                {product.category && (
-                                  <p className="text-xs text-gray-400 mt-0.5">{product.category}</p>
-                                )}
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-white truncate">
+                                    {product.displayName || product.category || 'Unnamed Product'}
+                                  </p>
+                                  {product.category && (
+                                    <p className="text-xs text-gray-400 mt-0.5">{product.category}</p>
+                                  )}
+                                  
+                                  {/* Product Specifications */}
+                                  {(() => {
+                                    const specifications: string[] = [];
+                                    if (product.userAttributes) {
+                                      Object.entries(product.userAttributes).forEach(([key, value]) => {
+                                        if (value !== '' && value !== 0 && value !== null) {
+                                          // Skip image fields
+                                          if (key.toLowerCase() === 'image_link' || key.toLowerCase() === 'image_attachment') {
+                                            return;
+                                          }
+                                          if (Array.isArray(value)) {
+                                            specifications.push(`${key}: ${value.join(', ')}`);
+                                          } else {
+                                            specifications.push(`${key}: ${value}`);
+                                          }
+                                        }
+                                      });
+                                    }
+                                    return specifications.length > 0 ? (
+                                      <div className="flex flex-wrap gap-2 mt-2">
+                                        {specifications.slice(0, 3).map((spec, index) => (
+                                          <span
+                                            key={index}
+                                            className="text-xs px-2 py-1 bg-[#202123] text-gray-300 rounded"
+                                          >
+                                            {spec}
+                                          </span>
+                                        ))}
+                                        {specifications.length > 3 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => openSpecModal(specifications, product.displayName || product.category || 'Product')}
+                                            className="text-xs px-2 py-1 bg-[#202123] text-gray-400 rounded hover:text-gray-300 transition-colors"
+                                          >
+                                            +{specifications.length - 3} more
+                                          </button>
+                                        )}
+                                      </div>
+                                    ) : null;
+                                  })()}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setExpandedProductDetails((prev) => {
+                                        const newSet = new Set(prev);
+                                        if (newSet.has(productId)) {
+                                          newSet.delete(productId);
+                                        } else {
+                                          newSet.add(productId);
+                                        }
+                                        return newSet;
+                                      });
+                                    }}
+                                    className="px-2 py-1 text-xs text-gray-400 hover:text-gray-300 flex items-center gap-1"
+                                  >
+                                    {expandedProductDetails.has(productId) ? (
+                                      <>
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <polyline points="18 15 12 9 6 15"></polyline>
+                                        </svg>
+                                        Hide Details
+                                      </>
+                                    ) : (
+                                      <>
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <polyline points="6 9 12 15 18 9"></polyline>
+                                        </svg>
+                                        Show Details
+                                      </>
+                                    )}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleNewEnquiryProductSelection(productId)}
+                                    className="ml-2 px-2 py-1 text-xs text-red-400 hover:text-red-300"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleNewEnquiryProductSelection(productId)}
-                                className="ml-2 px-2 py-1 text-xs text-red-400 hover:text-red-300"
-                              >
-                                Remove
-                              </button>
+                              
+                              {/* Product Details: Quantity, Target Price, Unit */}
+                              {expandedProductDetails.has(productId) && (
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-gray-600">
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-300 mb-1">
+                                    Quantity
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={productDetails[productId]?.quantity || ''}
+                                    onChange={(e) => handleProductDetailChange(productId, 'quantity', parseFloat(e.target.value) || 0)}
+                                    placeholder="0"
+                                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-300 mb-1">
+                                    Target Price
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={productDetails[productId]?.targetPrice || ''}
+                                    onChange={(e) => handleProductDetailChange(productId, 'targetPrice', parseFloat(e.target.value) || 0)}
+                                    placeholder="0.00"
+                                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-300 mb-1">
+                                    Unit
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={productDetails[productId]?.unit || ''}
+                                    onChange={(e) => handleProductDetailChange(productId, 'unit', e.target.value)}
+                                    placeholder="e.g., kg, pcs, m"
+                                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                  />
+                                </div>
+                              </div>
+                              )}
                             </div>
                           );
                         })}
@@ -3380,37 +4160,6 @@ export default function EnquiriesPage() {
                           />
                         </div>
                       </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            Phone
-                          </label>
-                          <input
-                            type="tel"
-                            value={editShippingAddress.phone}
-                            onChange={(e) =>
-                              setEditShippingAddress((prev) => ({ ...prev, phone: e.target.value }))
-                            }
-                            placeholder="Phone number"
-                            className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            Email
-                          </label>
-                          <input
-                            type="email"
-                            value={editShippingAddress.email}
-                            onChange={(e) =>
-                              setEditShippingAddress((prev) => ({ ...prev, email: e.target.value }))
-                            }
-                            placeholder="Email address"
-                            className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                          />
-                        </div>
-                      </div>
                     </div>
 
                     {/* Billing Address Section */}
@@ -3529,37 +4278,6 @@ export default function EnquiriesPage() {
                           />
                         </div>
                       </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            Phone
-                          </label>
-                          <input
-                            type="tel"
-                            value={editBillingAddress.phone}
-                            onChange={(e) =>
-                              setEditBillingAddress((prev) => ({ ...prev, phone: e.target.value }))
-                            }
-                            placeholder="Phone number"
-                            className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            Email
-                          </label>
-                          <input
-                            type="email"
-                            value={editBillingAddress.email}
-                            onChange={(e) =>
-                              setEditBillingAddress((prev) => ({ ...prev, email: e.target.value }))
-                            }
-                            placeholder="Email address"
-                            className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                          />
-                        </div>
-                      </div>
                     </div>
 
                     {/* Expected Delivery Date Section */}
@@ -3664,36 +4382,270 @@ export default function EnquiriesPage() {
                               strokeLinejoin="round"
                             >
                               <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                            </svg>
-                            Generate
+                          </svg>
+                          Generate
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Inline Product Generation Field */}
+                    <div className="space-y-3 p-3 bg-[#343541] rounded-lg border border-gray-600">
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Generate Product with AI
+                      </label>
+                      {!inlineGeneratedFields ? (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={inlineProductKeyword}
+                            onChange={(e) => setInlineProductKeyword(e.target.value)}
+                            placeholder="e.g., laptop, office chair, printer"
+                            className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter' && !isGeneratingInline) {
+                                handleInlineGenerateProduct();
+                              }
+                            }}
+                            disabled={isGeneratingInline}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleInlineGenerateProduct}
+                            disabled={isGeneratingInline || !inlineProductKeyword.trim()}
+                            className="px-4 py-2 bg-teal-500 hover:bg-teal-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center"
+                          >
+                            {isGeneratingInline ? (
+                              <svg
+                                className="animate-spin"
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                              >
+                                <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+                              </svg>
+                            ) : (
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                              </svg>
+                            )}
                           </button>
                         </div>
-                      </div>
-
-                      {/* Products List or Empty State */}
-                      {editEnquirySelectedProductIds.length === 0 ? (
-                        <div className="border-2 border-dashed border-gray-600 rounded-lg p-12 flex flex-col items-center justify-center bg-[#343541]/50">
-                          <svg
-                            width="64"
-                            height="64"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="text-gray-500 mb-4"
-                          >
-                            <circle cx="9" cy="21" r="1"></circle>
-                            <circle cx="20" cy="21" r="1"></circle>
-                            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
-                          </svg>
-                          <p className="text-gray-400 font-medium mb-1">No products added yet</p>
-                          <p className="text-gray-500 text-sm text-center">
-                            Use Select or Generate buttons above
-                          </p>
-                        </div>
                       ) : (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="text-sm font-semibold text-white">
+                                {inlineGeneratedFields.item}
+                              </h4>
+                              <p className="text-xs text-gray-400 mt-0.5">AI Generated</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setInlineGeneratedFields(null);
+                                setInlineSpecFormData({});
+                                setInlineProductKeyword('');
+                              }}
+                              className="text-xs text-gray-400 hover:text-gray-300"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+
+                          {/* Generated Fields */}
+                          <div className="space-y-3 max-h-64 overflow-y-auto">
+                            {inlineGeneratedFields.fields.map((field, index) => (
+                              <div key={index} className="space-y-1">
+                                <label className="block text-xs font-medium text-gray-300">
+                                  {field.label}
+                                  {field.type !== 'textarea' && <span className="text-red-400 ml-1">*</span>}
+                                </label>
+                                {field.type === 'dropdown' && field.options ? (
+                                  <CreatableSelect
+                                    value={(inlineSpecFormData[field.label] as string[]) || []}
+                                    onChange={(value) => handleInlineSpecInputChange(field.label, value)}
+                                    options={field.options}
+                                    placeholder={`Select ${field.label.toLowerCase()}`}
+                                    required
+                                    className="w-full"
+                                  />
+                                ) : field.type === 'textarea' ? (
+                                  <textarea
+                                    value={(inlineSpecFormData[field.label] as string) || ''}
+                                    onChange={(e) => handleInlineSpecInputChange(field.label, e.target.value)}
+                                    placeholder={field.placeholder || `e.g., Specific requirements...`}
+                                    rows={3}
+                                    className="w-full px-3 py-2 text-xs rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
+                                  />
+                                ) : field.type === 'number' ? (
+                                  <input
+                                    type="number"
+                                    value={(inlineSpecFormData[field.label] as number) || ''}
+                                    onChange={(e) => handleInlineSpecInputChange(field.label, parseFloat(e.target.value) || 0)}
+                                    placeholder={field.placeholder || `e.g., 50`}
+                                    className="w-full px-3 py-2 text-xs rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                    required
+                                  />
+                                ) : (
+                                  <div className="space-y-2">
+                                    {/* Display existing values as tags */}
+                                    {(() => {
+                                      const fieldValue = inlineSpecFormData[field.label];
+                                      const values = Array.isArray(fieldValue) ? fieldValue : (typeof fieldValue === 'string' && fieldValue.trim() ? (fieldValue.includes(',') ? fieldValue.split(',').map(v => v.trim()).filter(v => v) : [fieldValue.trim()]) : []);
+                                      return values.length > 0 ? (
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {values.map((value, idx) => (
+                                            <span
+                                              key={idx}
+                                              className="inline-flex items-center gap-1.5 px-2 py-1 bg-teal-500/20 text-teal-300 text-xs rounded border border-teal-500/30"
+                                            >
+                                              {value}
+                                              <button
+                                                type="button"
+                                                onClick={() => handleInlineRemoveValue(field.label, value)}
+                                                className="text-teal-300 hover:text-teal-100 transition-colors"
+                                              >
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                </svg>
+                                              </button>
+                                            </span>
+                                          ))}
+                                        </div>
+                                      ) : null;
+                                    })()}
+                                    {/* Input field */}
+                                    <input
+                                      type="text"
+                                      value={inlineTextInputValues[field.label] || ''}
+                                      onChange={(e) => {
+                                        setInlineTextInputValues(prev => ({ ...prev, [field.label]: e.target.value }));
+                                      }}
+                                      onKeyDown={(e) => {
+                                        handleInlineTextInputKeyDown(e, field.label);
+                                        // Clear the input value in state after adding
+                                        if (e.key === 'Enter') {
+                                          setInlineTextInputValues(prev => ({ ...prev, [field.label]: '' }));
+                                        }
+                                      }}
+                                      placeholder={(() => {
+                                        const fieldValue = inlineSpecFormData[field.label];
+                                        const hasValues = Array.isArray(fieldValue) ? fieldValue.length > 0 : (typeof fieldValue === 'string' && fieldValue.trim());
+                                        return hasValues 
+                                          ? `Add another ${field.label.toLowerCase()} (press Enter to add)`
+                                          : (field.placeholder || `Enter ${field.label.toLowerCase()} (press Enter to add)`);
+                                      })()}
+                                      className="w-full px-3 py-2 text-xs rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                      required={!Array.isArray(inlineSpecFormData[field.label]) || (Array.isArray(inlineSpecFormData[field.label]) && inlineSpecFormData[field.label].length === 0)}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!inlineGeneratedFields) return;
+                              const token = getAuthToken();
+                              if (!token) {
+                                requireAuth();
+                                return;
+                              }
+
+                              try {
+                                const userAttributes: Record<string, any> = {};
+                                Object.entries(inlineSpecFormData).forEach(([label, value]) => {
+                                  if (value !== '' && value !== 0 && value !== null && value !== undefined) {
+                                    if (Array.isArray(value) && value.length === 0) {
+                                      return;
+                                    }
+                                    userAttributes[label] = value;
+                                  }
+                                });
+
+                                const newProduct = await addProductItem(token, {
+                                  productSource: 'ai_generated',
+                                  displayName: inlineGeneratedFields.item || inlineProductKeyword,
+                                  category: inlineGeneratedFields.item || 'General',
+                                  userAttributes: userAttributes,
+                                  adminProductId: null,
+                                  externalRef: null,
+                                });
+
+                                await loadProducts();
+                                if (newProduct._id) {
+                                  setEditEnquirySelectedProductIds((prev) => [...prev, newProduct._id]);
+                                }
+
+                                setInlineProductKeyword('');
+                                setInlineGeneratedFields(null);
+                                setInlineSpecFormData({});
+                                alert('Product generated and added to enquiry successfully!');
+                              } catch (error: any) {
+                                console.error('Error adding product:', error);
+                                alert(error.message || 'Failed to add product. Please try again.');
+                              }
+                            }}
+                            className="w-full px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                          >
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <line x1="12" y1="5" x2="12" y2="19"></line>
+                              <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            Add Product
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Products List or Empty State */}
+                    {editEnquirySelectedProductIds.length === 0 ? (
+                      <div className="border-2 border-dashed border-gray-600 rounded-lg p-12 flex flex-col items-center justify-center bg-[#343541]/50">
+                        <svg
+                          width="64"
+                          height="64"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="text-gray-500 mb-4"
+                        >
+                          <circle cx="9" cy="21" r="1"></circle>
+                          <circle cx="20" cy="21" r="1"></circle>
+                          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                        </svg>
+                        <p className="text-gray-400 font-medium mb-1">No products added yet</p>
+                        <p className="text-gray-500 text-sm text-center">
+                          Use Select or Generate buttons above
+                        </p>
+                      </div>
+                    ) : (
                         <div className="space-y-2">
                           {editEnquirySelectedProductIds.map((productId) => {
                             const product = productSheetItems.find((p) => p._id === productId);
@@ -3701,43 +4653,165 @@ export default function EnquiriesPage() {
                             return (
                               <div
                                 key={productId}
-                                className="flex items-center justify-between p-3 bg-[#343541] rounded-lg border border-gray-600"
+                                className="p-3 bg-[#343541] rounded-lg border border-gray-600 space-y-3"
                               >
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-white truncate">
-                                    {product.displayName || product.category || 'Unnamed Product'}
-                                  </p>
-                                  {product.category && (
-                                    <p className="text-xs text-gray-400 mt-0.5">{product.category}</p>
-                                  )}
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-white truncate">
+                                      {product.displayName || product.category || 'Unnamed Product'}
+                                    </p>
+                                    {product.category && (
+                                      <p className="text-xs text-gray-400 mt-0.5">{product.category}</p>
+                                    )}
+                                    
+                                    {/* Product Specifications */}
+                                    {(() => {
+                                      const specifications: string[] = [];
+                                      if (product.userAttributes) {
+                                        Object.entries(product.userAttributes).forEach(([key, value]) => {
+                                          if (value !== '' && value !== 0 && value !== null) {
+                                            // Skip image fields
+                                            if (key.toLowerCase() === 'image_link' || key.toLowerCase() === 'image_attachment') {
+                                              return;
+                                            }
+                                            if (Array.isArray(value)) {
+                                              specifications.push(`${key}: ${value.join(', ')}`);
+                                            } else {
+                                              specifications.push(`${key}: ${value}`);
+                                            }
+                                          }
+                                        });
+                                      }
+                                      return specifications.length > 0 ? (
+                                        <div className="flex flex-wrap gap-2 mt-2">
+                                          {specifications.slice(0, 3).map((spec, index) => (
+                                            <span
+                                              key={index}
+                                              className="text-xs px-2 py-1 bg-[#202123] text-gray-300 rounded"
+                                            >
+                                              {spec}
+                                            </span>
+                                          ))}
+                                          {specifications.length > 3 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => openSpecModal(specifications, product.displayName || product.category || 'Product')}
+                                              className="text-xs px-2 py-1 bg-[#202123] text-gray-400 rounded hover:text-gray-300 transition-colors"
+                                            >
+                                              +{specifications.length - 3} more
+                                            </button>
+                                          )}
+                                        </div>
+                                      ) : null;
+                                    })()}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setExpandedProductDetails((prev) => {
+                                          const newSet = new Set(prev);
+                                          if (newSet.has(productId)) {
+                                            newSet.delete(productId);
+                                          } else {
+                                            newSet.add(productId);
+                                          }
+                                          return newSet;
+                                        });
+                                      }}
+                                      className="px-2 py-1 text-xs text-gray-400 hover:text-gray-300 flex items-center gap-1"
+                                    >
+                                      {expandedProductDetails.has(productId) ? (
+                                        <>
+                                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <polyline points="18 15 12 9 6 15"></polyline>
+                                          </svg>
+                                          Hide Details
+                                        </>
+                                      ) : (
+                                        <>
+                                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                          </svg>
+                                          Show Details
+                                        </>
+                                      )}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditEnquirySelectedProductIds((prev) =>
+                                          prev.filter((id) => id !== productId)
+                                        );
+                                      }}
+                                      className="ml-3 p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
+                                      aria-label="Remove product"
+                                    >
+                                      <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      >
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                      </svg>
+                                    </button>
+                                  </div>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditEnquirySelectedProductIds((prev) =>
-                                      prev.filter((id) => id !== productId)
-                                    );
-                                  }}
-                                  className="ml-3 p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
-                                  aria-label="Remove product"
-                                >
-                                  <svg
-                                    width="16"
-                                    height="16"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  >
-                                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                                  </svg>
-                                </button>
+                                
+                                {/* Product Details: Quantity, Target Price, Unit */}
+                                {expandedProductDetails.has(productId) && (
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-gray-600">
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-300 mb-1">
+                                      Quantity
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={productDetails[productId]?.quantity || ''}
+                                      onChange={(e) => handleProductDetailChange(productId, 'quantity', parseFloat(e.target.value) || 0)}
+                                      placeholder="0"
+                                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-300 mb-1">
+                                      Target Price
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={productDetails[productId]?.targetPrice || ''}
+                                      onChange={(e) => handleProductDetailChange(productId, 'targetPrice', parseFloat(e.target.value) || 0)}
+                                      placeholder="0.00"
+                                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-300 mb-1">
+                                      Unit
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={productDetails[productId]?.unit || ''}
+                                      onChange={(e) => handleProductDetailChange(productId, 'unit', e.target.value)}
+                                      placeholder="e.g., kg, pcs, m"
+                                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                    />
+                                  </div>
+                                </div>
+                                )}
                               </div>
                             );
-                          })}
+                            })}
                         </div>
                       )}
                     </div>
@@ -3770,6 +4844,47 @@ export default function EnquiriesPage() {
                         rows={4}
                         className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 resize-none"
                       />
+                    </div>
+
+                    {/* Attachment Section */}
+                    <div className="space-y-4 pt-4 border-t border-gray-600">
+                      <div className="flex items-center gap-2 mb-4">
+                        <svg
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="text-gray-300"
+                        >
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                          <polyline points="17 8 12 3 7 8"></polyline>
+                          <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <h3 className="text-lg font-semibold text-white">Attachment</h3>
+                      </div>
+                      <input
+                        type="file"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          // Fire and forget; handler manages state and errors
+                          void handleEditEnquiryAttachmentChange(file);
+                        }}
+                        className="w-full px-4 py-2.5 text-white bg-[#343541] border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-teal-500 file:text-white hover:file:bg-teal-600"
+                      />
+                      {editEnquiryAttachment && (
+                        <p className="text-sm text-gray-400">
+                          Selected: {editEnquiryAttachment.name}
+                        </p>
+                      )}
+                      {editEnquiryAttachmentUrl && !editEnquiryAttachment && (
+                        <p className="text-sm text-gray-400">
+                          Current attachment exists
+                        </p>
+                      )}
                     </div>
 
                     {/* Form Footer */}
@@ -4183,13 +5298,22 @@ export default function EnquiriesPage() {
                             required
                           />
                         ) : (
-                          <input
-                            type="text"
-                            value={(specFormData[field.label] as string) || ''}
-                            onChange={(e) => handleSpecInputChange(field.label, e.target.value)}
-                            placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
-                            className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-400"
+                          <CreatableSelect
+                            value={
+                              Array.isArray(specFormData[field.label])
+                                ? (specFormData[field.label] as string[])
+                                : specFormData[field.label]
+                                ? String(specFormData[field.label])
+                                    .split(',')
+                                    .map((v) => v.trim())
+                                    .filter((v) => v.length > 0)
+                                : []
+                            }
+                            onChange={(value) => handleSpecInputChange(field.label, value)}
+                            options={[]}
+                            placeholder={field.placeholder || `Type and press Enter to add ${field.label.toLowerCase()}`}
                             required
+                            className="w-full"
                           />
                         )}
                       </div>

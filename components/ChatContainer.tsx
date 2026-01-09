@@ -33,11 +33,15 @@ export type { Message };
 interface ChatContainerProps {
   currentSessionId: string | null;
   onSessionUpdate: () => void;
+  onProductsUpdate?: (products: Product[]) => void;
+  prefillText?: string;
 }
 
 export default function ChatContainer({
   currentSessionId,
   onSessionUpdate,
+  prefillText,
+  onProductsUpdate,
 }: ChatContainerProps) {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -338,6 +342,11 @@ export default function ChatContainer({
             }
             return newMessages;
           });
+
+          // Expose products to parent (for filters, etc.)
+          if (onProductsUpdate) {
+            onProductsUpdate(products);
+          }
           // Don't update backend during streaming - wait for [DONE] signal
         },
         async () => {
@@ -568,7 +577,7 @@ export default function ChatContainer({
       </div>
 
       {/* Input */}
-      <InputBox onSendMessage={handleSendMessage} isLoading={isLoading} />
+      <InputBox onSendMessage={handleSendMessage} isLoading={isLoading} prefill={prefillText} />
     </div>
   );
 }

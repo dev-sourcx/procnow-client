@@ -82,6 +82,13 @@ export interface Enquiry {
   updatedAt?: string | Date;
 }
 
+export interface EnquiryProductPayload {
+  productId: string;
+  quantity?: number;
+  targetPrice?: number;
+  unit?: string;
+}
+
 export interface CreateEnquiryPayload {
   enquiryName: string;
   shippingAddress: Address;
@@ -90,7 +97,7 @@ export interface CreateEnquiryPayload {
   enquiryStatus: string;
   enquiryNotes?: string;
   attachment?: string;
-  enquiryProducts: string[]; // Array of ProductSheetItem IDs
+  enquiryProducts: string[] | EnquiryProductPayload[]; // Array of ProductSheetItem IDs or objects with details
 }
 
 export interface UpdateEnquiryPayload {
@@ -101,7 +108,7 @@ export interface UpdateEnquiryPayload {
   enquiryStatus?: string;
   enquiryNotes?: string;
   attachment?: string;
-  enquiryProducts?: string[];
+  enquiryProducts?: string[] | EnquiryProductPayload[]; // Array of ProductSheetItem IDs or objects with details
 }
 
 export interface ApiErrorResponse {
@@ -851,7 +858,7 @@ export async function sendChatMessage(
 
           try {
             const parsed = JSON.parse(data);
-            
+
             // Handle streaming assistant text tokens
             if (parsed.type === 'token' && parsed.text) {
               // Stream the token text directly for incremental rendering
@@ -1084,3 +1091,239 @@ export async function updateBuyerQuoteStatus(
   return (responseData as ApiSuccessResponse<{ quote: Quote }>).data.quote;
 }
 
+/**
+ * Generate presigned URL for file upload to S3
+ * Calls: POST /api/product-sheet/presigned-url
+ */
+export async function generatePresignedUrl(
+  token: string,
+  fileName: string,
+  folder: string = 'buyer-attachments',
+  contentType?: string
+): Promise<{
+  presignedUrl: string;
+  s3Url: string;
+  key: string;
+  fileName: string;
+}> {
+  const response = await fetch(`${API_URL}/api/product-sheet/presigned-url`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ fileName, folder, contentType }),
+  });
+
+  const responseData: ApiSuccessResponse<{
+    presignedUrl: string;
+    s3Url: string;
+    key: string;
+    fileName: string;
+  }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to generate presigned URL');
+  }
+
+  return (responseData as ApiSuccessResponse<{
+    presignedUrl: string;
+    s3Url: string;
+    key: string;
+    fileName: string;
+  }>).data;
+}
+
+/**
+ * Upload file directly to S3 using presigned URL
+ */
+export async function uploadFileToS3(
+  presignedUrl: string,
+  file: File
+): Promise<void> {
+  // Determine content type based on file extension
+  const getContentType = (fileName: string): string => {
+    const ext = fileName.toLowerCase().split('.').pop();
+    const contentTypes: Record<string, string> = {
+      'pdf': 'application/pdf',
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'webp': 'image/webp',
+      'doc': 'application/msword',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    };
+    return contentTypes[ext || ''] || 'application/octet-stream';
+  };
+
+  const response = await fetch(presignedUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': getContentType(file.name),
+    },
+    body: file,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to upload file to S3: ${response.statusText}`);
+  }
+}
+
+/**
+ * Upload file to S3 (convenience function)
+ */
+export async function uploadFile(
+  token: string,
+  file: File,
+  folder: string = 'buyer-attachments'
+): Promise<{ url: string; fileName: string; fileSize: number }> {
+  // Step 1: Generate presigned URL
+  const { presignedUrl, s3Url } = await generatePresignedUrl(token, file.name, folder);
+
+  // Step 2: Upload file directly to S3
+  await uploadFileToS3(presignedUrl, file);
+
+  return {
+    url: s3Url,
+    fileName: file.name,
+    fileSize: file.size,
+  };
+}
+
+/**
+ * Get a short-lived signed URL for viewing/downloading a file
+ * Calls: POST /api/product-sheet/presigned-download
+ */
+export async function getFileSignedUrl(token: string, fileUrl: string): Promise<string> {
+  const response = await fetch(`${API_URL}/api/product-sheet/presigned-download`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ fileUrl }),
+  });
+
+  const responseData: ApiSuccessResponse<{ signedUrl: string }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to get signed file URL');
+  }
+
+  return (responseData as ApiSuccessResponse<{ signedUrl: string }>).data.signedUrl;
+}
+
+// ===== Buyer Profile Types =====
+export interface ContactDetail {
+  contactPerson: string;
+  email: string;
+  phone: string;
+  designation?: string;
+}
+
+export interface Address {
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+}
+
+export interface BankDetails {
+  bankName?: string;
+  accountHolderName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
+}
+
+export interface BusinessDocument {
+  documentType?: string;
+  documentNumber?: string;
+  documentUrl?: string;
+}
+
+export interface BusinessInformation {
+  businessName?: string;
+  legalEntityType?: string;
+  gstNumber?: string;
+  panNumber?: string;
+  businessDocuments?: BusinessDocument[];
+}
+
+export interface BuyerProfile {
+  _id?: string;
+  userId: string;
+  legalEntityName?: string;
+  website?: string;
+  contactDetails?: ContactDetail[];
+  bankDetails?: BankDetails[];
+  billingAddress?: Address[];
+  shippingAddress?: Address[];
+  businessInformation?: BusinessInformation;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
+}
+
+export interface UpdateBuyerProfilePayload {
+  legalEntityName?: string;
+  website?: string;
+  contactDetails?: ContactDetail[];
+  bankDetails?: BankDetails[];
+  billingAddress?: Address[];
+  shippingAddress?: Address[];
+  businessInformation?: BusinessInformation;
+}
+
+/**
+ * Get buyer profile
+ * Calls: GET /api/buyer/profile
+ */
+export async function getBuyerProfile(token: string): Promise<BuyerProfile | null> {
+  const response = await fetch(`${API_URL}/api/buyer/profile`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const responseData: ApiSuccessResponse<{ profile: BuyerProfile | null }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to get buyer profile');
+  }
+
+  return (responseData as ApiSuccessResponse<{ profile: BuyerProfile | null }>).data.profile;
+}
+
+/**
+ * Update buyer profile
+ * Calls: PUT /api/buyer/profile
+ */
+export async function updateBuyerProfile(
+  token: string,
+  payload: UpdateBuyerProfilePayload
+): Promise<BuyerProfile> {
+  const response = await fetch(`${API_URL}/api/buyer/profile`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const responseData: ApiSuccessResponse<{ profile: BuyerProfile }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    throw new Error(errorResponse.message || errorResponse.error || 'Failed to update buyer profile');
+  }
+
+  return (responseData as ApiSuccessResponse<{ profile: BuyerProfile }>).data.profile;
+}

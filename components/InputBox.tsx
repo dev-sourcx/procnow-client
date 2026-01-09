@@ -5,10 +5,11 @@ import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 interface InputBoxProps {
   onSendMessage: (message: string) => void;
   isLoading: boolean;
+  prefill?: string;
 }
 
-export default function InputBox({ onSendMessage, isLoading }: InputBoxProps) {
-  const [input, setInput] = useState('');
+export default function InputBox({ onSendMessage, isLoading, prefill }: InputBoxProps) {
+  const [input, setInput] = useState(prefill || '');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -17,6 +18,13 @@ export default function InputBox({ onSendMessage, isLoading }: InputBoxProps) {
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   }, [input]);
+
+  // Update input when prefill changes (e.g., filters selected)
+  useEffect(() => {
+    if (prefill !== undefined) {
+      setInput(prefill);
+    }
+  }, [prefill]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

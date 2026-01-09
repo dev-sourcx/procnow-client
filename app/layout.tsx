@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import ThemeProviderWrapper from "@/components/ThemeProviderWrapper";
+import ToastContainer from "@/components/ToastContainer";
 
 export const metadata: Metadata = {
   title: "Chat Assistant",
@@ -17,6 +18,7 @@ export default function RootLayout({
       <body className="antialiased">
         <ThemeProviderWrapper>
         {children}
+        <ToastContainer />
         </ThemeProviderWrapper>
       </body>
     </html>

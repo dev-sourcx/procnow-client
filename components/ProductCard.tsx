@@ -1,12 +1,13 @@
 'use client';
 
-import { Product, generateFieldsFromKeyword, GeneratedFieldsResponse, addProductItem } from '@/lib/api';
+import { Product, generateFieldsFromKeyword, GeneratedFieldsResponse, addProductItem, uploadFile } from '@/lib/api';
 import { getAuthToken } from '@/lib/storage';
 import { requireAuth } from '@/lib/auth';
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import CreatableSelect from './CreatableSelect';
 import Image from 'next/image';
+import { showToast } from '@/lib/toast';
 
 interface ProductCardProps {
   product: Product;
@@ -310,13 +311,27 @@ export default function ProductCard({
         return;
       }
 
-      // Map form data to userAttributes object
+      // Upload files to S3 and replace File objects with S3 URLs
       const userAttributes: Record<string, any> = {};
-      Object.entries(formData).forEach(([key, value]) => {
+      for (const [key, value] of Object.entries(formData)) {
         if (value !== '' && value !== 0 && value !== null && (Array.isArray(value) ? value.length > 0 : true)) {
-          userAttributes[key] = value;
+          // If value is a File, upload it to S3
+          if (value instanceof File) {
+            try {
+              const uploadResult = await uploadFile(token, value, 'buyer-attachments');
+              userAttributes[key] = uploadResult.url;
+            } catch (uploadError: any) {
+              console.error(`Error uploading file ${key}:`, uploadError);
+              setError(`Failed to upload ${key}. Please try again.`);
+              showToast({ type: 'error', message: `Failed to upload ${key}. Please try again.` });
+              setIsSubmitting(false);
+              return;
+            }
+          } else {
+            userAttributes[key] = value;
+          }
         }
-      });
+      }
 
       // Prepare product item data for backend
       const productItemPayload = {
@@ -335,18 +350,23 @@ export default function ProductCard({
         window.dispatchEvent(new Event('productAdded'));
       }
       
+      // Show success toast
+      showToast({ type: 'success', message: 'Product saved successfully!' });
+
       // Close modal
       handleCloseModal();
       
       // Navigate to brief page
-      router.push('/brief');
+      // router.push('/');
     } catch (error: any) {
       console.error('Error saving product:', error);
       // Show user-friendly error message
       if (error.message && error.message.includes('logged in')) {
         setError('You must be logged in to save products. Please log in and try again.');
+        showToast({ type: 'error', message: 'You must be logged in to save products. Please log in and try again.' });
       } else {
-      setError('Failed to save product. Please try again.');
+        setError('Failed to save product. Please try again.');
+        showToast({ type: 'error', message: 'Failed to save product. Please try again.' });
       }
     } finally {
       setIsSubmitting(false);
@@ -476,7 +496,7 @@ export default function ProductCard({
                               <input
                                 id={inputId}
                                 type="file"
-                                accept="image/*"
+                                accept="application/pdf, image/*"
                                 onChange={(e) => {
                                   const file = e.target.files?.[0] || null;
                                   handleFileChange(field.label, file);

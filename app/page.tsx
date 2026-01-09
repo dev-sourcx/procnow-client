@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ChatContainer from '@/components/ChatContainer';
 import Sidebar from '@/components/Sidebar';
-import { getCurrentUser, type CurrentUser, getChatSessions, ChatSession as BackendChatSession, generateFieldsFromDescription, GeneratedFieldsResponse } from '@/lib/api';
+import DiscoverFilters from '@/components/DiscoverFilters';
+import { getCurrentUser, type CurrentUser, getChatSessions, ChatSession as BackendChatSession, generateFieldsFromDescription, GeneratedFieldsResponse, uploadFile } from '@/lib/api';
+import { showToast } from '@/lib/toast';
 import { useTheme } from '@/contexts/ThemeContext';
 import { 
   getAuthToken, 
@@ -25,6 +27,7 @@ import {
 } from '@/lib/storage';
 import { requireAuth } from '@/lib/auth';
 import CreatableSelect from '@/components/CreatableSelect';
+import type { Product } from '@/lib/api';
 
 export default function Home() {
   const router = useRouter();
@@ -79,6 +82,14 @@ export default function Home() {
   const [specModalOpen, setSpecModalOpen] = useState(false);
   const [specModalItems, setSpecModalItems] = useState<string[]>([]);
   const [specModalTitle, setSpecModalTitle] = useState<string>('Specifications');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [discoverFilterMeta, setDiscoverFilterMeta] = useState<{
+    categories: string[];
+    storages: string[];
+    minPrice?: number;
+    maxPrice?: number;
+  } | null>(null);
+  const [discoverSelectedFilters, setDiscoverSelectedFilters] = useState<string[]>([]);
 
   // Clear guest chat when browser closes (only for non-authenticated users)
   // But don't clear if user came from login
@@ -207,6 +218,53 @@ export default function Home() {
     router.push('/');
   };
 
+  const handleDiscoverProductsUpdate = (products: Product[]) => {
+    if (!products || products.length === 0) {
+      setDiscoverFilterMeta(null);
+      return;
+    }
+
+    const categories = Array.from(
+      new Set(
+        products
+          .map((p) => p.product_category)
+          .filter((c): c is string => !!c)
+      )
+    );
+
+    const storagesSet = new Set<string>();
+    const prices: number[] = [];
+
+    products.forEach((p) => {
+      const attrs = p.dynamic_attributes || {};
+      const storage =
+        attrs['Storage'] ||
+        attrs['Capacity'] ||
+        attrs['Storage Capacity'];
+      if (storage) {
+        storagesSet.add(storage);
+      }
+
+      const priceStr =
+        attrs['Price'] ||
+        attrs['Offer Price'] ||
+        attrs['MRP'];
+      if (priceStr) {
+        const val = parseFloat(priceStr.replace(/[^0-9.]/g, ''));
+        if (!isNaN(val)) {
+          prices.push(val);
+        }
+      }
+    });
+
+    setDiscoverFilterMeta({
+      categories,
+      storages: Array.from(storagesSet),
+      minPrice: prices.length ? Math.min(...prices) : undefined,
+      maxPrice: prices.length ? Math.max(...prices) : undefined,
+    });
+  };
+
   // Brief/Specify mode handlers
   const loadProducts = () => {
     const storedProducts = getStoredProducts();
@@ -245,7 +303,7 @@ export default function Home() {
 
   const handleGenerateWithAI = async () => {
     if (!itemInput.trim()) {
-      alert('Please enter an item name');
+      showToast({ type: 'error', message: 'Please enter an item name' });
       return;
     }
 
@@ -405,11 +463,35 @@ export default function Home() {
     
     setIsSubmitting(true);
     try {
-      const specifications = Object.entries(formData)
-        .filter(([_, value]) => {
-          if (Array.isArray(value)) return value.length > 0;
-          return value !== '' && value !== 0 && value !== null;
-        })
+      const token = getAuthToken();
+      if (!token) {
+        requireAuth();
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Upload files to S3 and replace File objects with S3 URLs
+      const processedFormData: Record<string, string | number | string[]> = {};
+      for (const [key, value] of Object.entries(formData)) {
+        if (value !== '' && value !== 0 && value !== null && (Array.isArray(value) ? value.length > 0 : true)) {
+          // If value is a File, upload it to S3
+          if (value instanceof File) {
+            try {
+              const uploadResult = await uploadFile(token, value, 'buyer-attachments');
+              processedFormData[key] = uploadResult.url;
+            } catch (uploadError: any) {
+              console.error(`Error uploading file ${key}:`, uploadError);
+              setError(`Failed to upload ${key}. Please try again.`);
+              setIsSubmitting(false);
+              return;
+            }
+          } else {
+            processedFormData[key] = value as string | number | string[];
+          }
+        }
+      }
+
+      const specifications = Object.entries(processedFormData)
         .map(([key, value]) => {
           if (Array.isArray(value)) {
             return `${key}: ${value.join(', ')}`;
@@ -446,7 +528,7 @@ export default function Home() {
       
       loadProducts();
       handleClearForm();
-      alert('Product saved successfully!');
+      showToast({ type: 'success', message: 'Product saved successfully!' });
     } catch (error: any) {
       console.error('Error saving product:', error);
       if (error.message && error.message.includes('logged in')) {
@@ -661,13 +743,37 @@ export default function Home() {
                   Specify
                 </button>
               </div>
+
+              {/* Discover Filters Toggle */}
+              {activeMode === 'discover' && (
+                <button
+                  type="button"
+                  onClick={() => setIsFilterOpen((prev) => !prev)}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polygon points="3 4 21 4 14 12 14 19 10 21 10 12 3 4" />
+                  </svg>
+                  <span>Filters</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Chat Container */}
+        {/* Chat Container + Discover Filters */}
         {activeMode === 'discover' && (
-          <div className="flex-1 flex flex-col overflow-hidden bg-gray-50 dark:bg-gray-900">
+            <div className="flex-1 flex overflow-hidden bg-gray-50 dark:bg-gray-900 relative">
+            <div className="flex-1 flex flex-col overflow-hidden">
             <ChatContainer
               currentSessionId={currentSessionId}
               onSessionUpdate={() => {
@@ -704,7 +810,30 @@ export default function Home() {
                   }
                 }, 0);
               }}
-            />
+                onProductsUpdate={handleDiscoverProductsUpdate}
+                prefillText={
+                  discoverSelectedFilters.length > 0
+                    ? discoverSelectedFilters.join(', ')
+                    : undefined
+                }
+              />
+            </div>
+
+            {/* Right-side Filter Sidebar (desktop) */}
+            <div
+              className={`hidden md:block absolute top-0 right-0 h-full transform transition-transform duration-300 ${
+                isFilterOpen ? 'translate-x-0' : 'translate-x-full'
+              }`}
+            >
+              <DiscoverFilters
+                onClose={() => setIsFilterOpen(false)}
+                categories={discoverFilterMeta?.categories}
+                storages={discoverFilterMeta?.storages}
+                minPrice={discoverFilterMeta?.minPrice}
+                maxPrice={discoverFilterMeta?.maxPrice}
+                onSelectionChange={setDiscoverSelectedFilters}
+              />
+            </div>
           </div>
         )}
 

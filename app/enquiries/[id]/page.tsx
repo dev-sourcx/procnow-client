@@ -7,6 +7,7 @@ import { getCurrentUser, getEnquiry, getBuyerQuotes, updateBuyerQuoteStatus, typ
 import Sidebar from '@/components/Sidebar';
 import { requireAuth } from '@/lib/auth';
 import { useTheme } from '@/contexts/ThemeContext';
+import { showToast } from '@/lib/toast';
 
 export default function EnquiryDetailPage() {
   const router = useRouter();
@@ -330,7 +331,7 @@ export default function EnquiryDetailPage() {
     }
 
     if (selectedQuotes.size === 0) {
-      alert('Please select at least one quote before submitting.');
+      showToast({ type: 'error', message: 'Please select at least one quote before submitting.' });
       return;
     }
 
@@ -388,11 +389,11 @@ export default function EnquiryDetailPage() {
       setSelectedQuotes(new Map());
       
       // Show success message
-      alert('Quotes submitted successfully!');
+      showToast({ type: 'success', message: 'Quotes submitted successfully!' });
     } catch (err: any) {
       setError(err.message || 'Failed to submit quotes');
       console.error('Error submitting quotes:', err);
-      alert('Failed to submit quotes. Please try again.');
+      showToast({ type: 'error', message: 'Failed to submit quotes. Please try again.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -441,11 +442,11 @@ export default function EnquiryDetailPage() {
       await loadData();
       
       // Show success message
-      alert('Quote accepted successfully!');
+      showToast({ type: 'success', message: 'Quote accepted successfully!' });
     } catch (err: any) {
       setError(err.message || 'Failed to accept quote');
       console.error('Error accepting quote:', err);
-      alert('Failed to accept quote. Please try again.');
+      showToast({ type: 'error', message: 'Failed to accept quote. Please try again.' });
     } finally {
       setIsSubmitting(false);
     }

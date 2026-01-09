@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { generateFieldsFromDescription, GeneratedFieldsResponse } from '@/lib/api';
+import { generateFieldsFromDescription, GeneratedFieldsResponse, uploadFile } from '@/lib/api';
+import { showToast } from '@/lib/toast';
 import { saveProduct, getStoredProducts, deleteProduct, BriefProduct, getStoredEnquiries, saveEnquiry, deleteEnquiry, Enquiry, EnquiryProduct, ChatSession } from '@/lib/storage';
 import { requireAuth } from '@/lib/auth';
+import { getAuthToken } from '@/lib/storage';
 import Sidebar from '@/components/Sidebar';
 import CreatableSelect from '@/components/CreatableSelect';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -71,7 +73,7 @@ export default function BriefPage() {
 
   const handleGenerateWithAI = async () => {
     if (!itemInput.trim()) {
-      alert('Please enter an item name');
+      showToast({ type: 'error', message: 'Please enter an item name' });
       return;
     }
 
@@ -285,12 +287,36 @@ export default function BriefPage() {
     
     setIsSubmitting(true);
     try {
-      // Convert formData to specifications array format: ["key: value", ...]
-      const specifications = Object.entries(formData)
-        .filter(([_, value]) => {
-          if (Array.isArray(value)) return value.length > 0;
-          return value !== '' && value !== 0 && value !== null;
-        })
+      const token = getAuthToken();
+      if (!token) {
+        requireAuth();
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Upload files to S3 and replace File objects with S3 URLs
+      const processedFormData: Record<string, string | number | string[]> = {};
+      for (const [key, value] of Object.entries(formData)) {
+        if (value !== '' && value !== 0 && value !== null && (Array.isArray(value) ? value.length > 0 : true)) {
+          // If value is a File, upload it to S3
+          if (value instanceof File) {
+            try {
+              const uploadResult = await uploadFile(token, value, 'buyer-attachments');
+              processedFormData[key] = uploadResult.url;
+            } catch (uploadError: any) {
+              console.error(`Error uploading file ${key}:`, uploadError);
+              setError(`Failed to upload ${key}. Please try again.`);
+              setIsSubmitting(false);
+              return;
+            }
+          } else {
+            processedFormData[key] = value as string | number | string[];
+          }
+        }
+      }
+
+      // Convert processedFormData to specifications array format: ["key: value", ...]
+      const specifications = Object.entries(processedFormData)
         .map(([key, value]) => {
           if (Array.isArray(value)) {
             return `${key}: ${value.join(', ')}`;
@@ -336,7 +362,7 @@ export default function BriefPage() {
       handleClearForm();
       
       // Show success message
-      alert('Product saved successfully!');
+      showToast({ type: 'success', message: 'Product saved successfully!' });
     } catch (error: any) {
       console.error('Error saving product:', error);
       // Show user-friendly error message

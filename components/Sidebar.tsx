@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { getProductSheet, deleteChatSession } from '@/lib/api';
 import { getAuthToken } from '@/lib/storage';
+import { showToast } from '@/lib/toast';
 import type { CurrentUser } from '@/lib/api';
 import { ChatSession } from '@/lib/storage';
 
@@ -86,6 +87,11 @@ export default function Sidebar({
     onToggle(); // Close sidebar on mobile
   };
 
+  const handleProfileClick = () => {
+    router.push('/profile');
+    onToggle(); // Close sidebar on mobile
+  };
+
   const handleLoginClick = () => {
     const token = getAuthToken();
     if (!token) {
@@ -121,7 +127,7 @@ export default function Sidebar({
       onSessionDelete(sessionId);
     } catch (error) {
       console.error('Error deleting session:', error);
-      alert('Failed to delete session. Please try again.');
+      showToast({ type: 'error', message: 'Failed to delete session. Please try again.' });
     }
   };
 
@@ -350,6 +356,34 @@ export default function Sidebar({
                       <polyline points="22,6 12,13 2,6"></polyline>
                     </svg>
                     My Enquiries
+                  </button>
+                </div>
+              )}
+              {currentUser && (
+                <div>
+                  <button
+                    onClick={handleProfileClick}
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                      pathname === '/profile'
+                        ? 'bg-teal-600 text-white'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20 21v-2a4 4 0 0 0-3-3.87"></path>
+                      <path d="M7 21v-2a4 4 0 0 1 3-3.87"></path>
+                      <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                    Profile
                   </button>
                 </div>
               )}
