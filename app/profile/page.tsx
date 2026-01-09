@@ -1008,7 +1008,7 @@ export default function BuyerProfilePage() {
                   ) : (
                     !showDocumentForm && (
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        No documents added yet. Click "Add Document" to upload business documents.
+                        No documents added yet. Click &quot;Add Document&quot; to upload business documents.
                       </p>
                     )
                   )}
