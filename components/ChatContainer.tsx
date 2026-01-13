@@ -33,8 +33,10 @@ export type { Message };
 interface ChatContainerProps {
   currentSessionId: string | null;
   onSessionUpdate: () => void;
-  onProductsUpdate?: (products: Product[]) => void;
+  onProductsUpdate?: (data: { products: Product[]; filters?: Record<string, string[]> }) => void;
   prefillText?: string;
+  setIsFilterOpen?: (isOpen: boolean) => void;
+  setDiscoverFilterMeta?: (filters: Record<string, string[]>) => void;
 }
 
 export default function ChatContainer({
@@ -42,6 +44,8 @@ export default function ChatContainer({
   onSessionUpdate,
   prefillText,
   onProductsUpdate,
+  setIsFilterOpen,
+  setDiscoverFilterMeta
 }: ChatContainerProps) {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -49,7 +53,7 @@ export default function ChatContainer({
   const [isApiConnected, setIsApiConnected] = useState<boolean | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentAssistantMessageRef = useRef<string>('');
-  const currentAssistantProductsRef = useRef<Product[]>([]);
+  const currentAssistantProductsRef = useRef<Product[] | any>([]);
   const sessionIdRef = useRef<string | null>(currentSessionId);
   const currentAssistantMessageIdRef = useRef<string | null>(null);
   const isStreamingRef = useRef<boolean>(false); // Track if we're currently streaming
@@ -326,9 +330,13 @@ export default function ChatContainer({
           });
           // Don't update backend during streaming - wait for [DONE] signal
         },
-        async (products) => {
+        async (data) => {
           // Handle products received from stream
-          console.log('Products received from stream:', products);
+          // data structure: { products: Product[], filters?: Record<string, string[]> }
+          console.log('Products received from stream:', data);
+          const products = data.products || [];
+          const filters = data.filters || {};
+          
           currentAssistantProductsRef.current = products;
           // Update the current assistant message with products
           setMessages((prev) => {
@@ -343,9 +351,19 @@ export default function ChatContainer({
             return newMessages;
           });
 
-          // Expose products to parent (for filters, etc.)
+          console.log('Filters received:', filters);
+
+          // Set filters metadata
+          if (setDiscoverFilterMeta) {
+            setDiscoverFilterMeta(filters);
+          }
+
+          // Expose products and filters to parent
           if (onProductsUpdate) {
-            onProductsUpdate(products);
+            onProductsUpdate({ products, filters });
+            if (setIsFilterOpen) {
+              setIsFilterOpen(true);
+            }
           }
           // Don't update backend during streaming - wait for [DONE] signal
         },
@@ -513,7 +531,7 @@ export default function ChatContainer({
 
 
   return (
-    <div className="flex h-full w-full flex-col bg-white dark:bg-gray-800 shadow-lg overflow-hidden">
+    <div className="flex h-full h-[100vh-68.8px] w-full flex-col bg-white dark:bg-gray-800 shadow-lg overflow-hidden">
       {/* AI Product Assistant Label */}
       <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <div className="flex items-center gap-2">
@@ -537,7 +555,7 @@ export default function ChatContainer({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-800 px-6 py-4">
+      <div className="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-gray-800 px-6 py-4">
         {messages.length === 0 ? (
           <div className="flex items-start pt-4">
             <div className="flex gap-3 max-w-[85%]">

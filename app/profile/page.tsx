@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import DashboardLayout from '@/components/DashboardLayout';
 import { getAuthToken, clearAuthToken } from '@/lib/storage';
 import { getCurrentUser, type CurrentUser, getBuyerProfile, updateBuyerProfile, type BuyerProfile, type ContactDetail, type Address, type BankDetails, type BusinessInformation, uploadFile } from '@/lib/api';
 import { showToast } from '@/lib/toast';
@@ -300,7 +299,7 @@ export default function BuyerProfilePage() {
   };
 
   return (
-    <DashboardLayout>
+      <>
       {/* Main Content Area */}
       <div className="w-[80%] mx-auto px-6 py-6">
         {isLoading ? (
@@ -942,6 +941,6 @@ export default function BuyerProfilePage() {
           </form>
         )}
       </div>
-    </DashboardLayout>
+      </>
   );
 }

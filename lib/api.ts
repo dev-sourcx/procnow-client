@@ -463,14 +463,14 @@ export interface ChatRequest {
 
 export interface Product {
   _id: string;
-  product_name: string;
+  title: string;
   item?: string | null;
   usage: string[];
   product_category: string;
   description: string;
   dynamic_attributes: Record<string, string>;
   vendor: string;
-  image_link: string;
+  product_url: string;
   image: string;
 }
 
@@ -788,7 +788,7 @@ export async function sendChatMessage(
   history: ChatMessage[],
   message: string,
   onChunk: (chunk: string) => void,
-  onProducts?: (products: Product[]) => void,
+  onProducts?: (data: { products: Product[]; filters?: Record<string, string[]> }) => void,
   onDone?: () => void,
   onError?: (error: Error) => void
 ): Promise<void> {
@@ -885,6 +885,8 @@ export async function sendChatMessage(
           try {
             const parsed = JSON.parse(data);
 
+            console.log('Received SSE:', parsed);
+
             // Handle streaming assistant text tokens
             if (parsed.type === 'token' && parsed.text) {
               // Stream the token text directly for incremental rendering
@@ -894,10 +896,12 @@ export async function sendChatMessage(
             // Handle dedicated products event - treat as end of stream and
             // fetch products from the Procnow products API for this prompt
             if (parsed.type === 'products' && onProducts) {
-              const apiProducts = await fetchProductsForPrompt(fullHistory);
-              if (apiProducts) {
-                onProducts(apiProducts);
-              }
+              // parsed.data should contain { products: [...], filters: {...} }
+              const productsData = parsed.data || {};
+              const products = productsData.products || [];
+              const filters = productsData.filters || {};
+              
+              onProducts({ products, filters });
               // Consider "products" as the end of the stream
               if (onDone) {
                 onDone();
@@ -912,7 +916,7 @@ export async function sendChatMessage(
                 onChunk(cleanedText);
               }
               if (products && onProducts) {
-                onProducts(products);
+                onProducts({ products, filters: {} });
               }
             }
           }
@@ -942,10 +946,11 @@ export async function sendChatMessage(
               }
               // Handle dedicated products event at the tail of the stream as well
               if (parsed.type === 'products' && onProducts) {
-                const apiProducts = await fetchProductsForPrompt(message);
-                if (apiProducts) {
-                  onProducts(apiProducts);
-                }
+                const productsData = parsed.data || {};
+                const products = productsData.products || [];
+                const filters = productsData.filters || {};
+                
+                onProducts({ products, filters });
                 if (onDone) {
                   onDone();
                 }
@@ -958,7 +963,7 @@ export async function sendChatMessage(
                 onChunk(cleanedText);
               }
               if (products && onProducts) {
-                onProducts(products);
+                onProducts({ products, filters: {} });
               }
             }
           }

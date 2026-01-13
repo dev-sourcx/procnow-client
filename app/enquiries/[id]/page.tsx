@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { getAuthToken } from '@/lib/storage';
 import { getCurrentUser, getEnquiry, getBuyerQuotes, updateBuyerQuoteStatus, type CurrentUser, type Enquiry, type Quote } from '@/lib/api';
-import DashboardLayout from '@/components/DashboardLayout';
 import { requireAuth } from '@/lib/auth';
 import { showToast } from '@/lib/toast';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -441,38 +440,34 @@ export default function EnquiryDetailPage() {
 
   if (loading) {
     return (
-      <DashboardLayout>
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-teal-500 border-t-transparent mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">Loading enquiry details...</p>
-          </div>
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-teal-500 border-t-transparent mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading enquiry details...</p>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
   if (error || !enquiry) {
     return (
-      <DashboardLayout>
-        <div className="flex-1 overflow-y-auto p-6">
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-4 text-red-500 dark:text-red-400">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-              </svg>
-              <p className="text-red-800 dark:text-red-400 font-medium mb-2">Error loading enquiry</p>
-              <p className="text-red-600 dark:text-red-400 text-sm">{error || 'Enquiry not found'}</p>
-              <button
-                onClick={() => router.push('/enquiries')}
-                className="mt-4 px-4 py-2 text-sm font-medium text-white bg-teal-500 rounded-lg hover:bg-teal-600 transition-colors"
-              >
-                Back to Enquiries
-              </button>
-            </div>
-        </div>
-      </DashboardLayout>
+      <div className="flex-1 overflow-y-auto p-6">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-4 text-red-500 dark:text-red-400">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <p className="text-red-800 dark:text-red-400 font-medium mb-2">Error loading enquiry</p>
+            <p className="text-red-600 dark:text-red-400 text-sm">{error || 'Enquiry not found'}</p>
+            <button
+              onClick={() => router.push('/enquiries')}
+              className="mt-4 px-4 py-2 text-sm font-medium text-white bg-teal-500 rounded-lg hover:bg-teal-600 transition-colors"
+            >
+              Back to Enquiries
+            </button>
+          </div>
+      </div>
     );
   }
 
@@ -532,23 +527,6 @@ export default function EnquiryDetailPage() {
   });
 
   return (
-    <DashboardLayout navbarContent={
-      <div className="flex items-center gap-4">
-        <button
-          onClick={() => router.push('/enquiries')}
-          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-600 dark:text-gray-400"
-          aria-label="Back to enquiries"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6"></polyline>
-          </svg>
-        </button>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{enquiry.enquiryName || 'Enquiry Details'}</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Enquiry ID: {enquiry._id}</p>
-        </div>
-      </div>
-    }>
       <div className="flex-1 overflow-y-auto">
         {/* Header */}
         <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
@@ -1016,7 +994,5 @@ export default function EnquiryDetailPage() {
             )}
           </div>
       </div>
-    </DashboardLayout>
   );
 }
-

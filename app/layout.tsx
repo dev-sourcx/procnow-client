@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import ThemeProviderWrapper from "@/components/ThemeProviderWrapper";
 import ToastContainer from "@/components/ToastContainer";
+import DashboardLayout from "@/components/DashboardLayout";
 
 export const metadata: Metadata = {
   title: "Chat Assistant",
@@ -17,11 +18,12 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased">
         <ThemeProviderWrapper>
-        {children}
+        <DashboardLayout>
+          {children}
+        </DashboardLayout>
         <ToastContainer />
         </ThemeProviderWrapper>
       </body>
     </html>
   );
 }
-

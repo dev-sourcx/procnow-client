@@ -74,10 +74,10 @@ export default function Sidebar({
   };
 
   const handleChatClick = () => {
+    router.push('/');
     if (currentUser && sessions.length > 0) {
       setIsChatDropdownOpen(!isChatDropdownOpen);
     } else {
-      router.push('/');
       onToggle(); // Close sidebar on mobile
     }
   };

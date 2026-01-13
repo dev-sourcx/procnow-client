@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import ChatContainer from "@/components/ChatContainer";
 import DiscoverFilters from "@/components/DiscoverFilters";
-import DashboardLayout from "@/components/DashboardLayout";
 import {
   getChatSessions,
   ChatSession as BackendChatSession,
@@ -113,15 +112,9 @@ export default function Home() {
   const [specModalTitle, setSpecModalTitle] =
     useState<string>("Specifications");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [discoverFilterMeta, setDiscoverFilterMeta] = useState<{
-    categories: string[];
-    storages: string[];
-    minPrice?: number;
-    maxPrice?: number;
-  } | null>(null);
-  const [discoverSelectedFilters, setDiscoverSelectedFilters] = useState<
-    string[]
-  >([]);
+  const [discoverFilterMeta, setDiscoverFilterMeta] = useState<Record<string, string[]> | null>(null);
+  const [discoverSelectedFilters, setDiscoverSelectedFilters] = useState<Record<string, string[]>>({});
+  const [discoverProducts, setDiscoverProducts] = useState<Product[]>([]);
 
   // Load sessions for ChatContainer
   useEffect(() => {
@@ -150,6 +143,17 @@ export default function Home() {
           updatedAt: new Date(s.updatedAt).getTime(),
         }));
         setSessions(convertedSessions);
+
+        // If a session was selected via layout/sidebar, prefer that
+        try {
+          const selectedSessionId = sessionStorage.getItem("selected_session_id");
+          if (selectedSessionId) {
+            setCurrentSessionId(selectedSessionId);
+            return;
+          }
+        } catch {
+          // ignore storage read errors
+        }
 
         // If there is a guest session from before login, prefer showing that first
         const guestSession = getGuestSession();
@@ -185,6 +189,28 @@ export default function Home() {
     loadSessions();
   }, []);
 
+  // Listen for session selection from DashboardLayout/Sidebar
+  useEffect(() => {
+    const handleSessionSelected = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { sessionId?: string };
+      if (detail?.sessionId) {
+        setCurrentSessionId(detail.sessionId);
+      }
+    };
+    const handleSessionDeleted = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { sessionId?: string };
+      if (detail?.sessionId && currentSessionId === detail.sessionId) {
+        setCurrentSessionId(null);
+      }
+    };
+    window.addEventListener("chatSessionSelected", handleSessionSelected as EventListener);
+    window.addEventListener("chatSessionDeleted", handleSessionDeleted as EventListener);
+    return () => {
+      window.removeEventListener("chatSessionSelected", handleSessionSelected as EventListener);
+      window.removeEventListener("chatSessionDeleted", handleSessionDeleted as EventListener);
+    };
+  }, [currentSessionId]);
+
   const handleSessionSelect = (sessionId: string) => {
     setCurrentSessionId(sessionId);
   };
@@ -199,44 +225,68 @@ export default function Home() {
     }
   };
 
-  const handleDiscoverProductsUpdate = (products: Product[]) => {
+  const handleDiscoverProductsUpdate = (data: { products: Product[]; filters?: Record<string, string[]> }) => {
+    const { products, filters } = data;
+    
     if (!products || products.length === 0) {
+      setDiscoverProducts([]);
       setDiscoverFilterMeta(null);
       return;
     }
 
-    const categories = Array.from(
-      new Set(
-        products.map((p) => p.product_category).filter((c): c is string => !!c)
-      )
-    );
+    // Store products
+    setDiscoverProducts(products);
 
-    const storagesSet = new Set<string>();
-    const prices: number[] = [];
+    // Store filters from API response (if provided)
+    if (filters && Object.keys(filters).length > 0) {
+      setDiscoverFilterMeta(filters);
+    } else {
+      // Fallback: Generate filters from products if API doesn't provide them
+      const categories = Array.from(
+        new Set(
+          products.map((p) => p.product_category).filter((c): c is string => !!c)
+        )
+      );
 
-    products.forEach((p) => {
-      const attrs = p.dynamic_attributes || {};
-      const storage =
-        attrs["Storage"] || attrs["Capacity"] || attrs["Storage Capacity"];
-      if (storage) {
-        storagesSet.add(storage);
-      }
+      const storagesSet = new Set<string>();
+      const prices: string[] = [];
 
-      const priceStr = attrs["Price"] || attrs["Offer Price"] || attrs["MRP"];
-      if (priceStr) {
-        const val = parseFloat(priceStr.replace(/[^0-9.]/g, ""));
-        if (!isNaN(val)) {
-          prices.push(val);
+      products.forEach((p) => {
+        const attrs = p.dynamic_attributes || {};
+        const storage =
+          attrs["Storage"] || attrs["Capacity"] || attrs["Storage Capacity"];
+        if (storage) {
+          storagesSet.add(storage);
         }
+
+        const priceStr = attrs["Price"] || attrs["Offer Price"] || attrs["MRP"];
+        if (priceStr) {
+          prices.push(priceStr);
+        }
+      });
+
+      setDiscoverFilterMeta({
+        categories: categories.length > 0 ? categories : undefined,
+        storage: Array.from(storagesSet).length > 0 ? Array.from(storagesSet) : undefined,
+        price: prices.length > 0 ? prices : undefined,
+      } as Record<string, string[]>);
+    }
+  };
+
+  // Convert selected filters to comma-separated string for input box
+  const getSelectedFiltersAsString = (): string => {
+    if (!discoverSelectedFilters || Object.keys(discoverSelectedFilters).length === 0) {
+      return '';
+    }
+
+    const allSelectedValues: string[] = [];
+    Object.values(discoverSelectedFilters).forEach((values) => {
+      if (Array.isArray(values)) {
+        allSelectedValues.push(...values);
       }
     });
 
-    setDiscoverFilterMeta({
-      categories,
-      storages: Array.from(storagesSet),
-      minPrice: prices.length ? Math.min(...prices) : undefined,
-      maxPrice: prices.length ? Math.max(...prices) : undefined,
-    });
+    return allSelectedValues.join(', ');
   };
 
   // Brief/Specify mode handlers
@@ -595,6 +645,8 @@ export default function Home() {
       return;
     }
 
+    console.log(discoverFilterMeta);
+
     if (
       !shippingAddress.addressLine1.trim() ||
       !shippingAddress.city.trim() ||
@@ -620,7 +672,7 @@ export default function Home() {
   };
 
   return (
-    <DashboardLayout>
+    <>
       {/* Main Title Section */}
       <div>
         <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700">
@@ -713,7 +765,7 @@ export default function Home() {
 
         {/* Chat Container + Discover Filters */}
         {activeMode === "discover" && (
-          <div className="flex-1 flex overflow-hidden bg-gray-50 dark:bg-gray-900">
+          <div className="flex-1 flex overflow-hidden bg-gray-50 dark:bg-gray-900 h-[calc(100vh-158px)]">
             {/* Chat Container */}
             <div className="flex-1 flex flex-col overflow-hidden">
               <ChatContainer
@@ -757,11 +809,9 @@ export default function Home() {
                   }, 0);
                 }}
                 onProductsUpdate={handleDiscoverProductsUpdate}
-                prefillText={
-                  discoverSelectedFilters.length > 0
-                    ? discoverSelectedFilters.join(", ")
-                    : undefined
-                }
+                prefillText={getSelectedFiltersAsString()}
+                setIsFilterOpen={setIsFilterOpen}
+                setDiscoverFilterMeta={setDiscoverFilterMeta}
               />
             </div>
 
@@ -774,10 +824,7 @@ export default function Home() {
               <div className="h-full w-80">
                 <DiscoverFilters
                   onClose={() => setIsFilterOpen(false)}
-                  categories={discoverFilterMeta?.categories}
-                  storages={discoverFilterMeta?.storages}
-                  minPrice={discoverFilterMeta?.minPrice}
-                  maxPrice={discoverFilterMeta?.maxPrice}
+                  discoverFilterMeta={discoverFilterMeta}
                   onSelectionChange={setDiscoverSelectedFilters}
                 />
               </div>
@@ -1568,6 +1615,6 @@ export default function Home() {
           </div>
         </div>
       )}
-    </DashboardLayout>
+    </>
   );
 }

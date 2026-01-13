@@ -3,9 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { requireAuth } from '@/lib/auth';
-import { getProductSheet, ProductSheetItem, generateFieldsFromKeyword, type GeneratedFieldsResponse, addProductItem, deleteProductItem, getEnquiries, createEnquiry, getBuyerProfile, type BuyerProfile } from '@/lib/api';
+import { getProductSheet, ProductSheetItem, generateFieldsFromKeyword, type GeneratedFieldsResponse, addProductItem, deleteProductItem, getEnquiries, createEnquiry, getBuyerProfile, type BuyerProfile, uploadFile } from '@/lib/api';
 import { getAuthToken } from '@/lib/storage';
-import DashboardLayout from '@/components/DashboardLayout';
 import CreatableSelect from '@/components/CreatableSelect';
 import { showToast } from '@/lib/toast';
 
@@ -60,6 +59,8 @@ export default function ProductSheetPage() {
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('');
   const [enquiryStatus, setEnquiryStatus] = useState('draft');
   const [enquiryNotes, setEnquiryNotes] = useState('');
+  const [enquiryAttachment, setEnquiryAttachment] = useState<File | null>(null);
+  const [enquiryAttachmentUrl, setEnquiryAttachmentUrl] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Buyer profile addresses
   const [buyerProfile, setBuyerProfile] = useState<BuyerProfile | null>(null);
@@ -67,6 +68,8 @@ export default function ProductSheetPage() {
   const [selectedBillingAddressIndex, setSelectedBillingAddressIndex] = useState<number | null>(null);
   const [useNewShippingAddress, setUseNewShippingAddress] = useState(false);
   const [useNewBillingAddress, setUseNewBillingAddress] = useState(false);
+  const [isShippingAddressModalOpen, setIsShippingAddressModalOpen] = useState(false);
+  const [isBillingAddressModalOpen, setIsBillingAddressModalOpen] = useState(false);
   // Inline product generation for sidebar
   const [inlineProductKeyword, setInlineProductKeyword] = useState('');
   const [isGeneratingInline, setIsGeneratingInline] = useState(false);
@@ -190,6 +193,35 @@ export default function ProductSheetPage() {
       return formatAddressAsString(buyerProfile.billingAddress[selectedBillingAddressIndex]);
     }
     return formatAddressAsString(billingAddress);
+  };
+
+  // Attachment handler (upload to S3 and store URL)
+  const handleEnquiryAttachmentChange = async (file: File | null) => {
+    if (!file) {
+      setEnquiryAttachment(null);
+      setEnquiryAttachmentUrl('');
+      return;
+    }
+    const token = getAuthToken();
+    if (!token) {
+      requireAuth();
+      setEnquiryAttachment(null);
+      setEnquiryAttachmentUrl('');
+      return;
+    }
+    try {
+      setEnquiryAttachment(file);
+      const { url } = await uploadFile(token, file, 'buyer-enquiry-attachments');
+      setEnquiryAttachmentUrl(url);
+    } catch (error: any) {
+      console.error('Error uploading enquiry attachment to S3:', error);
+      showToast({
+        type: 'error',
+        message: error?.message || 'Failed to upload attachment. Please try again.',
+      });
+      setEnquiryAttachment(null);
+      setEnquiryAttachmentUrl('');
+    }
   };
 
   // Product details helpers
@@ -813,6 +845,7 @@ export default function ProductSheetPage() {
         expectedDeliveryDate: new Date(expectedDeliveryDate).toISOString(),
         enquiryStatus,
         enquiryNotes: enquiryNotes || undefined,
+        attachment: enquiryAttachmentUrl || undefined,
         enquiryProducts:
           newEnquirySelectedProductIds.length > 0
             ? (mapProductIdsToEnquiryProducts(
@@ -847,7 +880,7 @@ export default function ProductSheetPage() {
   });
 
   return (
-    <DashboardLayout>
+      <>
       {/* Main Content Area */}
       <div className="w-full mx-auto px-6 py-6">
         {/* AI Generation Section - Separate on Top */}
@@ -1463,21 +1496,21 @@ export default function ProductSheetPage() {
           />
           
           {/* Sidebar */}
-          <div className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl bg-[#40414F] shadow-xl transform transition-transform duration-300 ease-in-out">
+          <div className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl bg-white dark:bg-gray-800 shadow-xl transform transition-transform duration-300 ease-in-out">
             <div className="flex h-full flex-col">
               {/* Sidebar Header */}
-              <div className="flex items-center justify-between p-6 border-b border-gray-600">
+              <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
                 <div>
-                  <h2 className="text-xl font-semibold text-white">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                     Create new enquiry
                   </h2>
-                  <p className="text-sm text-gray-400 mt-1">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                     Fill in the details to create a new enquiry
                   </p>
                 </div>
                 <button
                   onClick={handleCloseNewEnquiryModal}
-                  className="p-2 hover:bg-[#4A4B5A] rounded-lg transition-colors text-gray-400 hover:text-white"
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                   aria-label="Close sidebar"
                 >
                   <svg
@@ -1499,134 +1532,103 @@ export default function ProductSheetPage() {
               {/* Sidebar Body */}
               <div className="flex-1 overflow-y-auto">
                 <form onSubmit={handleSaveNewEnquiry} className="p-6 space-y-6">
-                  {/* Enquiry Details Section */}
+                  {/* Enquiry Details */}
                   <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-4">
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="text-gray-300"
-                      >
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                        <line x1="16" y1="17" x2="8" y2="17"></line>
-                      </svg>
-                      <h3 className="text-lg font-semibold text-white">Enquiry Details</h3>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1">
-                        Enquiry Name <span className="text-red-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={enquiryName}
-                        onChange={(e) => setEnquiryName(e.target.value)}
-                        placeholder="e.g., Office Furniture Order Q1"
-                        className="w-full rounded-lg border border-teal-300 bg-[#343541] px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                        autoFocus
-                        required
-                      />
+                    <div className="flex items-center gap-5">
+                      <div className="w-1/2">
+                        <label className="block text-sm font-medium text-gray-300 mb-1">
+                          Enquiry Name <span className="text-red-500 dark:text-red-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={enquiryName}
+                          onChange={(e) => setEnquiryName(e.target.value)}
+                          placeholder="e.g., Office Furniture Order Q1"
+                          className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                          autoFocus
+                          required
+                        />
+                      </div>
+                      <div className="w-1/2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <label className="block text-sm font-medium text-gray-300">
+                            Expected Delivery Date <span className="text-red-400">*</span>
+                          </label>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="date"
+                            value={expectedDeliveryDate}
+                            onChange={(e) => setExpectedDeliveryDate(e.target.value)}
+                            className="w-full rounded-lg border border-gray-600 bg-[#343541] px-3 py-2 pr-10 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                            placeholder="dd-mm-yyyy"
+                            required
+                          />
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
+                          >
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                          </svg>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
                   {/* Shipping Address Section */}
                   <div className="space-y-4 pt-4 border-t border-gray-600">
-                    <div className="flex items-center gap-2 mb-4">
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="text-gray-300"
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <svg
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="text-gray-300"
+                        >
+                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                          <circle cx="12" cy="10" r="3"></circle>
+                        </svg>
+                        <h3 className="text-lg font-semibold text-white">Shipping Address</h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsShippingAddressModalOpen(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-teal-400 hover:text-teal-300 bg-[#343541] border border-gray-600 hover:bg-[#4A4B5A] rounded-lg transition-colors"
                       >
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                        <circle cx="12" cy="10" r="3"></circle>
-                      </svg>
-                      <h3 className="text-lg font-semibold text-white">Shipping Address</h3>
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <line x1="12" y1="5" x2="12" y2="19"></line>
+                          <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Add
+                      </button>
                     </div>
 
-                    {buyerProfile?.shippingAddress && buyerProfile.shippingAddress.length > 0 && (
-                      <div className="space-y-2 mb-4">
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Select from saved addresses:
-                        </label>
-                        {buyerProfile.shippingAddress.map((address, index) => (
-                          <label
-                            key={index}
-                            className="flex items-start gap-3 p-3 bg-[#343541] rounded-lg border border-gray-600 hover:bg-[#4A4B5A] cursor-pointer transition-colors"
-                          >
-                            <input
-                              type="radio"
-                              name="shippingAddress"
-                              checked={selectedShippingAddressIndex === index && !useNewShippingAddress}
-                              onChange={() => {
-                                setSelectedShippingAddressIndex(index);
-                                setUseNewShippingAddress(false);
-                                setShippingAddress({
-                                  addressLine1: address.addressLine1 || '',
-                                  addressLine2: address.addressLine2 || '',
-                                  city: address.city || '',
-                                  state: address.state || '',
-                                  zipCode: address.zipCode || '',
-                                  country: address.country || '',
-                                  phone: address.phone || '',
-                                  email: address.email || '',
-                                });
-                              }}
-                              className="mt-1 w-4 h-4 text-teal-500 border-gray-600 focus:ring-teal-500"
-                            />
-                            <div className="flex-1">
-                              <p className="text-sm text-white">
-                                {address.addressLine1}
-                                {address.addressLine2 && `, ${address.addressLine2}`}
-                              </p>
-                              <p className="text-xs text-gray-400 mt-1">
-                                {address.city}, {address.state} {address.zipCode}
-                              </p>
-                              <p className="text-xs text-gray-400">{address.country}</p>
-                            </div>
-                          </label>
-                        ))}
-                        <label className="flex items-center gap-3 p-3 bg-[#343541] rounded-lg border border-gray-600 hover:bg-[#4A4B5A] cursor-pointer transition-colors">
-                          <input
-                            type="radio"
-                            name="shippingAddress"
-                            checked={useNewShippingAddress}
-                            onChange={() => {
-                              setUseNewShippingAddress(true);
-                              setSelectedShippingAddressIndex(null);
-                              setShippingAddress({
-                                addressLine1: '',
-                                addressLine2: '',
-                                city: '',
-                                state: '',
-                                zipCode: '',
-                                country: '',
-                                phone: '',
-                                email: '',
-                              });
-                            }}
-                            className="w-4 h-4 text-teal-500 border-gray-600 focus:ring-teal-500"
-                          />
-                          <span className="text-sm text-white">Use new address</span>
-                        </label>
-                      </div>
-                    )}
-
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Shipping Address <span className="text-red-400">*</span>
                       </label>
                       <input
@@ -1656,94 +1658,48 @@ export default function ProductSheetPage() {
 
                   {/* Billing Address Section */}
                   <div className="space-y-4 pt-4 border-t border-gray-600">
-                    <div className="flex items-center gap-2 mb-4">
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="text-gray-300"
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <svg
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="text-gray-300"
+                        >
+                          <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                          <line x1="1" y1="10" x2="23" y2="10"></line>
+                        </svg>
+                        <h3 className="text-lg font-semibold text-white">Billing Address</h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsBillingAddressModalOpen(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-teal-400 hover:text-teal-300 bg-[#343541] border border-gray-600 hover:bg-[#4A4B5A] rounded-lg transition-colors"
                       >
-                        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-                        <line x1="1" y1="10" x2="23" y2="10"></line>
-                      </svg>
-                      <h3 className="text-lg font-semibold text-white">Billing Address</h3>
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <line x1="12" y1="5" x2="12" y2="19"></line>
+                          <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Add
+                      </button>
                     </div>
 
-                    {buyerProfile?.billingAddress && buyerProfile.billingAddress.length > 0 && (
-                      <div className="space-y-2 mb-4">
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Select from saved addresses:
-                        </label>
-                        {buyerProfile.billingAddress.map((address, index) => (
-                          <label
-                            key={index}
-                            className="flex items-start gap-3 p-3 bg-[#343541] rounded-lg border border-gray-600 hover:bg-[#4A4B5A] cursor-pointer transition-colors"
-                          >
-                            <input
-                              type="radio"
-                              name="billingAddress"
-                              checked={selectedBillingAddressIndex === index && !useNewBillingAddress}
-                              onChange={() => {
-                                setSelectedBillingAddressIndex(index);
-                                setUseNewBillingAddress(false);
-                                setBillingAddress({
-                                  addressLine1: address.addressLine1 || '',
-                                  addressLine2: address.addressLine2 || '',
-                                  city: address.city || '',
-                                  state: address.state || '',
-                                  zipCode: address.zipCode || '',
-                                  country: address.country || '',
-                                  phone: address.phone || '',
-                                  email: address.email || '',
-                                });
-                              }}
-                              className="mt-1 w-4 h-4 text-teal-500 border-gray-600 focus:ring-teal-500"
-                            />
-                            <div className="flex-1">
-                              <p className="text-sm text-white">
-                                {address.addressLine1}
-                                {address.addressLine2 && `, ${address.addressLine2}`}
-                              </p>
-                              <p className="text-xs text-gray-400 mt-1">
-                                {address.city}, {address.state} {address.zipCode}
-                              </p>
-                              <p className="text-xs text-gray-400">{address.country}</p>
-                            </div>
-                          </label>
-                        ))}
-                        <label className="flex items-center gap-3 p-3 bg-[#343541] rounded-lg border border-gray-600 hover:bg-[#4A4B5A] cursor-pointer transition-colors">
-                          <input
-                            type="radio"
-                            name="billingAddress"
-                            checked={useNewBillingAddress}
-                            onChange={() => {
-                              setUseNewBillingAddress(true);
-                              setSelectedBillingAddressIndex(null);
-                              setBillingAddress({
-                                addressLine1: '',
-                                addressLine2: '',
-                                city: '',
-                                state: '',
-                                zipCode: '',
-                                country: '',
-                                phone: '',
-                                email: '',
-                              });
-                            }}
-                            className="w-4 h-4 text-teal-500 border-gray-600 focus:ring-teal-500"
-                          />
-                          <span className="text-sm text-white">Use new address</span>
-                        </label>
-                      </div>
-                    )}
-
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Billing Address <span className="text-red-400">*</span>
                       </label>
                       <input
@@ -1768,57 +1724,6 @@ export default function ProductSheetPage() {
                         required
                         className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
                       />
-                    </div>
-                  </div>
-
-                  {/* Expected Delivery Date Section */}
-                  <div className="space-y-4 pt-4 border-t border-gray-600">
-                    <div className="flex items-center gap-2 mb-1">
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="text-gray-400"
-                      >
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                        <line x1="16" y1="2" x2="16" y2="6"></line>
-                        <line x1="8" y1="2" x2="8" y2="6"></line>
-                        <line x1="3" y1="10" x2="21" y2="10"></line>
-                      </svg>
-                      <label className="block text-sm font-medium text-gray-300">
-                        Expected Delivery Date <span className="text-red-400">*</span>
-                      </label>
-                    </div>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        value={expectedDeliveryDate}
-                        onChange={(e) => setExpectedDeliveryDate(e.target.value)}
-                        className="w-full rounded-lg border border-gray-600 bg-[#343541] px-3 py-2 pr-10 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                        placeholder="dd-mm-yyyy"
-                        required
-                      />
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
-                      >
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                        <line x1="16" y1="2" x2="16" y2="6"></line>
-                        <line x1="8" y1="2" x2="8" y2="6"></line>
-                        <line x1="3" y1="10" x2="21" y2="10"></line>
-                      </svg>
                     </div>
                   </div>
 
@@ -1871,27 +1776,6 @@ export default function ProductSheetPage() {
                             <line x1="3" y1="18" x2="3.01" y2="18"></line>
                           </svg>
                           Select
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsGenerateProductModalOpen(true);
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-300 bg-[#343541] border border-gray-600 hover:bg-[#4A4B5A] rounded-lg transition-colors"
-                        >
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                          </svg>
-                          Generate
                         </button>
                       </div>
                     </div>
@@ -2288,6 +2172,80 @@ export default function ProductSheetPage() {
                     )}
                   </div>
 
+                  {/* Enquiry Notes Section */}
+                  <div className="space-y-4 pt-4 border-t border-gray-600">
+                    <div className="flex items-center gap-2 mb-1">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="text-gray-400"
+                      >
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                      </svg>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Enquiry Notes
+                      </label>
+                    </div>
+                    <textarea
+                      value={enquiryNotes}
+                      onChange={(e) => setEnquiryNotes(e.target.value)}
+                      placeholder="Add any additional notes or requirements..."
+                      rows={4}
+                      className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400 resize-none"
+                    />
+                  </div>
+
+                  {/* Attachment Section */}
+                  <div className="space-y-4 pt-4 border-t border-gray-600">
+                    <div className="flex items-center gap-2 mb-1">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="text-gray-400"
+                      >
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                      </svg>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Attachment
+                      </label>
+                    </div>
+                    <input
+                      type="file"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        void handleEnquiryAttachmentChange(file);
+                      }}
+                      className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 dark:file:bg-teal-900 dark:file:text-teal-200"
+                    />
+                    {enquiryAttachment && (
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Selected: {enquiryAttachment.name}
+                      </p>
+                    )}
+                    {enquiryAttachmentUrl && !enquiryAttachment && (
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Current attachment exists
+                      </p>
+                    )}
+                  </div>
+
                   {/* Footer */}
                   <div className="pt-4 border-t border-gray-600">
                     <div className="flex justify-end gap-3">
@@ -2635,7 +2593,244 @@ export default function ProductSheetPage() {
           </div>
         </div>
       )}
-    </DashboardLayout>
+
+      {/* Shipping Address Selection Modal */}
+      {isShippingAddressModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setIsShippingAddressModalOpen(false)}
+        >
+          <div 
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Select Shipping Address
+              </h2>
+              <button
+                onClick={() => setIsShippingAddressModalOpen(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                aria-label="Close modal"
+              >
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {buyerProfile?.shippingAddress && buyerProfile.shippingAddress.length > 0 ? (
+                <>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
+                    Select from saved addresses:
+                  </label>
+                  <div className="space-y-2">
+                    {buyerProfile.shippingAddress.map((address, index) => (
+                      <label
+                        key={index}
+                        className="flex items-start gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition-colors"
+                      >
+                        <input
+                          type="radio"
+                          name="shippingAddressModal"
+                          checked={selectedShippingAddressIndex === index && !useNewShippingAddress}
+                          onChange={() => {
+                            setSelectedShippingAddressIndex(index);
+                            setUseNewShippingAddress(false);
+                            setShippingAddress({
+                              addressLine1: address.addressLine1 || '',
+                              addressLine2: address.addressLine2 || '',
+                              city: address.city || '',
+                              state: address.state || '',
+                              zipCode: address.zipCode || '',
+                              country: address.country || '',
+                              phone: (address as any).phone || '',
+                              email: (address as any).email || '',
+                            });
+                            setIsShippingAddressModalOpen(false);
+                          }}
+                          className="mt-1 w-4 h-4 text-teal-500 border-gray-300 dark:border-gray-600 focus:ring-teal-500"
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {address.addressLine1}
+                            {address.addressLine2 && `, ${address.addressLine2}`}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {address.city}, {address.state} {address.zipCode}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{address.country}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                  No saved shipping addresses found.
+                </p>
+              )}
+              
+              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                <label className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition-colors">
+                  <input
+                    type="radio"
+                    name="shippingAddressModal"
+                    checked={useNewShippingAddress}
+                    onChange={() => {
+                      setUseNewShippingAddress(true);
+                      setSelectedShippingAddressIndex(null);
+                      setShippingAddress({
+                        addressLine1: '',
+                        addressLine2: '',
+                        city: '',
+                        state: '',
+                        zipCode: '',
+                        country: '',
+                        phone: '',
+                        email: '',
+                      });
+                      setIsShippingAddressModalOpen(false);
+                    }}
+                    className="w-4 h-4 text-teal-500 border-gray-300 dark:border-gray-600 focus:ring-teal-500"
+                  />
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">Use new address</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Billing Address Selection Modal */}
+      {isBillingAddressModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setIsBillingAddressModalOpen(false)}
+        >
+          <div 
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Select Billing Address
+              </h2>
+              <button
+                onClick={() => setIsBillingAddressModalOpen(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                aria-label="Close modal"
+              >
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {buyerProfile?.billingAddress && buyerProfile.billingAddress.length > 0 ? (
+                <>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
+                    Select from saved addresses:
+                  </label>
+                  <div className="space-y-2">
+                    {buyerProfile.billingAddress.map((address, index) => (
+                      <label
+                        key={index}
+                        className="flex items-start gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition-colors"
+                      >
+                        <input
+                          type="radio"
+                          name="billingAddressModal"
+                          checked={selectedBillingAddressIndex === index && !useNewBillingAddress}
+                          onChange={() => {
+                            setSelectedBillingAddressIndex(index);
+                            setUseNewBillingAddress(false);
+                            setBillingAddress({
+                              addressLine1: address.addressLine1 || '',
+                              addressLine2: address.addressLine2 || '',
+                              city: address.city || '',
+                              state: address.state || '',
+                              zipCode: address.zipCode || '',
+                              country: address.country || '',
+                              phone: (address as any).phone || '',
+                              email: (address as any).email || '',
+                            });
+                            setIsBillingAddressModalOpen(false);
+                          }}
+                          className="mt-1 w-4 h-4 text-teal-500 border-gray-300 dark:border-gray-600 focus:ring-teal-500"
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {address.addressLine1}
+                            {address.addressLine2 && `, ${address.addressLine2}`}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {address.city}, {address.state} {address.zipCode}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{address.country}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                  No saved billing addresses found.
+                </p>
+              )}
+              
+              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                <label className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition-colors">
+                  <input
+                    type="radio"
+                    name="billingAddressModal"
+                    checked={useNewBillingAddress}
+                    onChange={() => {
+                      setUseNewBillingAddress(true);
+                      setSelectedBillingAddressIndex(null);
+                      setBillingAddress({
+                        addressLine1: '',
+                        addressLine2: '',
+                        city: '',
+                        state: '',
+                        zipCode: '',
+                        country: '',
+                        phone: '',
+                        email: '',
+                      });
+                      setIsBillingAddressModalOpen(false);
+                    }}
+                    className="w-4 h-4 text-teal-500 border-gray-300 dark:border-gray-600 focus:ring-teal-500"
+                  />
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">Use new address</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      </>
   );
 }
-

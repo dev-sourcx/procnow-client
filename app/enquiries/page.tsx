@@ -1598,9 +1598,9 @@ export default function EnquiriesPage() {
   };
 
   return (
-    <DashboardLayout>
+      <>
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col relative max-w-7xl mx-auto px-6 py-6">
+      <div className="flex-1 flex flex-col relative w-full px-6 py-6">
 
         {/* Content */}
         <div className="flex h-full w-full flex-col gap-6">
@@ -3020,9 +3020,9 @@ export default function EnquiriesPage() {
                   {/* Enquiry Details Section */}
                   <div className="space-y-4">
 
-                    <div className='flex item-center gap-5'>
+                    <div className='flex items-center gap-5'>
                       <div className='w-1/2'>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">
+                        <label className="block font-medium text-gray-300 mb-1">
                           Enquiry Name <span className="text-red-500 dark:text-red-400">*</span>
                         </label>
                         <input
@@ -3036,9 +3036,9 @@ export default function EnquiriesPage() {
                         />
                       </div>
                       {/* Expected Delivery Date Section */}
-                      <div className="w-1/3">
+                      <div className="w-1/2">
                         <div className="flex items-center gap-2 mb-1">
-                          <label className="block text-sm font-medium text-gray-300">
+                          <label className="block font-medium text-gray-300">
                             Expected Delivery Date <span className="text-red-400">*</span>
                           </label>
                         </div>
@@ -3047,11 +3047,11 @@ export default function EnquiriesPage() {
                             type="date"
                             value={expectedDeliveryDate}
                             onChange={(e) => setExpectedDeliveryDate(e.target.value)}
-                            className="w-full rounded-lg border border-gray-600 bg-[#343541] px-3 py-2 pr-10 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                            className="w-full rounded-lg border border-gray-600 bg-[#343541] px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                             placeholder="dd-mm-yyyy"
                             required
                           />
-                          <svg
+                          {/* <svg
                             width="18"
                             height="18"
                             viewBox="0 0 24 24"
@@ -3066,7 +3066,7 @@ export default function EnquiriesPage() {
                             <line x1="16" y1="2" x2="16" y2="6"></line>
                             <line x1="8" y1="2" x2="8" y2="6"></line>
                             <line x1="3" y1="10" x2="21" y2="10"></line>
-                          </svg>
+                          </svg> */}
                         </div>
                       </div>
                     </div>
@@ -3074,51 +3074,34 @@ export default function EnquiriesPage() {
 
                   {/* Shipping Address Section */}
                   <div className="space-y-4 pt-4 border-t border-gray-600">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <svg
-                          width="20"
-                          height="20"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="text-gray-300"
-                        >
-                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                          <circle cx="12" cy="10" r="3"></circle>
-                        </svg>
-                        <h3 className="text-lg font-semibold text-white">Shipping Address</h3>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsShippingAddressModalOpen(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-teal-400 hover:text-teal-300 bg-[#343541] border border-gray-600 hover:bg-[#4A4B5A] rounded-lg transition-colors"
-                      >
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <line x1="12" y1="5" x2="12" y2="19"></line>
-                          <line x1="5" y1="12" x2="19" y2="12"></line>
-                        </svg>
-                        Add
-                      </button>
-                    </div>
                     
                     {/* Shipping Address Input */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Shipping Address <span className="text-red-400">*</span>
-                      </label>
+                      <div className='flex justify-between'>
+                        <label className="block font-medium text-gray-700 dark:text-gray-300 mb-2 self-end">
+                          Shipping Address <span className="text-red-400">*</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setIsShippingAddressModalOpen(true)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm mb-2 font-medium text-teal-400 hover:text-teal-300 bg-[#343541] border border-gray-600 hover:bg-[#4A4B5A] rounded-lg transition-colors"
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                          </svg>
+                          Add
+                        </button>
+                      </div>
                       <input
                         type="text"
                         value={getShippingAddressString()}
@@ -3143,29 +3126,17 @@ export default function EnquiriesPage() {
                   </div>
 
                   {/* Billing Address Section */}
-                  <div className="space-y-4 pt-4 border-t border-gray-600">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <svg
-                          width="20"
-                          height="20"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="text-gray-300"
-                        >
-                          <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-                          <line x1="1" y1="10" x2="23" y2="10"></line>
-                        </svg>
-                        <h3 className="text-lg font-semibold text-white">Billing Address</h3>
-                      </div>
+                  <div className="space-y-4 pt-4 border-t border-gray-600">                    
+                    {/* Billing Address Input */}
+                    <div>
+                      <div className='flex justify-between'>
+                        <label className="block font-medium text-gray-700 dark:text-gray-300 mb-2 self-end">
+                        Billing Address <span className="text-red-400">*</span>
+                      </label>
                       <button
                         type="button"
                         onClick={() => setIsBillingAddressModalOpen(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-teal-400 hover:text-teal-300 bg-[#343541] border border-gray-600 hover:bg-[#4A4B5A] rounded-lg transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm mb-2 font-medium text-teal-400 hover:text-teal-300 bg-[#343541] border border-gray-600 hover:bg-[#4A4B5A] rounded-lg transition-colors"
                       >
                         <svg
                           width="16"
@@ -3182,13 +3153,7 @@ export default function EnquiriesPage() {
                         </svg>
                         Add
                       </button>
-                    </div>
-                    
-                    {/* Billing Address Input */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Billing Address <span className="text-red-400">*</span>
-                      </label>
+                      </div>
                       <input
                         type="text"
                         value={getBillingAddressString()}
@@ -3476,8 +3441,8 @@ export default function EnquiriesPage() {
                               key={productId}
                               className="p-3 bg-[#343541] rounded-lg border border-gray-600 space-y-3"
                             >
-                              <div className="flex items-center justify-between">
-                                <div className="flex-1 min-w-0">
+                              <div className="flex items-center">
+                                <div className="mr-5">
                                   <p className="text-sm font-medium text-white truncate">
                                     {product.displayName || product.category || 'Unnamed Product'}
                                   </p>
@@ -3486,7 +3451,7 @@ export default function EnquiriesPage() {
                                   )}
                                   
                                   {/* Product Specifications */}
-                                  {(() => {
+                                  {/* {(() => {
                                     const specifications: string[] = [];
                                     if (product.userAttributes) {
                                       Object.entries(product.userAttributes).forEach(([key, value]) => {
@@ -3524,47 +3489,49 @@ export default function EnquiriesPage() {
                                         )}
                                       </div>
                                     ) : null;
-                                  })()}
+                                  })()} */}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setExpandedProductDetails((prev) => {
-                                        const newSet = new Set(prev);
-                                        if (newSet.has(productId)) {
-                                          newSet.delete(productId);
-                                        } else {
-                                          newSet.add(productId);
-                                        }
-                                        return newSet;
-                                      });
-                                    }}
-                                    className="px-2 py-1 text-xs text-gray-400 hover:text-gray-300 flex items-center gap-1"
-                                  >
-                                    {expandedProductDetails.has(productId) ? (
-                                      <>
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                          <polyline points="18 15 12 9 6 15"></polyline>
-                                        </svg>
-                                        Hide Details
-                                      </>
-                                    ) : (
-                                      <>
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                          <polyline points="6 9 12 15 18 9"></polyline>
-                                        </svg>
-                                        Show Details
-                                      </>
-                                    )}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleNewEnquiryProductSelection(productId)}
-                                    className="ml-2 px-2 py-1 text-xs text-red-400 hover:text-red-300"
-                                  >
-                                    Remove
-                                  </button>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-300 mb-1">
+                                      Quantity
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={productDetails[productId]?.quantity || ''}
+                                      onChange={(e) => handleProductDetailChange(productId, 'quantity', parseFloat(e.target.value) || 0)}
+                                      placeholder="0"
+                                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-300 mb-1">
+                                      Target Price
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={productDetails[productId]?.targetPrice || ''}
+                                      onChange={(e) => handleProductDetailChange(productId, 'targetPrice', parseFloat(e.target.value) || 0)}
+                                      placeholder="0.00"
+                                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-300 mb-1">
+                                      Unit
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={productDetails[productId]?.unit || ''}
+                                      onChange={(e) => handleProductDetailChange(productId, 'unit', e.target.value)}
+                                      placeholder="e.g., kg, pcs, m"
+                                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                    />
+                                  </div>
                                 </div>
                               </div>
                               
@@ -3621,7 +3588,7 @@ export default function EnquiriesPage() {
                   </div>
 
                   {/* Enquiry Notes Section */}
-                  <div className="space-y-4 pt-4 border-t border-gray-600">
+                  <div className="space-y-2 pt-4 border-t border-gray-600">
                     <div className="flex items-center gap-2 mb-1">
                       <svg
                         width="16"
@@ -3639,7 +3606,7 @@ export default function EnquiriesPage() {
                         <line x1="16" y1="13" x2="8" y2="13"></line>
                         <line x1="16" y1="17" x2="8" y2="17"></line>
                       </svg>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <label className="block font-medium text-gray-700 dark:text-gray-300">
                         Enquiry Notes
                       </label>
                     </div>
@@ -3653,7 +3620,7 @@ export default function EnquiriesPage() {
                   </div>
 
                   {/* Attachment Section */}
-                  <div className="space-y-4 pt-4 border-t border-gray-600">
+                  <div className="space-y-2 pt-4 border-t border-gray-600">
                     <div className="flex items-center gap-2 mb-1">
                       <svg
                         width="16"
@@ -3670,7 +3637,7 @@ export default function EnquiriesPage() {
                         <polyline points="17 8 12 3 7 8"></polyline>
                         <line x1="12" y1="3" x2="12" y2="15"></line>
                       </svg>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <label className="block font-medium text-gray-700 dark:text-gray-300">
                         Attachment
                       </label>
                     </div>
@@ -3794,19 +3761,36 @@ export default function EnquiriesPage() {
                         </svg>
                         <h3 className="text-lg font-semibold text-white">Enquiry Details</h3>
                       </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">
-                          Enquiry Name <span className="text-red-400">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={editEnquiryName}
-                          onChange={(e) => setEditEnquiryName(e.target.value)}
-                          placeholder="e.g., Office Furniture Order Q1"
-                          className="w-full rounded-lg border border-teal-300 bg-[#343541] px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                          required
-                        />
+                      <div className="flex items-center gap-5">
+                        <div className="w-1/2">
+                          <label className="block text-sm font-medium text-gray-300 mb-1">
+                            Enquiry Name <span className="text-red-400">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={editEnquiryName}
+                            onChange={(e) => setEditEnquiryName(e.target.value)}
+                            placeholder="e.g., Office Furniture Order Q1"
+                            className="w-full rounded-lg border border-teal-300 bg-[#343541] px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                            required
+                          />
+                        </div>
+                        <div className="w-1/2">
+                          <div className="flex items-center gap-2 mb-1">
+                            <label className="block text-sm font-medium text-gray-300">
+                              Expected Delivery Date <span className="text-red-400">*</span>
+                            </label>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="date"
+                              value={editExpectedDeliveryDate}
+                              onChange={(e) => setEditExpectedDeliveryDate(e.target.value)}
+                              className="w-full rounded-lg border border-gray-600 bg-[#343541] px-3 py-2 pr-10 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                              required
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -4046,39 +4030,7 @@ export default function EnquiriesPage() {
                       </div>
                     </div>
 
-                    {/* Expected Delivery Date Section */}
-                    <div className="space-y-4 pt-4 border-t border-gray-600">
-                      <div className="flex items-center gap-2 mb-1">
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="text-gray-400"
-                        >
-                          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                          <line x1="16" y1="2" x2="16" y2="6"></line>
-                          <line x1="8" y1="2" x2="8" y2="6"></line>
-                          <line x1="3" y1="10" x2="21" y2="10"></line>
-                        </svg>
-                        <label className="block text-sm font-medium text-gray-300">
-                          Expected Delivery Date <span className="text-red-400">*</span>
-                        </label>
-                      </div>
-                      <div className="relative">
-                        <input
-                          type="date"
-                          value={editExpectedDeliveryDate}
-                          onChange={(e) => setEditExpectedDeliveryDate(e.target.value)}
-                          className="w-full rounded-lg border border-gray-600 bg-[#343541] px-3 py-2 pr-10 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                          required
-                        />
-                      </div>
-                    </div>
+                    
 
                     {/* Products Section */}
                     <div className="space-y-4 pt-4 border-t border-gray-600">
@@ -4412,174 +4364,174 @@ export default function EnquiriesPage() {
                         </p>
                       </div>
                     ) : (
-                        <div className="space-y-2">
-                          {editEnquirySelectedProductIds.map((productId) => {
-                            const product = productSheetItems.find((p) => p._id === productId);
-                            if (!product) return null;
-                            return (
-                              <div
-                                key={productId}
-                                className="p-3 bg-[#343541] rounded-lg border border-gray-600 space-y-3"
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-white truncate">
-                                      {product.displayName || product.category || 'Unnamed Product'}
-                                    </p>
-                                    {product.category && (
-                                      <p className="text-xs text-gray-400 mt-0.5">{product.category}</p>
-                                    )}
-                                    
-                                    {/* Product Specifications */}
-                                    {(() => {
-                                      const specifications: string[] = [];
-                                      if (product.userAttributes) {
-                                        Object.entries(product.userAttributes).forEach(([key, value]) => {
-                                          if (value !== '' && value !== 0 && value !== null) {
-                                            // Skip image fields
-                                            if (key.toLowerCase() === 'image_link' || key.toLowerCase() === 'image_attachment') {
-                                              return;
-                                            }
-                                            if (Array.isArray(value)) {
-                                              specifications.push(`${key}: ${value.join(', ')}`);
-                                            } else {
-                                              specifications.push(`${key}: ${value}`);
-                                            }
+                      <div className="space-y-2">
+                        {editEnquirySelectedProductIds.map((productId) => {
+                          const product = productSheetItems.find((p) => p._id === productId);
+                          if (!product) return null;
+                          return (
+                            <div
+                              key={productId}
+                              className="p-3 bg-[#343541] rounded-lg border border-gray-600 space-y-3"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-white truncate">
+                                    {product.displayName || product.category || 'Unnamed Product'}
+                                  </p>
+                                  {product.category && (
+                                    <p className="text-xs text-gray-400 mt-0.5">{product.category}</p>
+                                  )}
+                                  
+                                  {/* Product Specifications */}
+                                  {(() => {
+                                    const specifications: string[] = [];
+                                    if (product.userAttributes) {
+                                      Object.entries(product.userAttributes).forEach(([key, value]) => {
+                                        if (value !== '' && value !== 0 && value !== null) {
+                                          // Skip image fields
+                                          if (key.toLowerCase() === 'image_link' || key.toLowerCase() === 'image_attachment') {
+                                            return;
                                           }
-                                        });
-                                      }
-                                      return specifications.length > 0 ? (
-                                        <div className="flex flex-wrap gap-2 mt-2">
-                                          {specifications.slice(0, 3).map((spec, index) => (
-                                            <span
-                                              key={index}
-                                              className="text-xs px-2 py-1 bg-[#202123] text-gray-300 rounded"
-                                            >
-                                              {spec}
-                                            </span>
-                                          ))}
-                                          {specifications.length > 3 && (
-                                            <button
-                                              type="button"
-                                              onClick={() => openSpecModal(specifications, product.displayName || product.category || 'Product')}
-                                              className="text-xs px-2 py-1 bg-[#202123] text-gray-400 rounded hover:text-gray-300 transition-colors"
-                                            >
-                                              +{specifications.length - 3} more
-                                            </button>
-                                          )}
-                                        </div>
-                                      ) : null;
-                                    })()}
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setExpandedProductDetails((prev) => {
-                                          const newSet = new Set(prev);
-                                          if (newSet.has(productId)) {
-                                            newSet.delete(productId);
+                                          if (Array.isArray(value)) {
+                                            specifications.push(`${key}: ${value.join(', ')}`);
                                           } else {
-                                            newSet.add(productId);
+                                            specifications.push(`${key}: ${value}`);
                                           }
-                                          return newSet;
-                                        });
-                                      }}
-                                      className="px-2 py-1 text-xs text-gray-400 hover:text-gray-300 flex items-center gap-1"
-                                    >
-                                      {expandedProductDetails.has(productId) ? (
-                                        <>
-                                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <polyline points="18 15 12 9 6 15"></polyline>
-                                          </svg>
-                                          Hide Details
-                                        </>
-                                      ) : (
-                                        <>
-                                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <polyline points="6 9 12 15 18 9"></polyline>
-                                          </svg>
-                                          Show Details
-                                        </>
-                                      )}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setEditEnquirySelectedProductIds((prev) =>
-                                          prev.filter((id) => id !== productId)
-                                        );
-                                      }}
-                                      className="ml-3 p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
-                                      aria-label="Remove product"
-                                    >
-                                      <svg
-                                        width="16"
-                                        height="16"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                      >
-                                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                                      </svg>
-                                    </button>
-                                  </div>
+                                        }
+                                      });
+                                    }
+                                    return specifications.length > 0 ? (
+                                      <div className="flex flex-wrap gap-2 mt-2">
+                                        {specifications.slice(0, 3).map((spec, index) => (
+                                          <span
+                                            key={index}
+                                            className="text-xs px-2 py-1 bg-[#202123] text-gray-300 rounded"
+                                          >
+                                            {spec}
+                                          </span>
+                                        ))}
+                                        {specifications.length > 3 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => openSpecModal(specifications, product.displayName || product.category || 'Product')}
+                                            className="text-xs px-2 py-1 bg-[#202123] text-gray-400 rounded hover:text-gray-300 transition-colors"
+                                          >
+                                            +{specifications.length - 3} more
+                                          </button>
+                                        )}
+                                      </div>
+                                    ) : null;
+                                  })()}
                                 </div>
-                                
-                                {/* Product Details: Quantity, Target Price, Unit */}
-                                {expandedProductDetails.has(productId) && (
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-gray-600">
-                                  <div>
-                                    <label className="block text-xs font-medium text-gray-300 mb-1">
-                                      Quantity
-                                    </label>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={productDetails[productId]?.quantity || ''}
-                                      onChange={(e) => handleProductDetailChange(productId, 'quantity', parseFloat(e.target.value) || 0)}
-                                      placeholder="0"
-                                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-medium text-gray-300 mb-1">
-                                      Target Price
-                                    </label>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={productDetails[productId]?.targetPrice || ''}
-                                      onChange={(e) => handleProductDetailChange(productId, 'targetPrice', parseFloat(e.target.value) || 0)}
-                                      placeholder="0.00"
-                                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-medium text-gray-300 mb-1">
-                                      Unit
-                                    </label>
-                                    <input
-                                      type="text"
-                                      value={productDetails[productId]?.unit || ''}
-                                      onChange={(e) => handleProductDetailChange(productId, 'unit', e.target.value)}
-                                      placeholder="e.g., kg, pcs, m"
-                                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                                    />
-                                  </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setExpandedProductDetails((prev) => {
+                                        const newSet = new Set(prev);
+                                        if (newSet.has(productId)) {
+                                          newSet.delete(productId);
+                                        } else {
+                                          newSet.add(productId);
+                                        }
+                                        return newSet;
+                                      });
+                                    }}
+                                    className="px-2 py-1 text-xs text-gray-400 hover:text-gray-300 flex items-center gap-1"
+                                  >
+                                    {expandedProductDetails.has(productId) ? (
+                                      <>
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <polyline points="18 15 12 9 6 15"></polyline>
+                                        </svg>
+                                        Hide Details
+                                      </>
+                                    ) : (
+                                      <>
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <polyline points="6 9 12 15 18 9"></polyline>
+                                        </svg>
+                                        Show Details
+                                      </>
+                                    )}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditEnquirySelectedProductIds((prev) =>
+                                        prev.filter((id) => id !== productId)
+                                      );
+                                    }}
+                                    className="ml-3 p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
+                                    aria-label="Remove product"
+                                  >
+                                    <svg
+                                      width="16"
+                                      height="16"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                  </button>
                                 </div>
-                                )}
                               </div>
-                            );
-                            })}
-                        </div>
-                      )}
+                              
+                              {/* Product Details: Quantity, Target Price, Unit */}
+                              {expandedProductDetails.has(productId) && (
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-gray-600">
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-300 mb-1">
+                                    Quantity
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={productDetails[productId]?.quantity || ''}
+                                    onChange={(e) => handleProductDetailChange(productId, 'quantity', parseFloat(e.target.value) || 0)}
+                                    placeholder="0"
+                                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-300 mb-1">
+                                    Target Price
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={productDetails[productId]?.targetPrice || ''}
+                                    onChange={(e) => handleProductDetailChange(productId, 'targetPrice', parseFloat(e.target.value) || 0)}
+                                    placeholder="0.00"
+                                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-300 mb-1">
+                                    Unit
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={productDetails[productId]?.unit || ''}
+                                    onChange={(e) => handleProductDetailChange(productId, 'unit', e.target.value)}
+                                    placeholder="e.g., kg, pcs, m"
+                                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                  />
+                                </div>
+                              </div>
+                              )}
+                            </div>
+                          );
+                          })}
+                      </div>
+                    )}
                     </div>
 
                     {/* Notes Section */}
@@ -5585,7 +5537,7 @@ export default function EnquiriesPage() {
           </div>
         </div>
       )} */}
-    </DashboardLayout>
+    );
+      </>
   );
 }
-

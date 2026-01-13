@@ -7,7 +7,6 @@ import { showToast } from '@/lib/toast';
 import { saveProduct, getStoredProducts, deleteProduct, BriefProduct, getStoredEnquiries, saveEnquiry, deleteEnquiry, Enquiry, EnquiryProduct } from '@/lib/storage';
 import { requireAuth } from '@/lib/auth';
 import { getAuthToken } from '@/lib/storage';
-import DashboardLayout from '@/components/DashboardLayout';
 import CreatableSelect from '@/components/CreatableSelect';
 
 export default function BriefPage() {
@@ -1242,7 +1241,7 @@ export default function BriefPage() {
         </div>
       )}
 
-      <DashboardLayout navbarContent={<h1 className="text-lg font-semibold text-gray-900 dark:text-white">Brief</h1>}>
+      
           {/* Content Container */}
           <div className="flex h-full w-full flex-col bg-gray-50 dark:bg-gray-900">
 
@@ -2081,8 +2080,7 @@ export default function BriefPage() {
           </div>
         </div>
       )}
-      </DashboardLayout>
+      
     </>
   );
 }
-

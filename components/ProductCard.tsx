@@ -15,6 +15,7 @@ interface ProductCardProps {
   originalPrice?: number;
   currentPrice?: number;
   showAddButton?: boolean;
+  showViewButton?: boolean;
 }
 
 export default function ProductCard({
@@ -23,6 +24,7 @@ export default function ProductCard({
   originalPrice,
   currentPrice,
   showAddButton = true,
+  showViewButton = true,
 }: ProductCardProps) {
   const router = useRouter();
   const [isFavorite, setIsFavorite] = useState(false);
@@ -100,6 +102,10 @@ export default function ProductCard({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleViewClick = () => {
+    // router.push(`/product/${product._id}`);
   };
 
   const handleCloseModal = () => {
@@ -215,7 +221,7 @@ export default function ProductCard({
   // Reset error state when product changes
   useEffect(() => {
     setImageError(false);
-  }, [product.image, product.image_link]);
+  }, [product.image, product.product_url]);
 
   // Memoize the image URL to prevent repeated calls
   const imageUrl = useMemo(() => {
@@ -225,7 +231,7 @@ export default function ProductCard({
     }
     
     if (!product.image) {
-      return product.image_link || placeholderDataUri;
+      return product.product_url || placeholderDataUri;
     }
     
     // Check if it's already a URL
@@ -235,8 +241,8 @@ export default function ProductCard({
     
     // Validate base64 before attempting to decode
     if (!isValidBase64(product.image)) {
-      console.warn('Invalid base64 string, falling back to image_link');
-      return product.image_link || placeholderDataUri;
+      console.warn('Invalid base64 string, falling back to product_url');
+      return product.product_url || placeholderDataUri;
     }
     
     try {
@@ -246,7 +252,7 @@ export default function ProductCard({
       if (product.image.includes(',')) {
         // Handle data:image/... format
         const [meta, data] = product.image.split(",");
-        if (!data) return product.image_link || placeholderDataUri;
+        if (!data) return product.product_url || placeholderDataUri;
         
         mime = meta.match(/:(.*?);/)?.[1] || "image/webp";
         base64Data = data.trim();
@@ -260,7 +266,7 @@ export default function ProductCard({
       
       // Final validation before atob
       if (!/^[A-Za-z0-9+/]*={0,2}$/.test(cleanData)) {
-        return product.image_link || placeholderDataUri;
+        return product.product_url || placeholderDataUri;
       }
       
       const bytes = atob(cleanData);
@@ -274,9 +280,9 @@ export default function ProductCard({
       return URL.createObjectURL(blob);
     } catch (error) {
       console.error('Error converting base64 to blob URL:', error);
-      return product.image_link || placeholderDataUri;
+      return product.product_url || placeholderDataUri;
     }
-  }, [product.image, product.image_link, imageError, placeholderDataUri]);
+  }, [product.image, product.product_url, imageError, placeholderDataUri]);
   
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -336,7 +342,7 @@ export default function ProductCard({
       // Prepare product item data for backend
       const productItemPayload = {
         productSource: 'user', // or 'admin' if from admin products
-        displayName: product.product_name,
+        displayName: product.title,
         category: product.product_category || 'General',
         externalRef: product._id || null, // Reference to original product
         userAttributes: userAttributes,
@@ -779,8 +785,8 @@ export default function ProductCard({
 
         {/* Product Image */}
         <img
-          src={product.image}
-          alt={product.item || product.product_name || 'Product image'}
+          src={product.product_url}
+          alt={product.title || product.title || 'Product image'}
           className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
           onError={(e) => {
             const target = e.target as HTMLImageElement;
@@ -799,18 +805,18 @@ export default function ProductCard({
 
         {/* Product Name */}
         <h3 className="text-base font-semibold text-gray-900 line-clamp-1">
-          {product.item}
+          {product.title}
         </h3>
 
         {/* Description */}
-        <p className="text-sm text-gray-600 line-clamp-2 min-h-[2.5rem]">
+        {/* <p className="text-sm text-gray-600 line-clamp-2 min-h-[2.5rem]">
           {truncatedDescription}
-        </p>
+        </p> */}
 
         <div className="flex items-center justify-between mt-1">
           {/* Price */}
-          <div className="flex items-center gap-2">
-            {/* {currentPrice !== undefined ? (
+          {/* <div className="flex items-center gap-2">
+            {currentPrice !== undefined ? (
               <>
                 <span className="text-lg font-semibold text-gray-900">
                   ${currentPrice.toFixed(2)}
@@ -823,8 +829,8 @@ export default function ProductCard({
               </>
             ) : (
               <span className="text-sm text-gray-500">Price on request</span>
-            )} */}
-          </div>
+            )}
+          </div> */}
 
           {/* Add Button */}
           {showAddButton && (
@@ -869,6 +875,30 @@ export default function ProductCard({
                   <span>Add to list</span>
                 </>
               )}
+          </button>
+          )}
+
+          {/* View Button */}
+          {showViewButton && (
+            <button
+              onClick={handleViewClick}
+              className="mt-2 bg-gray-800 hover:bg-gray-900 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <path d="M16 10a4 4 0 0 1-8 0"></path>
+              </svg>
+              <span>View Details</span>
           </button>
           )}
         </div>

@@ -12,11 +12,6 @@ export default function MessageList({ messages }: MessageListProps) {
   return (
     <div className="flex flex-col py-4">
       {messages.map((message) => {
-        // Debug: Log products for assistant messages
-        if (message.role === 'assistant' && message.products) {
-          console.log(`MessageList: Message ${message.id} has ${message.products.length} products:`, message.products);
-        }
-        
         return (
           <div key={message.id}>
             <Message message={message} />

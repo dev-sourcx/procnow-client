@@ -21,7 +21,7 @@ export default function InputBox({ onSendMessage, isLoading, prefill }: InputBox
 
   // Update input when prefill changes (e.g., filters selected)
   useEffect(() => {
-    if (prefill !== undefined) {
+    if (prefill !== undefined && prefill !== '') {
       setInput(prefill);
     }
   }, [prefill]);

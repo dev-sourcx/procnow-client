@@ -46,6 +46,7 @@ export interface Message {
   role: 'user' | 'assistant';
   content: string;
   products?: any[]; // Product[] from @/lib/api
+  filters?: any; // Filters from @/lib/api
 }
 
 const STORAGE_KEY_SESSIONS = 'chat_sessions';

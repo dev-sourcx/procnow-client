@@ -138,6 +138,16 @@ export default function DashboardLayout({
 
   const handleSessionSelect = (sessionId: string) => {
     setCurrentSessionId(sessionId);
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('selected_session_id', sessionId);
+      } catch {
+      }
+      try {
+        window.dispatchEvent(new CustomEvent('chatSessionSelected', { detail: { sessionId } }));
+      } catch {
+      }
+    }
   };
 
   const handleSessionDelete = async (sessionId: string) => {
@@ -147,6 +157,19 @@ export default function DashboardLayout({
     // If deleted session was current, clear it
     if (currentSessionId === sessionId) {
       setCurrentSessionId(null);
+      if (typeof window !== 'undefined') {
+        try {
+          const stored = sessionStorage.getItem('selected_session_id');
+          if (stored === sessionId) {
+            sessionStorage.removeItem('selected_session_id');
+          }
+        } catch {
+        }
+        try {
+          window.dispatchEvent(new CustomEvent('chatSessionDeleted', { detail: { sessionId } }));
+        } catch {
+        }
+      }
     }
   };
 
@@ -170,6 +193,16 @@ export default function DashboardLayout({
     return (
       <main className="flex h-screen w-full items-center justify-center bg-white dark:bg-gray-900">
         <p className="text-gray-600 dark:text-gray-400">Checking authentication...</p>
+      </main>
+    );
+  }
+
+  if (pathname === '/login' || pathname === '/signup') {
+    return (
+      <main className="flex h-screen w-full bg-white dark:bg-gray-900">
+        <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 flex flex-col">
+          {children}
+        </div>
       </main>
     );
   }
@@ -264,7 +297,7 @@ export default function DashboardLayout({
         )}
 
         {/* Page Content */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 flex flex-col">
           {children}
         </div>
       </div>
