@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { login, signup, getGoogleAuthUrl, syncGuestSession } from '@/lib/api';
-import { saveAuthToken, getGuestSessionData, deleteGuestSession } from '@/lib/storage';
+import { login, signup, getGoogleAuthUrl, syncGuestSession, verifyEmailOtp } from '@/lib/api';
+import { saveAuthToken, getGuestSessionData } from '@/lib/storage';
 import { getAndClearRedirectPath } from '@/lib/auth';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -26,6 +26,9 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [isOtpStep, setIsOtpStep] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [signupToken, setSignupToken] = useState<string | null>(null);
 
   const title = isLogin ? 'Log in' : 'Create account';
   const subtitle = isLogin
@@ -85,34 +88,41 @@ export default function AuthForm({ mode }: AuthFormProps) {
           password,
           name,
         });
-      }
-      
-      // Mark that user came from login to prevent beforeunload from clearing guest session
-      localStorage.setItem('came_from_login', 'true');
-      
-      // Save token
-        saveAuthToken(result.token);
-      
-      // Sync guest session if exists
-      const guestData = getGuestSessionData();
-      if (guestData) {
-        try {
-          const syncedSession = await syncGuestSession(result.token, guestData);
-          // Store synced session ID in sessionStorage so it can be loaded after redirect
-          if (syncedSession && syncedSession._id) {
-            sessionStorage.setItem('synced_session_id', syncedSession._id);
-          }
-          // Keep guest session in localStorage - don't delete it
-          // deleteGuestSession(); // Removed - keep guest session in localStorage
-        } catch (syncError) {
-          console.error('Error syncing guest session:', syncError);
-          // Continue even if sync fails - user is still logged in
+
+        // For signup, move to OTP verification step before storing token and redirecting
+        if (!result.token) {
+          throw new Error('Signup did not return a token');
         }
+        setSignupToken(result.token);
+        setIsOtpStep(true);
+        setIsSubmitting(false);
+        return;
       }
       
-      // Redirect to stored path or home
-      const redirectPath = getAndClearRedirectPath();
+      // For login success, proceed as before
+      if (isLogin) {
+        // Mark that user came from login to prevent beforeunload from clearing guest session
+        localStorage.setItem('came_from_login', 'true');
+
+        // Save token
+        saveAuthToken(result.token);
+
+        // Sync guest session if exists
+        const guestData = getGuestSessionData();
+        if (guestData) {
+          try {
+            const syncedSession = await syncGuestSession(result.token, guestData);
+            if (syncedSession && syncedSession._id) {
+              sessionStorage.setItem('synced_session_id', syncedSession._id);
+            }
+          } catch (syncError) {
+            console.error('Error syncing guest session:', syncError);
+          }
+        }
+
+        const redirectPath = getAndClearRedirectPath();
         router.push(redirectPath || '/');
+      }
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);
@@ -178,7 +188,8 @@ export default function AuthForm({ mode }: AuthFormProps) {
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{subtitle}</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {!isOtpStep ? (
+          <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && (
             <div>
               <label className="mb-1 block text-sm text-gray-700 dark:text-gray-300" htmlFor="name">
@@ -240,6 +251,87 @@ export default function AuthForm({ mode }: AuthFormProps) {
             {isSubmitting ? (isLogin ? 'Logging in...' : 'Creating account...') : isLogin ? 'Log in' : 'Create account'}
           </button>
         </form>
+        ) : (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setError(null);
+              setIsSubmitting(true);
+              try {
+                if (!signupToken) {
+                  throw new Error('Missing signup token. Please sign up again.');
+                }
+                if (!otp.trim()) {
+                  throw new Error('Please enter the OTP sent to your email.');
+                }
+
+                const result = await verifyEmailOtp(signupToken, otp.trim());
+                if (!result.isEmailVerified) {
+                  throw new Error('Email verification failed.');
+                }
+
+                // Mark that user came from login to prevent beforeunload from clearing guest session
+                localStorage.setItem('came_from_login', 'true');
+
+                // Save token after successful verification
+                saveAuthToken(signupToken);
+
+                // Sync guest session if exists
+                const guestData = getGuestSessionData();
+                if (guestData) {
+                  try {
+                    const syncedSession = await syncGuestSession(signupToken, guestData);
+                    if (syncedSession && syncedSession._id) {
+                      sessionStorage.setItem('synced_session_id', syncedSession._id);
+                    }
+                  } catch (syncError) {
+                    console.error('Error syncing guest session:', syncError);
+                  }
+                }
+
+                const redirectPath = getAndClearRedirectPath();
+                router.push(redirectPath || '/');
+              } catch (err) {
+                if (err instanceof Error) {
+                  setError(err.message);
+                } else {
+                  setError('Failed to verify email. Please try again.');
+                }
+              } finally {
+                setIsSubmitting(false);
+              }
+            }}
+            className="space-y-4"
+          >
+            <div>
+              <label className="mb-1 block text-sm text-gray-700 dark:text-gray-300">
+                Enter the 6-digit code sent to your email
+              </label>
+              <input
+                type="text"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                maxLength={6}
+                placeholder="123456"
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#2b2c36] px-3 py-2 text-gray-900 dark:text-white outline-none transition focus:border-gray-500 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500 tracking-widest text-center"
+              />
+            </div>
+
+            {error && (
+              <p className="text-sm text-red-400" role="alert">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex w-full items-center justify-center rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? 'Verifying...' : 'Verify Email'}
+            </button>
+          </form>
+        )}
 
         {/* Divider */}
         <div className="relative my-6">

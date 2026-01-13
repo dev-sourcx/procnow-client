@@ -4,19 +4,14 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { generateFieldsFromDescription, GeneratedFieldsResponse, uploadFile } from '@/lib/api';
 import { showToast } from '@/lib/toast';
-import { saveProduct, getStoredProducts, deleteProduct, BriefProduct, getStoredEnquiries, saveEnquiry, deleteEnquiry, Enquiry, EnquiryProduct, ChatSession } from '@/lib/storage';
+import { saveProduct, getStoredProducts, deleteProduct, BriefProduct, getStoredEnquiries, saveEnquiry, deleteEnquiry, Enquiry, EnquiryProduct } from '@/lib/storage';
 import { requireAuth } from '@/lib/auth';
 import { getAuthToken } from '@/lib/storage';
-import Sidebar from '@/components/Sidebar';
+import DashboardLayout from '@/components/DashboardLayout';
 import CreatableSelect from '@/components/CreatableSelect';
-import { useTheme } from '@/contexts/ThemeContext';
 
 export default function BriefPage() {
   const router = useRouter();
-  const { theme, toggleTheme } = useTheme();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'add'>('add');
   const [itemInput, setItemInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -60,16 +55,6 @@ export default function BriefPage() {
   const [specModalItems, setSpecModalItems] = useState<string[]>([]);
   const [specModalTitle, setSpecModalTitle] = useState<string>('Specifications');
 
-  const handleSessionSelect = (sessionId: string) => {
-    setCurrentSessionId(sessionId);
-  };
-
-  const handleSessionDelete = async (sessionId: string) => {
-    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-    if (currentSessionId === sessionId) {
-      setCurrentSessionId(null);
-    }
-  };
 
   const handleGenerateWithAI = async () => {
     if (!itemInput.trim()) {
@@ -1257,91 +1242,9 @@ export default function BriefPage() {
         </div>
       )}
 
-      <main className="flex h-screen w-full bg-gray-50 text-gray-900">
-        {/* Sidebar */}
-        <Sidebar
-          onNewChat={() => router.push('/')}
-          isOpen={sidebarOpen}
-          onToggle={() => setSidebarOpen(!sidebarOpen)}
-          currentUser={null}
-          onLogout={() => {}}
-          sessions={sessions}
-          currentSessionId={currentSessionId}
-          onSessionSelect={handleSessionSelect}
-          onSessionDelete={handleSessionDelete}
-        />
-
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col relative">
-          {/* Sidebar Toggle Button (Mobile) */}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white border border-gray-200 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100"
-            aria-label="Toggle sidebar"
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="3" y1="12" x2="21" y2="12"></line>
-              <line x1="3" y1="6" x2="21" y2="6"></line>
-              <line x1="3" y1="18" x2="21" y2="18"></line>
-            </svg>
-          </button>
-
+      <DashboardLayout navbarContent={<h1 className="text-lg font-semibold text-gray-900 dark:text-white">Brief</h1>}>
           {/* Content Container */}
           <div className="flex h-full w-full flex-col bg-gray-50 dark:bg-gray-900">
-            {/* Header */}
-            <div className="flex h-12 items-center justify-between border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 shadow-sm">
-              <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Brief</h1>
-              <button 
-                onClick={toggleTheme}
-                className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                aria-label="Toggle theme"
-              >
-                {theme === 'light' ? (
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <circle cx="12" cy="12" r="5"></circle>
-                    <line x1="12" y1="1" x2="12" y2="3"></line>
-                    <line x1="12" y1="21" x2="12" y2="23"></line>
-                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                    <line x1="1" y1="12" x2="3" y2="12"></line>
-                    <line x1="21" y1="12" x2="23" y2="12"></line>
-                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                  </svg>
-                ) : (
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                  </svg>
-                )}
-              </button>
-            </div>
 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto bg-gray-50">
@@ -2074,10 +1977,7 @@ export default function BriefPage() {
                 )}
       </div>
     </div>
-      </div>
-    </div>
-      </main>
-
+  </div>
       {/* Add Custom Field Modal */}
       {isAddFieldModalOpen && (
         <div 
@@ -2181,6 +2081,7 @@ export default function BriefPage() {
           </div>
         </div>
       )}
+      </DashboardLayout>
     </>
   );
 }

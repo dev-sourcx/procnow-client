@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { getAuthToken } from '@/lib/storage';
 import { getCurrentUser, getEnquiry, getBuyerQuotes, updateBuyerQuoteStatus, type CurrentUser, type Enquiry, type Quote } from '@/lib/api';
-import Sidebar from '@/components/Sidebar';
+import DashboardLayout from '@/components/DashboardLayout';
 import { requireAuth } from '@/lib/auth';
-import { useTheme } from '@/contexts/ThemeContext';
 import { showToast } from '@/lib/toast';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function EnquiryDetailPage() {
   const router = useRouter();
@@ -19,8 +19,6 @@ export default function EnquiryDetailPage() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'quotesRequested' | 'quotesReceived' | 'chatWithAdmin'>('quotesRequested');
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set()); // Keep for quotes received tab
   const [updatingQuoteId, setUpdatingQuoteId] = useState<string | null>(null);
@@ -45,9 +43,6 @@ export default function EnquiryDetailPage() {
         setLoading(false);
         return;
       }
-
-      const user = await getCurrentUser(token);
-      setCurrentUser(user);
 
       // Load enquiry details
       const enquiryData = await getEnquiry(token, enquiryId);
@@ -292,14 +287,6 @@ export default function EnquiryDetailPage() {
     return null;
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('auth_token');
-    router.push('/login');
-  };
-
-  const handleNewChat = () => {
-    router.push('/');
-  };
 
   const handleProductSheetClick = () => {
     router.push('/product-sheet');
@@ -454,46 +441,21 @@ export default function EnquiryDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
-        <Sidebar
-          onNewChat={handleNewChat}
-          isOpen={sidebarOpen}
-          onToggle={() => setSidebarOpen(!sidebarOpen)}
-          currentUser={currentUser}
-          onLogout={handleLogout}
-          sessions={[]}
-          currentSessionId={null}
-          onSessionSelect={() => {}}
-          onSessionDelete={() => {}}
-        />
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <main className="flex-1 overflow-y-auto p-6">
-            <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-teal-500 border-t-transparent mb-4"></div>
-              <p className="text-gray-600 dark:text-gray-400">Loading enquiry details...</p>
-            </div>
-          </main>
+      <DashboardLayout>
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-teal-500 border-t-transparent mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">Loading enquiry details...</p>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   if (error || !enquiry) {
     return (
-      <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
-        <Sidebar
-          onNewChat={handleNewChat}
-          isOpen={sidebarOpen}
-          onToggle={() => setSidebarOpen(!sidebarOpen)}
-          currentUser={currentUser}
-          onLogout={handleLogout}
-          sessions={[]}
-          currentSessionId={null}
-          onSessionSelect={() => {}}
-          onSessionDelete={() => {}}
-        />
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <main className="flex-1 overflow-y-auto p-6">
+      <DashboardLayout>
+        <div className="flex-1 overflow-y-auto p-6">
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-4 text-red-500 dark:text-red-400">
                 <circle cx="12" cy="12" r="10"></circle>
@@ -509,9 +471,8 @@ export default function EnquiryDetailPage() {
                 Back to Enquiries
               </button>
             </div>
-          </main>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
@@ -571,47 +532,42 @@ export default function EnquiryDetailPage() {
   });
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
-      <Sidebar
-        onNewChat={handleNewChat}
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
-        currentUser={currentUser}
-        onLogout={handleLogout}
-        sessions={[]}
-        currentSessionId={null}
-        onSessionSelect={() => {}}
-        onSessionDelete={() => {}}
-      />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <main className="flex-1 overflow-y-auto">
-          {/* Header */}
-          <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => router.push('/enquiries')}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-600 dark:text-gray-400"
-                  aria-label="Back to enquiries"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="15 18 9 12 15 6"></polyline>
-                  </svg>
-                </button>
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{enquiry.enquiryName || 'Enquiry Details'}</h1>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Enquiry ID: {enquiry._id}</p>
-                </div>
+    <DashboardLayout navbarContent={
+      <div className="flex items-center gap-4">
+        <button
+          onClick={() => router.push('/enquiries')}
+          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-600 dark:text-gray-400"
+          aria-label="Back to enquiries"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{enquiry.enquiryName || 'Enquiry Details'}</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Enquiry ID: {enquiry._id}</p>
+        </div>
+      </div>
+    }>
+      <div className="flex-1 overflow-y-auto">
+        {/* Header */}
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{enquiry.enquiryName || 'Enquiry Details'}</h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Enquiry ID: {enquiry._id}</p>
               </div>
-              <div className="flex items-center gap-3">
-                <button 
-                  onClick={toggleTheme}
-                  className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                  aria-label="Toggle theme"
-                >
-                  {theme === 'light' ? (
-                    <svg
-                      width="20"
+            </div>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={toggleTheme}
+                className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                aria-label="Toggle theme"
+              >
+                {theme === 'light' ? (
+                  <svg
+                    width="20"
                       height="20"
                       viewBox="0 0 24 24"
                       fill="none"
@@ -1059,9 +1015,8 @@ export default function EnquiryDetailPage() {
               </div>
             )}
           </div>
-        </main>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }
 

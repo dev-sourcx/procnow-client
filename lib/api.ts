@@ -21,6 +21,7 @@ export interface TokenResponse {
     email: string;
     name: string;
   };
+  isEmailVerified?: boolean;
 }
 
 export interface CurrentUser {
@@ -170,6 +171,31 @@ export async function login(email: string, password: string): Promise<TokenRespo
   }
 
   return (responseData as ApiSuccessResponse<TokenResponse>).data;
+}
+
+/**
+ * Verify email with OTP after signup
+ * Calls: POST /api/auth/verify-email
+ */
+export async function verifyEmailOtp(token: string, otp: string): Promise<{ isEmailVerified: boolean }> {
+  const response = await fetch(`${API_URL}/api/auth/verify-email`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ otp }),
+  });
+
+  const responseData: ApiSuccessResponse<{ isEmailVerified: boolean }> | ApiErrorResponse = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorResponse = responseData as ApiErrorResponse;
+    const errorMessage = errorResponse.message || errorResponse.error || 'Email verification failed';
+    throw new Error(errorMessage);
+  }
+
+  return (responseData as ApiSuccessResponse<{ isEmailVerified: boolean }>).data;
 }
 
 /**
