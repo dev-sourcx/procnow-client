@@ -112,6 +112,7 @@ export default function Home() {
   const [specModalTitle, setSpecModalTitle] =
     useState<string>("Specifications");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isFilterCollapsed, setIsFilterCollapsed] = useState(false);
   const [discoverFilterMeta, setDiscoverFilterMeta] = useState<Record<string, string[]> | null>(null);
   const [discoverSelectedFilters, setDiscoverSelectedFilters] = useState<Record<string, string[]>>({});
   const [discoverProducts, setDiscoverProducts] = useState<Product[]>([]);
@@ -210,6 +211,7 @@ export default function Home() {
       setDiscoverFilterMeta(null);
       setDiscoverSelectedFilters({});
       setDiscoverProducts([]);
+      setIsFilterCollapsed(false);
     };
     const handleToggleFilters = () => {
       // Toggle filter sidebar when event is dispatched from layout
@@ -232,7 +234,18 @@ export default function Home() {
     setDiscoverFilterMeta(null);
     setDiscoverSelectedFilters({});
     setDiscoverProducts([]);
+    setIsFilterCollapsed(false);
   }, [currentSessionId]);
+
+  // Dispatch event when filters are available or cleared
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const hasFilters = discoverFilterMeta !== null && Object.keys(discoverFilterMeta).length > 0;
+      window.dispatchEvent(new CustomEvent('filtersAvailable', { 
+        detail: { hasFilters } 
+      }));
+    }
+  }, [discoverFilterMeta]);
 
   const handleSessionSelect = (sessionId: string) => {
     setCurrentSessionId(sessionId);
@@ -753,15 +766,17 @@ export default function Home() {
         {/* Right-side Filter Sidebar (desktop) */}
         <div
           className={`hidden md:block h-full overflow-hidden transition-all duration-300 ease-in-out ${
-            isFilterOpen ? "w-64" : "w-0"
+            isFilterOpen ? (isFilterCollapsed ? "w-12" : "w-64") : "w-0"
           }`}
         >
-          <div className="h-full w-64">
+          <div className={`h-full ${isFilterCollapsed ? 'w-12' : 'w-64'}`}>
             <DiscoverFilters
               key={currentSessionId || 'new-chat'}
               onClose={() => setIsFilterOpen(false)}
               discoverFilterMeta={discoverFilterMeta}
               onSelectionChange={setDiscoverSelectedFilters}
+              onToggleCollapse={() => setIsFilterCollapsed(!isFilterCollapsed)}
+              isCollapsed={isFilterCollapsed}
             />
           </div>
         </div>

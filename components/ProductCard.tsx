@@ -446,16 +446,16 @@ export default function ProductCard({
   const inputBaseClasses =
     'w-full h-11 px-3 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500';
   const textareaClasses =
-    'w-full px-3 py-2.5 min-h-[110px] text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 resize-none placeholder:text-gray-400 dark:placeholder:text-gray-500';
+    'w-full px-3 py-2.5 min-h-[110px] text-gray-900 dark:text-gray-100 bg-transparent border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 resize-none placeholder:text-gray-400 dark:placeholder:text-gray-500';
   const fileInputClasses =
-    'w-full h-11 px-3 py-2 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 file:mr-3 file:h-full file:px-3 file:py-0 file:rounded-md file:border file:border-gray-300 dark:file:border-gray-600 file:bg-white dark:file:bg-gray-700 file:text-gray-800 dark:file:text-gray-100 file:text-sm file:font-medium file:leading-normal hover:file:bg-gray-50 dark:hover:file:bg-gray-600 file:cursor-pointer';
+    'w-full h-11 px-3 py-2 text-gray-900 dark:text-gray-100 bg-transparent border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 file:mr-3 file:h-full file:px-3 file:py-0 file:rounded-md file:border file:border-gray-300 dark:file:border-gray-600 file:bg-white dark:file:bg-gray-700 file:text-gray-800 dark:file:text-gray-100 file:text-sm file:font-medium file:leading-normal hover:file:bg-gray-50 dark:hover:file:bg-gray-600 file:cursor-pointer';
 
   return (
     <>
       {/* Modal */}
       {isModalOpen && generatedFields && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50"
           onClick={handleCloseModal}
         >
           <div 
@@ -774,7 +774,7 @@ export default function ProductCard({
             {/* Add Custom Field Modal */}
             {isAddFieldModalOpen && (
               <div 
-                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+                className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50"
                 onClick={() => setIsAddFieldModalOpen(false)}
               >
                 <div 
@@ -812,6 +812,12 @@ export default function ProductCard({
                         type="text"
                         value={newFieldLabel}
                         onChange={(e) => setNewFieldLabel(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && newFieldLabel.trim()) {
+                            e.preventDefault();
+                            handleAddCustomField();
+                          }
+                        }}
                         placeholder="Enter field name"
                         className="w-full px-3 py-2 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 dark:focus:ring-gray-200 focus:border-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500"
                         autoFocus
@@ -847,13 +853,6 @@ export default function ProductCard({
       <div className="group relative flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow w-full max-w-xs">
         {/* Image Container */}
         <div className="relative w-full aspect-[4/3] overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-          {/* Discount Badge */}
-          {discount && discount > 0 && (
-            <div className="absolute top-3 left-3 z-10 bg-orange-500 text-white text-xs font-semibold px-2 py-1 rounded">
-              -{discount}%
-            </div>
-          )}
-
           {/* Favorite Icon */}
           <button
             onClick={() => setIsFavorite(!isFavorite)}

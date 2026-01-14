@@ -108,7 +108,6 @@ export default function Sidebar({
 
   const handleSessionClick = (sessionId: string) => {
     onSessionSelect(sessionId);
-    setIsChatDropdownOpen(false);
     onToggle(); // Close sidebar on mobile
   };
 

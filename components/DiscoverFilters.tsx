@@ -6,12 +6,16 @@ interface DiscoverFiltersProps {
   onClose?: () => void;
   discoverFilterMeta?: Record<string, string[]>;
   onSelectionChange?: (filters: Record<string, string[]>) => void;
+  onToggleCollapse?: () => void;
+  isCollapsed?: boolean;
 }
 
 export default function DiscoverFilters({
   onClose,
   discoverFilterMeta,
   onSelectionChange,
+  onToggleCollapse,
+  isCollapsed = false,
 }: DiscoverFiltersProps) {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     category: true,
@@ -99,57 +103,100 @@ export default function DiscoverFilters({
   );
 
   return (
-    <aside className="h-full w-80 border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col shadow-lg">
+    <aside className={`h-full ${isCollapsed ? 'w-12' : 'w-80'} border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col shadow-lg transition-all duration-300`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur">
+      <div className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'justify-between px-4'} py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur`}>
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-teal-600 text-white text-sm font-semibold">
-            <svg
-              className="w-4 h-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
+              aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
-              <polygon points="3 4 21 4 14 12 14 19 10 21 10 12 3 4" />
-            </svg>
-          </span>
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold text-gray-900 dark:text-white">Filters</span>
-            <span className="text-xs text-gray-500 dark:text-gray-400">Fine-tune product discovery</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {getActiveFiltersCount() > 0 && (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-teal-50 text-teal-700 dark:bg-teal-900/40 dark:text-teal-200">
-              {getActiveFiltersCount()} active
-          </span>
+              <svg
+                className={`w-4 h-4 transition-transform ${isCollapsed ? 'rotate-180' : ''}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
           )}
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
-          >
-            <svg
-              className="w-4 h-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+          {!isCollapsed && (
+            <>
+              <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-teal-600 text-white text-sm font-semibold">
+                <svg
+                  className="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polygon points="3 4 21 4 14 12 14 19 10 21 10 12 3 4" />
+                </svg>
+              </span>
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">Filters</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">Fine-tune product discovery</span>
+              </div>
+            </>
+          )}
+          {isCollapsed && (
+            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-teal-600 text-white text-sm font-semibold">
+              <svg
+                className="w-4 h-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polygon points="3 4 21 4 14 12 14 19 10 21 10 12 3 4" />
+              </svg>
+            </span>
+          )}
         </div>
+        {!isCollapsed && (
+          <div className="flex items-center gap-2">
+            {getActiveFiltersCount() > 0 && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-teal-50 text-teal-700 dark:bg-teal-900/40 dark:text-teal-200">
+                {getActiveFiltersCount()} active
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
+            >
+              <svg
+                className="w-4 h-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      {!isCollapsed && (
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {!discoverFilterMeta || Object.keys(discoverFilterMeta).length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <svg
@@ -404,29 +451,22 @@ export default function DiscoverFilters({
             })}
           </>
         )}
-      </div>
+        </div>
+      )}
 
       {/* Footer */}
-      <div className="border-t border-gray-200 dark:border-gray-800 p-3 flex items-center justify-between bg-gray-50 dark:bg-gray-900">
-        <button
-          type="button"
-          onClick={clearAllFilters}
-          disabled={getActiveFiltersCount() === 0}
-          className="text-xs text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Clear all filters
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            // Filters are already applied via onSelectionChange callback
-            // This button can be used for additional actions if needed
-          }}
-          className="px-3 py-1.5 text-xs font-semibold rounded-full bg-teal-600 text-white hover:bg-teal-700"
-        >
-          Apply
-        </button>
-      </div>
+      {!isCollapsed && (
+        <div className="border-t border-gray-200 dark:border-gray-800 p-3 flex items-center justify-start bg-gray-50 dark:bg-gray-900">
+          <button
+            type="button"
+            onClick={clearAllFilters}
+            disabled={getActiveFiltersCount() === 0}
+            className="text-xs text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Clear all filters
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

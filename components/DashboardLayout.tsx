@@ -27,6 +27,31 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [hasFilters, setHasFilters] = useState(false);
+
+  // Listen for filter availability events
+  useEffect(() => {
+    const handleFiltersAvailable = (event: CustomEvent) => {
+      const hasFiltersData = event.detail?.hasFilters ?? false;
+      setHasFilters(hasFiltersData);
+    };
+
+    const handleNewChat = () => {
+      setHasFilters(false);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('filtersAvailable' as any, handleFiltersAvailable as EventListener);
+      window.addEventListener('newChatStarted', handleNewChat);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('filtersAvailable' as any, handleFiltersAvailable as EventListener);
+        window.removeEventListener('newChatStarted', handleNewChat);
+      }
+    };
+  }, []);
 
   // Clear guest chat when browser closes (only for non-authenticated users)
   // But don't clear if user came from login
@@ -285,31 +310,33 @@ export default function DashboardLayout({
                   <h2 className="text-base font-semibold text-gray-900 dark:text-white">AI Product Assistant</h2>
                 </div>
                 <div className="flex items-center gap-3">
-                  {/* Filters Toggle Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // Dispatch event to toggle filters
-                      if (typeof window !== 'undefined') {
-                        window.dispatchEvent(new CustomEvent('toggleFilters'));
-                      }
-                    }}
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+                  {/* Filters Toggle Button - Only show when filters are available */}
+                  {hasFilters && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Dispatch event to toggle filters
+                        if (typeof window !== 'undefined') {
+                          window.dispatchEvent(new CustomEvent('toggleFilters'));
+                        }
+                      }}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
                     >
-                      <polygon points="3 4 21 4 14 12 14 19 10 21 10 12 3 4" />
-                    </svg>
-                    <span>Filters</span>
-                  </button>
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polygon points="3 4 21 4 14 12 14 19 10 21 10 12 3 4" />
+                      </svg>
+                      <span>Filters</span>
+                    </button>
+                  )}
                   <button 
                     onClick={toggleTheme}
                     className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"

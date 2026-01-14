@@ -10,7 +10,7 @@ interface ProductSectionProps {
 
 export default function ProductSection({ products }: ProductSectionProps) {
   const [showAll, setShowAll] = useState(false);
-  const INITIAL_DISPLAY_COUNT = 8;
+  const INITIAL_DISPLAY_COUNT = 4;
   
   // Show all products if showAll is true, otherwise show first INITIAL_DISPLAY_COUNT
   const displayProducts = showAll ? products : products.slice(0, INITIAL_DISPLAY_COUNT);
