@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface DiscoverFiltersProps {
   onClose?: () => void;
@@ -22,6 +22,15 @@ export default function DiscoverFilters({
   });
 
   const [selectedFilters, setSelectedFilters] = useState<Record<string, string[]>>({});
+
+  // Clear selected filters when filter meta changes (new chat/session)
+  useEffect(() => {
+    setSelectedFilters({});
+    if (onSelectionChange) {
+      onSelectionChange({});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [discoverFilterMeta]);
 
   const toggleFilter = (filterKey: string, value: string) => {
     setSelectedFilters((prev) => {

@@ -12,23 +12,42 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('light');
-  const [mounted, setMounted] = useState(false);
-
-  // On mount, read the preferred theme from localStorage or system settings
-  useEffect(() => {
-    setMounted(true);
+  // Initialize theme by checking if dark class is already on document (from blocking script)
+  // or by reading from localStorage synchronously if available
+  const getInitialTheme = (): Theme => {
+    if (typeof window === 'undefined') return 'light';
+    
+    // First check if dark class is already applied (from blocking script)
+    if (document.documentElement.classList.contains('dark')) {
+      return 'dark';
+    }
+    
+    // Then try to read from localStorage
     try {
       const savedTheme = localStorage.getItem('theme') as Theme | null;
       if (savedTheme === 'light' || savedTheme === 'dark') {
-        setTheme(savedTheme);
-      } else if (window.matchMedia) {
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        setTheme(prefersDark ? 'dark' : 'light');
+        return savedTheme;
       }
     } catch {
-      // If accessing localStorage or matchMedia fails, keep default 'light'
+      // Ignore localStorage errors
     }
+    
+    // Fallback to system preference
+    if (window.matchMedia) {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    
+    return 'light';
+  };
+
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
+  const [mounted, setMounted] = useState(false);
+
+  // On mount, ensure theme is synced with what's already applied
+  useEffect(() => {
+    setMounted(true);
+    const currentTheme = getInitialTheme();
+    setTheme(currentTheme);
   }, []);
 
   // Apply theme classes & persist whenever theme changes (after mount)

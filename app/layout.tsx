@@ -17,6 +17,25 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased">
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var theme = localStorage.getItem('theme');
+                  var html = document.documentElement;
+                  if (theme === 'dark') {
+                    html.classList.add('dark');
+                  } else if (theme === 'light') {
+                    html.classList.remove('dark');
+                  } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    html.classList.add('dark');
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
         <ThemeProviderWrapper>
         <DashboardLayout>
           {children}

@@ -472,6 +472,11 @@ export interface Product {
   vendor: string;
   product_url: string;
   image: string;
+  thumbnail?: string;
+}
+
+export interface ProductDetails {
+  [key: string]: any;
 }
 
 /**
@@ -1357,4 +1362,29 @@ export async function updateBuyerProfile(
   }
 
   return (responseData as ApiSuccessResponse<{ profile: BuyerProfile }>).data.profile;
+}
+
+/**
+ * Fetch product details from scrapingdog endpoint
+ * @param endpointUrl - The API endpoint URL from scrapingdog_immersive_product_link
+ */
+export async function fetchProductDetails(endpointUrl: string): Promise<ProductDetails> {
+  try {
+    const response = await fetch(endpointUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch product details: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching product details:', error);
+    throw error;
+  }
 }

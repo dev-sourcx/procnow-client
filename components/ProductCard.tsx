@@ -1,6 +1,6 @@
 'use client';
 
-import { Product, generateFieldsFromKeyword, GeneratedFieldsResponse, addProductItem, uploadFile } from '@/lib/api';
+import { Product, generateFieldsFromKeyword, GeneratedFieldsResponse, addProductItem, uploadFile, fetchProductDetails, ProductDetails } from '@/lib/api';
 import { getAuthToken } from '@/lib/storage';
 import { requireAuth } from '@/lib/auth';
 import { useState, useMemo, useEffect } from 'react';
@@ -30,6 +30,10 @@ export default function ProductCard({
   const [isFavorite, setIsFavorite] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDetailsSidebarOpen, setIsDetailsSidebarOpen] = useState(false);
+  const [productDetails, setProductDetails] = useState<ProductDetails | null>(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
   const [generatedFields, setGeneratedFields] = useState<GeneratedFieldsResponse | null>(null);
   const [formData, setFormData] = useState<Record<string, string | number | File | null | string[]>>({});
@@ -105,8 +109,41 @@ export default function ProductCard({
   };
 
   const handleViewClick = () => {
-    // router.push(`/product/${product._id}`);
+    setIsDetailsSidebarOpen(true);
   };
+
+  const handleCloseDetailsSidebar = () => {
+    setIsDetailsSidebarOpen(false);
+    setProductDetails(null);
+    setDetailsError(null);
+  };
+
+  console.log(product)
+
+  // Fetch product details when sidebar opens
+  useEffect(() => {
+    if (isDetailsSidebarOpen && !productDetails && !isLoadingDetails) {
+      const endpointUrl = product.dynamic_attributes?.['scrapingdog_immersive_product_link'];
+      
+      if (endpointUrl) {
+        setIsLoadingDetails(true);
+        setDetailsError(null);
+        
+        fetchProductDetails(endpointUrl)
+          .then((details) => {
+            setProductDetails(details);
+            setIsLoadingDetails(false);
+          })
+          .catch((error) => {
+            console.error('Error fetching product details:', error);
+            setDetailsError(error instanceof Error ? error.message : 'Failed to fetch product details');
+            setIsLoadingDetails(false);
+          });
+      } else {
+        setDetailsError('Product details endpoint not available');
+      }
+    }
+  }, [isDetailsSidebarOpen, product.dynamic_attributes, productDetails, isLoadingDetails]);
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
@@ -221,7 +258,7 @@ export default function ProductCard({
   // Reset error state when product changes
   useEffect(() => {
     setImageError(false);
-  }, [product.image, product.product_url]);
+  }, [product.thumbnail, product.image, product.product_url]);
 
   // Memoize the image URL to prevent repeated calls
   const imageUrl = useMemo(() => {
@@ -230,17 +267,20 @@ export default function ProductCard({
       return placeholderDataUri;
     }
     
-    if (!product.image) {
+    // Prioritize thumbnail over image
+    const imageSource = product.thumbnail || product.image;
+    
+    if (!imageSource) {
       return product.product_url || placeholderDataUri;
     }
     
     // Check if it's already a URL
-    if (product.image.startsWith('http://') || product.image.startsWith('https://') || product.image.startsWith('/')) {
-      return product.image;
+    if (imageSource.startsWith('http://') || imageSource.startsWith('https://') || imageSource.startsWith('/')) {
+      return imageSource;
     }
     
     // Validate base64 before attempting to decode
-    if (!isValidBase64(product.image)) {
+    if (!isValidBase64(imageSource)) {
       console.warn('Invalid base64 string, falling back to product_url');
       return product.product_url || placeholderDataUri;
     }
@@ -249,16 +289,16 @@ export default function ProductCard({
       let base64Data: string;
       let mime = 'image/webp';
       
-      if (product.image.includes(',')) {
+      if (imageSource.includes(',')) {
         // Handle data:image/... format
-        const [meta, data] = product.image.split(",");
+        const [meta, data] = imageSource.split(",");
         if (!data) return product.product_url || placeholderDataUri;
         
         mime = meta.match(/:(.*?);/)?.[1] || "image/webp";
         base64Data = data.trim();
       } else {
         // Raw base64 data
-        base64Data = product.image.trim();
+        base64Data = imageSource.trim();
       }
       
       // Clean the base64 data
@@ -282,7 +322,7 @@ export default function ProductCard({
       console.error('Error converting base64 to blob URL:', error);
       return product.product_url || placeholderDataUri;
     }
-  }, [product.image, product.product_url, imageError, placeholderDataUri]);
+  }, [product.thumbnail, product.image, product.product_url, imageError, placeholderDataUri]);
   
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -753,9 +793,9 @@ export default function ProductCard({
       )}
 
       {/* Product Card */}
-      <div className="group relative flex flex-col bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow w-full max-w-xs">
+      <div className="group relative flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow w-full max-w-xs">
       {/* Image Container */}
-      <div className="relative w-full h-40 overflow-hidden bg-gray-100 flex items-center justify-center">
+      <div className="relative w-full aspect-[4/3] overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
         {/* Discount Badge */}
         {discount && discount > 0 && (
           <div className="absolute top-3 left-3 z-10 bg-orange-500 text-white text-xs font-semibold px-2 py-1 rounded">
@@ -785,9 +825,9 @@ export default function ProductCard({
 
         {/* Product Image */}
         <img
-          src={product.product_url}
-          alt={product.title || product.title || 'Product image'}
-          className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+          src={imageUrl}
+          alt={product.title || 'Product image'}
+          className="max-w-full max-h-full w-auto h-auto object-contain group-hover:scale-105 transition-transform duration-300"
           onError={(e) => {
             const target = e.target as HTMLImageElement;
             // Only set error state if we haven't already, and if it's not already the placeholder
@@ -799,12 +839,12 @@ export default function ProductCard({
       </div>
 
       {/* Content */}
-      <div className="flex flex-col p-4 gap-2">
+      <div className="flex flex-col p-4 gap-2 bg-white dark:bg-gray-800">
         {/* Category Tag */}
         {/* <span className="text-xs text-gray-500 font-medium">{category}</span> */}
 
         {/* Product Name */}
-        <h3 className="text-base font-semibold text-gray-900 line-clamp-1">
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white line-clamp-1">
           {product.title}
         </h3>
 
@@ -813,38 +853,19 @@ export default function ProductCard({
           {truncatedDescription}
         </p> */}
 
-        <div className="flex items-center justify-between mt-1">
-          {/* Price */}
-          {/* <div className="flex items-center gap-2">
-            {currentPrice !== undefined ? (
-              <>
-                <span className="text-lg font-semibold text-gray-900">
-                  ${currentPrice.toFixed(2)}
-                </span>
-                {originalPrice && originalPrice > currentPrice && (
-                  <span className="text-sm text-gray-500 line-through">
-                    ${originalPrice.toFixed(2)}
-                  </span>
-                )}
-              </>
-            ) : (
-              <span className="text-sm text-gray-500">Price on request</span>
-            )}
-          </div> */}
-
+        {/* Buttons Container */}
+        <div className={`flex gap-2 mt-3 w-full min-w-0 ${showAddButton && showViewButton ? 'flex-col sm:flex-row' : 'flex-col'}`}>
           {/* Add Button */}
           {showAddButton && (
             <button
               onClick={handleAddClick}
               disabled={isLoading}
-              className="mt-2 bg-gray-800 hover:bg-gray-900 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+              className="flex-1 min-w-0 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 dark:bg-teal-500 dark:hover:bg-teal-600 dark:active:bg-teal-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium py-1.5 px-2.5 sm:px-3 rounded-md transition-all duration-200 flex items-center justify-center gap-1.5 shadow-sm hover:shadow-md disabled:shadow-none text-xs sm:text-sm"
             >
               {isLoading ? (
                 <>
                   <svg
-                    className="animate-spin"
-                    width="18"
-                    height="18"
+                    className="animate-spin w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -854,39 +875,37 @@ export default function ProductCard({
                   >
                     <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
                   </svg>
-                  <span>Loading...</span>
+                  <span className="hidden sm:inline">Loading...</span>
+                  <span className="sm:hidden">...</span>
                 </>
               ) : (
                 <>
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
-              <line x1="3" y1="6" x2="21" y2="6"></line>
-              <path d="M16 10a4 4 0 0 1-8 0"></path>
-            </svg>
-                  <span>Add to list</span>
+                  <svg
+                    className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  <span className="truncate min-w-0">Add to list</span>
                 </>
               )}
-          </button>
+            </button>
           )}
 
           {/* View Button */}
           {showViewButton && (
             <button
               onClick={handleViewClick}
-              className="mt-2 bg-gray-800 hover:bg-gray-900 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+              className="flex-1 min-w-0 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 border border-gray-300 dark:border-gray-600 hover:border-teal-500 dark:hover:border-teal-400 text-gray-700 dark:text-gray-200 hover:text-teal-700 dark:hover:text-teal-400 font-medium py-1.5 px-2.5 sm:px-3 rounded-md transition-all duration-200 flex items-center justify-center gap-1.5 shadow-sm hover:shadow-md text-xs sm:text-sm"
             >
               <svg
-                width="18"
-                height="18"
+                className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -894,16 +913,262 @@ export default function ProductCard({
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
-                <line x1="3" y1="6" x2="21" y2="6"></line>
-                <path d="M16 10a4 4 0 0 1-8 0"></path>
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
               </svg>
-              <span>View Details</span>
-          </button>
+              <span className="truncate min-w-0">View Details</span>
+            </button>
           )}
         </div>
       </div>
     </div>
+
+    {/* Product Details Sidebar */}
+    {isDetailsSidebarOpen && (
+      <>
+        {/* Overlay */}
+        <div 
+          className="fixed inset-0 bg-black/50 z-40"
+          onClick={handleCloseDetailsSidebar}
+        />
+        
+        {/* Sidebar */}
+        <div className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl bg-white dark:bg-gray-800 shadow-xl transform transition-transform duration-300 ease-in-out overflow-hidden">
+          <div className="flex h-full flex-col">
+            {/* Sidebar Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Product Details
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  {product.title}
+                </p>
+              </div>
+              <button
+                onClick={handleCloseDetailsSidebar}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                aria-label="Close sidebar"
+              >
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            {/* Sidebar Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Loading State */}
+              {isLoadingDetails && (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <svg
+                    className="animate-spin w-8 h-8 text-teal-600 dark:text-teal-400 mb-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+                  </svg>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Loading product details...</p>
+                </div>
+              )}
+
+              {/* Error State */}
+              {detailsError && !isLoadingDetails && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                  <p className="text-sm text-red-800 dark:text-red-400">{detailsError}</p>
+                </div>
+              )}
+
+              {/* Product Details Content */}
+              {!isLoadingDetails && !detailsError && productDetails && (
+                <>
+                  {/* Product Image */}
+                  {productDetails.image || productDetails.thumbnail || imageUrl ? (
+                    <div className="relative w-full aspect-square overflow-hidden bg-gray-100 dark:bg-gray-700 rounded-lg">
+                      <img
+                        src={productDetails.image || productDetails.thumbnail || imageUrl}
+                        alt={productDetails.title || product.title || 'Product image'}
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          if (!target.src.includes('data:image/svg+xml')) {
+                            setImageError(true);
+                          }
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="relative w-full aspect-square overflow-hidden bg-gray-100 dark:bg-gray-700 rounded-lg">
+                      <img
+                        src={imageUrl}
+                        alt={product.title || 'Product image'}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  )}
+
+                  {/* Render Product Details */}
+                  <div className="space-y-4">
+                    {Object.entries(productDetails).map(([key, value]) => {
+                      // Skip internal/technical keys
+                      if (key === 'image' || key === 'thumbnail' || key === '_id' || key === '__v') {
+                        return null;
+                      }
+
+                      // Skip if value is null, undefined, or empty
+                      if (value === null || value === undefined || value === '') {
+                        return null;
+                      }
+
+                      // Format the key for display
+                      const displayKey = key
+                        .replace(/_/g, ' ')
+                        .replace(/([A-Z])/g, ' $1')
+                        .split(' ')
+                        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                        .join(' ');
+
+                      return (
+                        <div key={key}>
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                            {displayKey}
+                          </h3>
+                          {Array.isArray(value) ? (
+                            <div className="space-y-2">
+                              {value.map((item: any, index: number) => (
+                                <div key={index} className="text-base text-gray-700 dark:text-gray-300">
+                                  {typeof item === 'object' ? JSON.stringify(item, null, 2) : String(item)}
+                                </div>
+                              ))}
+                            </div>
+                          ) : typeof value === 'object' ? (
+                            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                              <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                {JSON.stringify(value, null, 2)}
+                              </pre>
+                            </div>
+                          ) : (
+                            <p className="text-base text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                              {String(value)}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* Fallback: Show basic product info if no details fetched */}
+              {!isLoadingDetails && !detailsError && !productDetails && (
+                <>
+                  {/* Product Image */}
+                  <div className="relative w-full aspect-square overflow-hidden bg-gray-100 dark:bg-gray-700 rounded-lg">
+                    <img
+                      src={imageUrl}
+                      alt={product.title || 'Product image'}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+
+                  {/* Basic Information */}
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Basic Information</h3>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Title</label>
+                          <p className="text-base text-gray-900 dark:text-white mt-1">{product.title}</p>
+                        </div>
+                        {product.item && (
+                          <div>
+                            <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Item</label>
+                            <p className="text-base text-gray-900 dark:text-white mt-1">{product.item}</p>
+                          </div>
+                        )}
+                        <div>
+                          <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Category</label>
+                          <p className="text-base text-gray-900 dark:text-white mt-1">{product.product_category}</p>
+                        </div>
+                        {product.vendor && (
+                          <div>
+                            <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Vendor</label>
+                            <p className="text-base text-gray-900 dark:text-white mt-1">{product.vendor}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {product.description && (
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Description</h3>
+                        <p className="text-base text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{product.description}</p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Sidebar Footer */}
+            <div className="border-t border-gray-200 dark:border-gray-700 p-6">
+              <button
+                onClick={handleAddClick}
+                disabled={isLoading}
+                className="w-full bg-teal-600 hover:bg-teal-700 active:bg-teal-800 dark:bg-teal-500 dark:hover:bg-teal-600 dark:active:bg-teal-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-sm hover:shadow-md disabled:shadow-none"
+              >
+                {isLoading ? (
+                  <>
+                    <svg
+                      className="animate-spin w-5 h-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+                    </svg>
+                    <span>Loading...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="w-5 h-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>Add to list</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </>
+    )}
     </>
   );
 }

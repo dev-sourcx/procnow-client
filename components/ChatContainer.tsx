@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import MessageList from './MessageList';
 import InputBox from './InputBox';
@@ -35,8 +35,11 @@ interface ChatContainerProps {
   onSessionUpdate: () => void;
   onProductsUpdate?: (data: { products: Product[]; filters?: Record<string, string[]> }) => void;
   prefillText?: string;
-  setIsFilterOpen?: (isOpen: boolean) => void;
+  setIsFilterOpen?: (isOpen: boolean | ((prev: boolean) => boolean)) => void;
   setDiscoverFilterMeta?: (filters: Record<string, string[]>) => void;
+  discoverFilterMeta?: Record<string, string[]> | null;
+  discoverSelectedFilters?: Record<string, string[]>;
+  setDiscoverSelectedFilters?: (filters: Record<string, string[]>) => void;
 }
 
 export default function ChatContainer({
@@ -45,7 +48,10 @@ export default function ChatContainer({
   prefillText,
   onProductsUpdate,
   setIsFilterOpen,
-  setDiscoverFilterMeta
+  setDiscoverFilterMeta,
+  discoverFilterMeta,
+  discoverSelectedFilters = {},
+  setDiscoverSelectedFilters
 }: ChatContainerProps) {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -59,6 +65,98 @@ export default function ChatContainer({
   const isStreamingRef = useRef<boolean>(false); // Track if we're currently streaming
   const token = getAuthToken();
   const isAuthenticated = !!token;
+
+  // Filter values scroll state
+  const filterScrollContainerRef = useRef<HTMLDivElement>(null);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(true);
+
+  // Collect all filter values for horizontal display
+  const getAllFilterValues = () => {
+    if (!discoverFilterMeta) return [];
+    
+    const allFilters: Array<{ key: string; value: string }> = [];
+    
+    Object.entries(discoverFilterMeta).forEach(([filterKey, values]) => {
+      if (Array.isArray(values)) {
+        values.forEach((value) => {
+          allFilters.push({ key: filterKey, value });
+        });
+      }
+    });
+    
+    return allFilters;
+  };
+
+  // Check scroll position to show/hide arrows
+  const checkScrollPosition = useCallback(() => {
+    if (!filterScrollContainerRef.current) return;
+    
+    const container = filterScrollContainerRef.current;
+    const { scrollLeft, scrollWidth, clientWidth } = container;
+    
+    // Use a small threshold to account for rounding
+    const canScrollLeft = scrollLeft > 5;
+    const canScrollRight = scrollLeft < scrollWidth - clientWidth - 5;
+    
+    setShowLeftArrow(canScrollLeft);
+    setShowRightArrow(canScrollRight);
+  }, []);
+
+  useEffect(() => {
+    const container = filterScrollContainerRef.current;
+    if (container) {
+      // Initial check with a small delay to ensure dimensions are calculated
+      const timeoutId = setTimeout(() => {
+        checkScrollPosition();
+      }, 100);
+      
+      // Also check immediately
+      checkScrollPosition();
+      
+      container.addEventListener('scroll', checkScrollPosition, { passive: true });
+      window.addEventListener('resize', checkScrollPosition);
+      
+      return () => {
+        clearTimeout(timeoutId);
+        container.removeEventListener('scroll', checkScrollPosition);
+        window.removeEventListener('resize', checkScrollPosition);
+      };
+    }
+  }, [discoverFilterMeta, checkScrollPosition]);
+
+  const scrollLeft = () => {
+    if (filterScrollContainerRef.current) {
+      filterScrollContainerRef.current.scrollBy({ left: -200, behavior: 'smooth' });
+      // Check position after scroll animation
+      setTimeout(() => checkScrollPosition(), 300);
+    }
+  };
+
+  const scrollRight = () => {
+    if (filterScrollContainerRef.current) {
+      filterScrollContainerRef.current.scrollBy({ left: 200, behavior: 'smooth' });
+      // Check position after scroll animation
+      setTimeout(() => checkScrollPosition(), 300);
+    }
+  };
+
+  const toggleFilter = (filterKey: string, value: string) => {
+    if (!setDiscoverSelectedFilters) return;
+    
+    const currentValues = discoverSelectedFilters[filterKey] || [];
+    const exists = currentValues.includes(value);
+    const nextValues = exists 
+      ? currentValues.filter((f) => f !== value) 
+      : [...currentValues, value];
+    
+    const updated = {
+      ...discoverSelectedFilters,
+      [filterKey]: nextValues,
+    };
+    
+    setDiscoverSelectedFilters(updated);
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -531,29 +629,7 @@ export default function ChatContainer({
 
 
   return (
-    <div className="flex h-full h-[100vh-68.8px] w-full flex-col bg-white dark:bg-gray-800 shadow-lg overflow-hidden">
-      {/* AI Product Assistant Label */}
-      <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-        <div className="flex items-center gap-2">
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="text-teal-600 dark:text-teal-400"
-          >
-            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-            <path d="M2 17l10 5 10-5"></path>
-            <path d="M2 12l10 5 10-5"></path>
-          </svg>
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white">AI Product Assistant</h2>
-        </div>
-      </div>
-
+    <div className="flex h-full w-full flex-col bg-white dark:bg-gray-800 shadow-lg overflow-hidden">
       {/* Messages */}
       <div className="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-gray-800 px-6 py-4">
         {messages.length === 0 ? (
@@ -593,6 +669,89 @@ export default function ChatContainer({
           </>
         )}
       </div>
+
+      {/* Horizontal Filter Values Section */}
+      {discoverFilterMeta && Object.keys(discoverFilterMeta).length > 0 && (
+        <div className="relative border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+          {/* Left Arrow */}
+          {showLeftArrow && (
+            <button
+              type="button"
+              onClick={scrollLeft}
+              className="absolute left-0 top-0 bottom-0 z-10 px-2 bg-gradient-to-r from-gray-50 to-transparent dark:from-gray-800/50 dark:to-transparent hover:from-gray-100 dark:hover:from-gray-700 flex items-center justify-center"
+              aria-label="Scroll left"
+            >
+              <svg
+                className="w-5 h-5 text-gray-600 dark:text-gray-300"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+          )}
+
+          {/* Scrollable Filter Values */}
+          <div
+            ref={filterScrollContainerRef}
+            className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-hide"
+          >
+            {getAllFilterValues().map((filter, index) => {
+              const filterKey = filter.key;
+              // Normalize key to match how vertical sections handle it
+              let finalKey = filterKey;
+              if (filterKey === 'categories' || filterKey === 'category') {
+                finalKey = discoverFilterMeta.categories ? 'categories' : 'category';
+              } else if (filterKey === 'price' || filterKey === 'prices') {
+                finalKey = discoverFilterMeta.price ? 'price' : 'prices';
+              }
+              
+              const isSelected = (discoverSelectedFilters[finalKey] || []).includes(filter.value);
+              
+              return (
+                <button
+                  key={`${filterKey}-${filter.value}-${index}`}
+                  type="button"
+                  onClick={() => toggleFilter(finalKey, filter.value)}
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
+                    isSelected
+                      ? 'bg-teal-600 text-white shadow-sm'
+                      : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
+                  }`}
+                >
+                  {filter.value}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right Arrow */}
+          {showRightArrow && (
+            <button
+              type="button"
+              onClick={scrollRight}
+              className="absolute right-0 top-0 bottom-0 z-10 px-2 bg-gradient-to-l from-gray-50 to-transparent dark:from-gray-800/50 dark:to-transparent hover:from-gray-100 dark:hover:from-gray-700 flex items-center justify-center"
+              aria-label="Scroll right"
+            >
+              <svg
+                className="w-5 h-5 text-gray-600 dark:text-gray-300"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Input */}
       <InputBox onSendMessage={handleSendMessage} isLoading={isLoading} prefill={prefillText} />

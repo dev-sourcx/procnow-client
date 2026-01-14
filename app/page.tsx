@@ -203,12 +203,35 @@ export default function Home() {
         setCurrentSessionId(null);
       }
     };
+    const handleNewChatStarted = () => {
+      // Clear current session when new chat is started
+      setCurrentSessionId(null);
+      // Clear filters and products
+      setDiscoverFilterMeta(null);
+      setDiscoverSelectedFilters({});
+      setDiscoverProducts([]);
+    };
+    const handleToggleFilters = () => {
+      // Toggle filter sidebar when event is dispatched from layout
+      setIsFilterOpen((prev) => !prev);
+    };
     window.addEventListener("chatSessionSelected", handleSessionSelected as EventListener);
     window.addEventListener("chatSessionDeleted", handleSessionDeleted as EventListener);
+    window.addEventListener("newChatStarted", handleNewChatStarted as EventListener);
+    window.addEventListener("toggleFilters", handleToggleFilters as EventListener);
     return () => {
       window.removeEventListener("chatSessionSelected", handleSessionSelected as EventListener);
       window.removeEventListener("chatSessionDeleted", handleSessionDeleted as EventListener);
+      window.removeEventListener("newChatStarted", handleNewChatStarted as EventListener);
+      window.removeEventListener("toggleFilters", handleToggleFilters as EventListener);
     };
+  }, [currentSessionId]);
+
+  // Clear filters when session changes
+  useEffect(() => {
+    setDiscoverFilterMeta(null);
+    setDiscoverSelectedFilters({});
+    setDiscoverProducts([]);
   }, [currentSessionId]);
 
   const handleSessionSelect = (sessionId: string) => {
@@ -673,649 +696,75 @@ export default function Home() {
 
   return (
     <>
-      {/* Main Title Section */}
-      <div>
-        <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700">
-          <div className="px-6 py-4 flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-                Product Discovery
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400 text-sm">
-                Find and specify products for your enquiry.
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              {/* Tab Switch Buttons */}
-              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
-                <button
-                  onClick={() => setActiveMode("discover")}
-                  className={`relative px-4 py-2 font-medium flex items-center gap-2 transition-all rounded-md ${
-                    activeMode === "discover"
-                      ? "bg-teal-600 dark:bg-teal-600 text-white shadow-sm"
-                      : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-                  }`}
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-                    <path d="M2 17l10 5 10-5"></path>
-                    <path d="M2 12l10 5 10-5"></path>
-                  </svg>
-                  Discover
-                </button>
-                <button
-                  onClick={() => setActiveMode("specify")}
-                  className={`relative px-4 py-2 font-medium flex items-center gap-2 transition-all rounded-md ${
-                    activeMode === "specify"
-                      ? "bg-teal-600 dark:bg-teal-600 text-white shadow-sm"
-                      : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-                  }`}
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <path d="m21 21-4.35-4.35"></path>
-                  </svg>
-                  Specify
-                </button>
-              </div>
-
-              {/* Discover Filters Toggle */}
-              {activeMode === "discover" && (
-                <button
-                  type="button"
-                  onClick={() => setIsFilterOpen((prev) => !prev)}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polygon points="3 4 21 4 14 12 14 19 10 21 10 12 3 4" />
-                  </svg>
-                  <span>Filters</span>
-                </button>
-              )}
-            </div>
-          </div>
+      {/* Chat Container + Discover Filters */}
+      <div className="flex-1 flex overflow-hidden bg-gray-50 dark:bg-gray-900 h-[calc(100vh-68.8px)]">
+        {/* Chat Container */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <ChatContainer
+            currentSessionId={currentSessionId}
+            onSessionUpdate={() => {
+              // Defer state updates to avoid setState during render
+              setTimeout(async () => {
+                const token = getAuthToken();
+                if (token) {
+                  try {
+                    // Reload sessions from backend
+                    const backendSessions = await getChatSessions(token);
+                    const convertedSessions: ChatSession[] =
+                      backendSessions.map((s) => ({
+                        id: s._id,
+                        title: s.title,
+                        createdAt: new Date(s.createdAt).getTime(),
+                        updatedAt: new Date(s.updatedAt).getTime(),
+                      }));
+                    setSessions(convertedSessions);
+                  } catch (error) {
+                    console.error(
+                      "Error reloading sessions from backend:",
+                      error
+                    );
+                    setSessions([]);
+                  }
+                } else {
+                  // Reload guest session from localStorage
+                  const guestSession = getGuestSession();
+                  if (guestSession) {
+                    setSessions([guestSession]);
+                    setCurrentSessionId((prevId) => {
+                      // Only update if not already set to avoid unnecessary re-renders
+                      return prevId || guestSession.id;
+                    });
+                  } else {
+                    setSessions([]);
+                  }
+                }
+              }, 0);
+            }}
+            onProductsUpdate={handleDiscoverProductsUpdate}
+            prefillText={getSelectedFiltersAsString()}
+            setIsFilterOpen={setIsFilterOpen}
+            setDiscoverFilterMeta={setDiscoverFilterMeta}
+            discoverFilterMeta={discoverFilterMeta}
+            discoverSelectedFilters={discoverSelectedFilters}
+            setDiscoverSelectedFilters={setDiscoverSelectedFilters}
+          />
         </div>
 
-        {/* Chat Container + Discover Filters */}
-        {activeMode === "discover" && (
-          <div className="flex-1 flex overflow-hidden bg-gray-50 dark:bg-gray-900 h-[calc(100vh-158px)]">
-            {/* Chat Container */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-              <ChatContainer
-                currentSessionId={currentSessionId}
-                onSessionUpdate={() => {
-                  // Defer state updates to avoid setState during render
-                  setTimeout(async () => {
-                    const token = getAuthToken();
-                    if (token) {
-                      try {
-                        // Reload sessions from backend
-                        const backendSessions = await getChatSessions(token);
-                        const convertedSessions: ChatSession[] =
-                          backendSessions.map((s) => ({
-                            id: s._id,
-                            title: s.title,
-                            createdAt: new Date(s.createdAt).getTime(),
-                            updatedAt: new Date(s.updatedAt).getTime(),
-                          }));
-                        setSessions(convertedSessions);
-                      } catch (error) {
-                        console.error(
-                          "Error reloading sessions from backend:",
-                          error
-                        );
-                        setSessions([]);
-                      }
-                    } else {
-                      // Reload guest session from localStorage
-                      const guestSession = getGuestSession();
-                      if (guestSession) {
-                        setSessions([guestSession]);
-                        setCurrentSessionId((prevId) => {
-                          // Only update if not already set to avoid unnecessary re-renders
-                          return prevId || guestSession.id;
-                        });
-                      } else {
-                        setSessions([]);
-                      }
-                    }
-                  }, 0);
-                }}
-                onProductsUpdate={handleDiscoverProductsUpdate}
-                prefillText={getSelectedFiltersAsString()}
-                setIsFilterOpen={setIsFilterOpen}
-                setDiscoverFilterMeta={setDiscoverFilterMeta}
-              />
-            </div>
-
-            {/* Right-side Filter Sidebar (desktop) */}
-            <div
-              className={`hidden md:block h-full overflow-hidden transition-all duration-300 ease-in-out ${
-                isFilterOpen ? "w-80" : "w-0"
-              }`}
-            >
-              <div className="h-full w-80">
-                <DiscoverFilters
-                  onClose={() => setIsFilterOpen(false)}
-                  discoverFilterMeta={discoverFilterMeta}
-                  onSelectionChange={setDiscoverSelectedFilters}
-                />
-              </div>
-            </div>
+        {/* Right-side Filter Sidebar (desktop) */}
+        <div
+          className={`hidden md:block h-full overflow-hidden transition-all duration-300 ease-in-out ${
+            isFilterOpen ? "w-64" : "w-0"
+          }`}
+        >
+          <div className="h-full w-64">
+            <DiscoverFilters
+              key={currentSessionId || 'new-chat'}
+              onClose={() => setIsFilterOpen(false)}
+              discoverFilterMeta={discoverFilterMeta}
+              onSelectionChange={setDiscoverSelectedFilters}
+            />
           </div>
-        )}
-
-        {/* Brief/Specify Content */}
-        {activeMode === "specify" && (
-          <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
-            <div className="w-full">
-              <>
-                {/* Item Enquiry Input Card */}
-                <div className="bg-white dark:bg-gray-700 shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="text-gray-400"
-                    >
-                      <circle cx="11" cy="11" r="8"></circle>
-                      <path d="m21 21-4.35-4.35"></path>
-                    </svg>
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      Q What item do you need?
-                    </h2>
-                  </div>
-
-                  <div className="flex gap-3 mb-3">
-                    <input
-                      type="text"
-                      value={itemInput}
-                      onChange={(e) => setItemInput(e.target.value)}
-                      placeholder="Enter item name (e.g., Laptop, Office Chair, Smartphone...)"
-                      className="flex-1 px-4 py-3 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
-                    />
-                    <button
-                      onClick={handleGenerateWithAI}
-                      disabled={isLoading || !itemInput.trim()}
-                      className="px-6 py-3 bg-gradient-to-r from-blue-600 to-green-500 hover:from-blue-700 hover:to-green-600 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white rounded-lg font-medium flex items-center gap-2 transition-all shadow-sm hover:shadow-md"
-                    >
-                      {isLoading ? (
-                        <>
-                          <svg
-                            className="animate-spin"
-                            width="18"
-                            height="18"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
-                          </svg>
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            width="18"
-                            height="18"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M12 2L14.09 8.26L20 9.27L15 13.14L16.18 19.02L12 15.77L7.82 19.02L9 13.14L4 9.27L9.91 8.26L12 2Z"></path>
-                          </svg>
-                          Generate with AI
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  <p className="text-sm text-gray-400 dark:text-gray-500">
-                    Our AI will automatically identify the key specifications
-                    needed for your item.
-                  </p>
-                </div>
-
-                {/* Generated Fields Form */}
-                {generatedFields && (
-                  <div className="bg-white dark:bg-gray-700 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-                    <div className="flex items-center justify-between mb-6">
-                      <div>
-                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                          {generatedFields.item}
-                        </h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                          Fill in the specifications below
-                        </p>
-                      </div>
-                      <button
-                        onClick={handleClearForm}
-                        className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                      >
-                        Clear
-                      </button>
-                    </div>
-
-                    {error && (
-                      <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                        <p className="text-sm text-red-700 dark:text-red-400">
-                          {error}
-                        </p>
-                      </div>
-                    )}
-
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                      {/* Image URL Field */}
-                      <div className="space-y-2">
-                        <label className="block text-sm font-medium text-gray-800 dark:text-gray-200">
-                          Product Image URL (Optional)
-                        </label>
-                        <input
-                          type="url"
-                          value={imageUrl}
-                          onChange={(e) => setImageUrl(e.target.value)}
-                          placeholder="https://example.com/image.jpg"
-                          className="w-full px-3 py-2 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
-                        />
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          Enter a URL to an image of the product
-                        </p>
-                      </div>
-
-                      {/* Add Custom Field Button */}
-                      <div className="flex items-center justify-end mb-4">
-                        <button
-                          type="button"
-                          onClick={() => setIsAddFieldModalOpen(true)}
-                          className="px-4 py-2 text-sm font-medium text-blue-400 bg-blue-600/20 hover:bg-blue-600/30 rounded-lg transition-colors flex items-center gap-2"
-                        >
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                          </svg>
-                          Add Custom Field
-                        </button>
-                      </div>
-
-                      {/* Fields Grid - Simplified version, full implementation would include all field types */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {generatedFields.fields.map((field, index) => (
-                          <div key={index} className="space-y-2">
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                              {field.label}
-                            </label>
-                            {field.type === "dropdown" && field.options ? (
-                              <CreatableSelect
-                                value={
-                                  (formData[field.label] as string[]) || []
-                                }
-                                onChange={(value) =>
-                                  handleInputChange(field.label, value)
-                                }
-                                options={field.options}
-                                placeholder={`Search or add ${field.label.toLowerCase()}`}
-                                required
-                                className="w-full"
-                              />
-                            ) : field.type === "textarea" ? (
-                              <textarea
-                                value={(formData[field.label] as string) || ""}
-                                onChange={(e) =>
-                                  handleInputChange(field.label, e.target.value)
-                                }
-                                placeholder={field.placeholder}
-                                rows={3}
-                                className="w-full px-3 py-2.5 min-h-[110px] text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 resize-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
-                                required
-                              />
-                            ) : field.type === "number" ? (
-                              <input
-                                type="number"
-                                value={(formData[field.label] as number) || ""}
-                                onChange={(e) =>
-                                  handleInputChange(
-                                    field.label,
-                                    parseFloat(e.target.value) || 0
-                                  )
-                                }
-                                placeholder={field.placeholder}
-                                className="w-full h-11 px-3 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
-                                required
-                              />
-                            ) : field.type === "file" ? (
-                              <div className="space-y-2">
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0] || null;
-                                    handleFileChange(field.label, file);
-                                  }}
-                                  className="w-full h-11 px-3 py-2 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 file:mr-3 file:h-full file:px-3 file:py-0 file:rounded-md file:border file:border-gray-300 dark:file:border-gray-600 file:bg-white dark:file:bg-gray-700 file:text-gray-800 dark:file:text-gray-100 file:text-sm file:font-medium file:leading-normal hover:file:bg-gray-50 dark:hover:file:bg-gray-600 file:cursor-pointer"
-                                />
-                                {formData[field.label] instanceof File && (
-                                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
-                                    <svg
-                                      width="16"
-                                      height="16"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                      <polyline points="17 8 12 3 7 8"></polyline>
-                                      <line
-                                        x1="12"
-                                        y1="3"
-                                        x2="12"
-                                        y2="15"
-                                      ></line>
-                                    </svg>
-                                    <span className="truncate">
-                                      {formData[field.label] instanceof File
-                                        ? (formData[field.label] as File).name
-                                        : ""}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleFileChange(field.label, null)
-                                      }
-                                      className="ml-auto text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
-                                    >
-                                      <svg
-                                        width="14"
-                                        height="14"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                      >
-                                        <line
-                                          x1="18"
-                                          y1="6"
-                                          x2="6"
-                                          y2="18"
-                                        ></line>
-                                        <line
-                                          x1="6"
-                                          y1="6"
-                                          x2="18"
-                                          y2="18"
-                                        ></line>
-                                      </svg>
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <input
-                                type="text"
-                                value={(formData[field.label] as string) || ""}
-                                onChange={(e) =>
-                                  handleInputChange(field.label, e.target.value)
-                                }
-                                placeholder={field.placeholder}
-                                className="w-full h-11 px-3 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-gray-100/10 focus:border-gray-300 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
-                                required
-                              />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <button
-                          type="button"
-                          onClick={handleClearForm}
-                          className="px-4 py-2 text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={isSubmitting}
-                          className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center gap-2 font-medium"
-                        >
-                          {isSubmitting ? (
-                            <>
-                              <svg
-                                className="animate-spin"
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
-                              </svg>
-                              Saving...
-                            </>
-                          ) : (
-                            "Save Product"
-                          )}
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                )}
-
-                {/* Added Products Section */}
-                {products.length > 0 && (
-                  <div className="bg-white dark:bg-gray-700 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mt-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        Added Products ({products.length} item
-                        {products.length !== 1 ? "s" : ""})
-                      </h3>
-                      <button
-                        onClick={() => router.push("/product-sheet")}
-                        className="px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg font-medium transition-colors"
-                      >
-                        View All
-                      </button>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left">
-                        <thead>
-                          <tr className="border-b border-gray-200 dark:border-gray-700">
-                            <th className="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                              Product Name
-                            </th>
-                            <th className="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                              Category
-                            </th>
-                            <th className="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                              Key Specifications
-                            </th>
-                            <th className="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                              Added
-                            </th>
-                            <th className="py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                              Actions
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {products.map((product) => (
-                            <tr
-                              key={product.id}
-                              className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                            >
-                              <td className="py-4 px-4">
-                                <div className="flex items-center gap-3">
-                                  {product.image_link ? (
-                                    <img
-                                      src={product.image_link}
-                                      alt={product.name}
-                                      className="w-12 h-12 object-cover rounded-lg flex-shrink-0"
-                                      onError={(e) => {
-                                        (e.target as HTMLImageElement).src =
-                                          "/placeholder-product.jpg";
-                                      }}
-                                    />
-                                  ) : (
-                                    <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center flex-shrink-0">
-                                      <svg
-                                        width="20"
-                                        height="20"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        className="text-gray-500 dark:text-gray-400"
-                                      >
-                                        <rect
-                                          x="3"
-                                          y="3"
-                                          width="18"
-                                          height="18"
-                                          rx="2"
-                                          ry="2"
-                                        ></rect>
-                                        <circle
-                                          cx="8.5"
-                                          cy="8.5"
-                                          r="1.5"
-                                        ></circle>
-                                        <polyline points="21 15 16 10 5 21"></polyline>
-                                      </svg>
-                                    </div>
-                                  )}
-                                  <span className="text-sm text-gray-900 dark:text-white font-medium">
-                                    {product.name}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="py-4 px-4">
-                                <span className="inline-block px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full">
-                                  {product.category}
-                                </span>
-                              </td>
-                              <td className="py-4 px-4">
-                                <div className="flex flex-wrap gap-2">
-                                  {product.specifications
-                                    .slice(0, 3)
-                                    .map((spec, index) => (
-                                      <span
-                                        key={index}
-                                        className="inline-block px-3 py-1 bg-gray-800 dark:bg-gray-700 text-gray-300 dark:text-gray-400 text-xs font-medium rounded-full"
-                                      >
-                                        {spec}
-                                      </span>
-                                    ))}
-                                  {product.specifications.length > 3 && (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        openSpecModal(
-                                          product.specifications,
-                                          product.name
-                                        )
-                                      }
-                                      className="inline-block px-3 py-1 bg-gray-800 dark:bg-gray-700 text-gray-400 dark:text-gray-500 text-xs font-medium rounded-full hover:text-white dark:hover:text-gray-300 transition-colors"
-                                    >
-                                      +{product.specifications.length - 3} more
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="py-4 px-4 text-sm text-gray-400 dark:text-gray-500">
-                                {product.addedDate}
-                              </td>
-                              <td className="py-4 px-4">
-                                <button
-                                  onClick={() =>
-                                    handleDeleteProduct(product.id)
-                                  }
-                                  className="p-2 hover:bg-red-600/20 rounded-lg transition-colors text-red-400"
-                                  aria-label="Delete product"
-                                >
-                                  <svg
-                                    width="18"
-                                    height="18"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  >
-                                    <polyline points="3 6 5 6 21 6"></polyline>
-                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                  </svg>
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Modals */}
