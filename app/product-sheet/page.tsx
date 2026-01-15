@@ -8,6 +8,16 @@ import { getAuthToken } from '@/lib/storage';
 import CreatableSelect from '@/components/CreatableSelect';
 import { showToast } from '@/lib/toast';
 
+// Standard units for dropdown
+const STANDARD_UNITS = [
+  'pcs', 'kg', 'g', 'mg', 'ton', 'lb', 'oz',
+  'm', 'cm', 'mm', 'km', 'ft', 'in', 'yd',
+  'L', 'mL', 'gal', 'fl oz',
+  'm²', 'cm²', 'ft²', 'in²',
+  'm³', 'cm³', 'ft³', 'in³',
+  'box', 'pack', 'set', 'pair', 'dozen', 'roll', 'sheet', 'unit'
+];
+
 interface BriefProduct {
   id: string;
   name: string;
@@ -79,6 +89,8 @@ export default function ProductSheetPage() {
   const [productDetails, setProductDetails] = useState<Record<string, { quantity: number; targetPrice: number; unit: string }>>({});
   // Track which product details are expanded (collapsible)
   const [expandedProductDetails, setExpandedProductDetails] = useState<Set<string>>(new Set());
+  // Custom product rows (for manual entry)
+  const [customProductRows, setCustomProductRows] = useState<Array<{ id: string; name: string; quantity: number; unit: string; targetPrice: number }>>([]);
 
   // Product selection for enquiry
   const [productSheetItems, setProductSheetItems] = useState<ProductSheetItem[]>([]);
@@ -266,6 +278,26 @@ export default function ProductSheetPage() {
       }
       return { productId };
     });
+  };
+
+  // Helper function to combine selected products and custom products for enquiry
+  const getAllEnquiryProducts = (): any => {
+    const selectedProducts = newEnquirySelectedProductIds.length > 0 
+      ? mapProductIdsToEnquiryProducts(newEnquirySelectedProductIds) 
+      : [];
+    
+    const customProducts = customProductRows
+      .filter((row) => row.name.trim()) // Only include rows with a name
+      .map((row) => ({
+        name: row.name.trim(),
+        quantity: row.quantity > 0 ? row.quantity : undefined,
+        targetPrice: row.targetPrice > 0 ? row.targetPrice : undefined,
+        unit: row.unit.trim() || undefined,
+      }));
+
+    // Combine both arrays - handle both string[] and object[] cases
+    const selectedArray = Array.isArray(selectedProducts) ? selectedProducts : [];
+    return [...selectedArray, ...customProducts] as Array<string | { productId?: string; name?: string; quantity?: number; targetPrice?: number; unit?: string }>;
   };
 
   // Inline product generation handlers (AI in sidebar)
@@ -676,6 +708,34 @@ export default function ProductSheetPage() {
     setIsNewEnquiryProductModalOpen(false);
   };
 
+  // Handler to add 5 empty custom product rows
+  const handleAddCustomRows = () => {
+    const newRows = Array.from({ length: 5 }, (_, index) => ({
+      id: `custom_${Date.now()}_${index}`,
+      name: '',
+      quantity: 0,
+      unit: '',
+      targetPrice: 0,
+    }));
+    setCustomProductRows((prev) => [...prev, ...newRows]);
+  };
+
+  // Handler to update custom product row
+  const handleCustomProductChange = (rowId: string, field: 'name' | 'quantity' | 'unit' | 'targetPrice', value: string | number) => {
+    setCustomProductRows((prev) =>
+      prev.map((row) =>
+        row.id === rowId
+          ? { ...row, [field]: value }
+          : row
+      )
+    );
+  };
+
+  // Handler to remove custom product row
+  const handleRemoveCustomRow = (rowId: string) => {
+    setCustomProductRows((prev) => prev.filter((row) => row.id !== rowId));
+  };
+
   const handleCloseGenerateProductModal = () => {
     setIsGenerateProductModalOpen(false);
     setProductKeyword('');
@@ -846,12 +906,7 @@ export default function ProductSheetPage() {
         enquiryStatus,
         enquiryNotes: enquiryNotes || undefined,
         attachment: enquiryAttachmentUrl || undefined,
-        enquiryProducts:
-          newEnquirySelectedProductIds.length > 0
-            ? (mapProductIdsToEnquiryProducts(
-                newEnquirySelectedProductIds
-              ) as string[] | { productId: string; quantity?: number; targetPrice?: number; unit?: string }[])
-            : [],
+        enquiryProducts: getAllEnquiryProducts(),
       });
 
       await loadEnquiryCount();
@@ -1499,7 +1554,7 @@ export default function ProductSheetPage() {
           <div className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl bg-white dark:bg-gray-800 shadow-xl transform transition-transform duration-300 ease-in-out">
             <div className="flex h-full flex-col">
               {/* Sidebar Header */}
-              <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                     Create new enquiry
@@ -1531,28 +1586,30 @@ export default function ProductSheetPage() {
 
               {/* Sidebar Body */}
               <div className="flex-1 overflow-y-auto">
-                <form onSubmit={handleSaveNewEnquiry} className="p-6 space-y-6">
-                  {/* Enquiry Details */}
+                <form onSubmit={handleSaveNewEnquiry} className="px-6 py-4 space-y-6">
+                  {/* Enquiry Details Section */}
                   <div className="space-y-4">
-                    <div className="flex items-center gap-5">
-                      <div className="w-1/2">
-                        <label className="block text-sm font-medium text-gray-300 mb-1">
+
+                    <div className='flex items-center gap-5'>
+                      <div className='w-1/2'>
+                        <label className="block font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Enquiry Name <span className="text-red-500 dark:text-red-400">*</span>
                         </label>
                         <input
                           type="text"
                           value={enquiryName}
                           onChange={(e) => setEnquiryName(e.target.value)}
-                          placeholder="e.g., Office Furniture Order Q1"
-                          className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                              placeholder="e.g., Office Furniture Order Q1"
+                              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                           autoFocus
                           required
                         />
                       </div>
+                      {/* Expected Delivery Date Section */}
                       <div className="w-1/2">
                         <div className="flex items-center gap-2 mb-1">
-                          <label className="block text-sm font-medium text-gray-300">
-                            Expected Delivery Date <span className="text-red-400">*</span>
+                          <label className="block font-medium text-gray-700 dark:text-gray-300">
+                            Expected Delivery Date <span className="text-red-500 dark:text-red-400">*</span>
                           </label>
                         </div>
                         <div className="relative">
@@ -1560,175 +1617,190 @@ export default function ProductSheetPage() {
                             type="date"
                             value={expectedDeliveryDate}
                             onChange={(e) => setExpectedDeliveryDate(e.target.value)}
-                            className="w-full rounded-lg border border-gray-600 bg-[#343541] px-3 py-2 pr-10 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                             placeholder="dd-mm-yyyy"
                             required
                           />
-                          <svg
-                            width="18"
-                            height="18"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
-                          >
-                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                            <line x1="16" y1="2" x2="16" y2="6"></line>
-                            <line x1="8" y1="2" x2="8" y2="6"></line>
-                            <line x1="3" y1="10" x2="21" y2="10"></line>
-                          </svg>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Shipping Address Section */}
-                  <div className="space-y-4 pt-4 border-t border-gray-600">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <svg
-                          width="20"
-                          height="20"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="text-gray-300"
-                        >
-                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                          <circle cx="12" cy="10" r="3"></circle>
-                        </svg>
-                        <h3 className="text-lg font-semibold text-white">Shipping Address</h3>
+                  {/* Addresses Section */}
+                  <div className="space-y-4 pt-2 border-t border-gray-200 dark:border-gray-600">
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Shipping Address Input */}
+                      <div>
+                        <div className='flex justify-between'>
+                          <label className="block font-medium text-gray-700 dark:text-gray-300 mb-2 self-end">
+                            Shipping Address <span className="text-red-400">*</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setIsShippingAddressModalOpen(true)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm mb-2 font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                          >
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <line x1="12" y1="5" x2="12" y2="19"></line>
+                              <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            Add
+                          </button>
+                        </div>
+                        {selectedShippingAddressIndex !== null && buyerProfile?.shippingAddress?.[selectedShippingAddressIndex] && !useNewShippingAddress ? (
+                          <div className="w-full px-4 py-2.5 min-h-[42px] text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg flex items-center justify-between">
+                            <div className="flex-1">
+                              <p className="text-sm">
+                                {formatAddressAsString(buyerProfile.shippingAddress[selectedShippingAddressIndex])}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedShippingAddressIndex(null);
+                                setUseNewShippingAddress(true);
+                              }}
+                              className="ml-2 p-1 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                              aria-label="Remove address"
+                            >
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                              </svg>
+                            </button>
+                          </div>
+                        ) : (
+                          <input
+                            type="text"
+                            value={getShippingAddressString()}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setShippingAddress({
+                                addressLine1: value,
+                                addressLine2: '',
+                                city: '',
+                                state: '',
+                                zipCode: '',
+                                country: '',
+                                phone: '',
+                                email: '',
+                              });
+                              setUseNewShippingAddress(true);
+                              setSelectedShippingAddressIndex(null);
+                            }}
+                            placeholder="Enter full shipping address"
+                            required
+                            className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
+                          />
+                        )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsShippingAddressModalOpen(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-teal-400 hover:text-teal-300 bg-[#343541] border border-gray-600 hover:bg-[#4A4B5A] rounded-lg transition-colors"
-                      >
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <line x1="12" y1="5" x2="12" y2="19"></line>
-                          <line x1="5" y1="12" x2="19" y2="12"></line>
-                        </svg>
-                        Add
-                      </button>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Shipping Address <span className="text-red-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={getShippingAddressString()}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setShippingAddress({
-                            addressLine1: value,
-                            addressLine2: '',
-                            city: '',
-                            state: '',
-                            zipCode: '',
-                            country: '',
-                            phone: '',
-                            email: '',
-                          });
-                          setUseNewShippingAddress(true);
-                          setSelectedShippingAddressIndex(null);
-                        }}
-                        placeholder="Enter full shipping address"
-                        required
-                        className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Billing Address Section */}
-                  <div className="space-y-4 pt-4 border-t border-gray-600">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <svg
-                          width="20"
-                          height="20"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="text-gray-300"
-                        >
-                          <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-                          <line x1="1" y1="10" x2="23" y2="10"></line>
-                        </svg>
-                        <h3 className="text-lg font-semibold text-white">Billing Address</h3>
+                      
+                      {/* Billing Address Input */}
+                      <div>
+                        <div className='flex justify-between'>
+                          <label className="block font-medium text-gray-700 dark:text-gray-300 mb-2 self-end">
+                            Billing Address <span className="text-red-400">*</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setIsBillingAddressModalOpen(true)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm mb-2 font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                          >
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <line x1="12" y1="5" x2="12" y2="19"></line>
+                              <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            Add
+                          </button>
+                        </div>
+                        {selectedBillingAddressIndex !== null && buyerProfile?.billingAddress?.[selectedBillingAddressIndex] && !useNewBillingAddress ? (
+                          <div className="w-full px-4 py-2.5 min-h-[42px] text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg flex items-center justify-between">
+                            <div className="flex-1">
+                              <p className="text-sm">
+                                {formatAddressAsString(buyerProfile.billingAddress[selectedBillingAddressIndex])}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedBillingAddressIndex(null);
+                                setUseNewBillingAddress(true);
+                              }}
+                              className="ml-2 p-1 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                              aria-label="Remove address"
+                            >
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                              </svg>
+                            </button>
+                          </div>
+                        ) : (
+                          <input
+                            type="text"
+                            value={getBillingAddressString()}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setBillingAddress({
+                                addressLine1: value,
+                                addressLine2: '',
+                                city: '',
+                                state: '',
+                                zipCode: '',
+                                country: '',
+                                phone: '',
+                                email: '',
+                              });
+                              setUseNewBillingAddress(true);
+                              setSelectedBillingAddressIndex(null);
+                            }}
+                            placeholder="Enter full billing address"
+                            required
+                            className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
+                          />
+                        )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsBillingAddressModalOpen(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-teal-400 hover:text-teal-300 bg-[#343541] border border-gray-600 hover:bg-[#4A4B5A] rounded-lg transition-colors"
-                      >
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <line x1="12" y1="5" x2="12" y2="19"></line>
-                          <line x1="5" y1="12" x2="19" y2="12"></line>
-                        </svg>
-                        Add
-                      </button>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Billing Address <span className="text-red-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={getBillingAddressString()}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setBillingAddress({
-                            addressLine1: value,
-                            addressLine2: '',
-                            city: '',
-                            state: '',
-                            zipCode: '',
-                            country: '',
-                            phone: '',
-                            email: '',
-                          });
-                          setUseNewBillingAddress(true);
-                          setSelectedBillingAddressIndex(null);
-                        }}
-                        placeholder="Enter full billing address"
-                        required
-                        className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                      />
                     </div>
                   </div>
 
                   {/* Products Section */}
-                  <div className="space-y-4 pt-4 border-t border-gray-600">
+                  <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-600">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
                         <svg
@@ -1740,14 +1812,14 @@ export default function ProductSheetPage() {
                           strokeWidth="2"
                           strokeLinecap="round"
                           strokeLinejoin="round"
-                          className="text-gray-300"
+                          className="text-gray-600 dark:text-gray-300"
                         >
                           <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                           <line x1="3" y1="9" x2="21" y2="9"></line>
                           <line x1="9" y1="21" x2="9" y2="9"></line>
                         </svg>
-                        <h3 className="text-lg font-semibold text-white">
-                          Products ({newEnquirySelectedProductIds.length})
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          Products ({newEnquirySelectedProductIds.length + customProductRows.length})
                         </h3>
                       </div>
                       <div className="flex gap-2">
@@ -1756,7 +1828,7 @@ export default function ProductSheetPage() {
                           onClick={() => {
                             setIsNewEnquiryProductModalOpen(true);
                           }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-300 bg-[#343541] border border-gray-600 hover:bg-[#4A4B5A] rounded-lg transition-colors"
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
                         >
                           <svg
                             width="16"
@@ -1777,12 +1849,32 @@ export default function ProductSheetPage() {
                           </svg>
                           Select
                         </button>
+                        <button
+                          type="button"
+                          onClick={handleAddCustomRows}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                          </svg>
+                          Add
+                        </button>
                       </div>
                     </div>
 
                     {/* Inline Product Generation Field */}
-                    <div className="space-y-3 p-3 bg-[#343541] rounded-lg border border-gray-600">
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <div className="space-y-3 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Generate Product with AI
                       </label>
                       {!inlineGeneratedFields ? (
@@ -1792,7 +1884,7 @@ export default function ProductSheetPage() {
                             value={inlineProductKeyword}
                             onChange={(e) => setInlineProductKeyword(e.target.value)}
                             placeholder="e.g., laptop, office chair, printer"
-                            className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                            className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                             onKeyPress={(e) => {
                               if (e.key === 'Enter' && !isGeneratingInline) {
                                 handleInlineGenerateProduct();
@@ -1804,7 +1896,7 @@ export default function ProductSheetPage() {
                             type="button"
                             onClick={handleInlineGenerateProduct}
                             disabled={isGeneratingInline || !inlineProductKeyword.trim()}
-                            className="px-4 py-2 bg-teal-500 hover:bg-teal-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center"
+                            className="px-4 py-2 bg-teal-600 dark:bg-teal-600 hover:bg-teal-700 dark:hover:bg-teal-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center"
                           >
                             {isGeneratingInline ? (
                               <svg
@@ -1838,10 +1930,10 @@ export default function ProductSheetPage() {
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
                             <div>
-                              <h4 className="text-sm font-semibold text-white">
+                              <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
                                 {inlineGeneratedFields.item}
                               </h4>
-                              <p className="text-xs text-gray-400 mt-0.5">AI Generated</p>
+                              <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">AI Generated</p>
                             </div>
                             <button
                               type="button"
@@ -1850,27 +1942,24 @@ export default function ProductSheetPage() {
                                 setInlineSpecFormData({});
                                 setInlineProductKeyword('');
                               }}
-                              className="text-xs text-gray-400 hover:text-gray-300"
+                              className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300"
                             >
                               Cancel
                             </button>
                           </div>
 
+                          {/* Generated Fields */}
                           <div className="space-y-3 max-h-64 overflow-y-auto">
                             {inlineGeneratedFields.fields.map((field, index) => (
                               <div key={index} className="space-y-1">
-                                <label className="block text-xs font-medium text-gray-300">
+                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                                   {field.label}
-                                  {field.type !== 'textarea' && (
-                                    <span className="text-red-400 ml-1">*</span>
-                                  )}
+                                  {field.type !== 'textarea' && <span className="text-red-500 dark:text-red-400 ml-1">*</span>}
                                 </label>
                                 {field.type === 'dropdown' && field.options ? (
                                   <CreatableSelect
                                     value={(inlineSpecFormData[field.label] as string[]) || []}
-                                    onChange={(value) =>
-                                      handleInlineSpecInputChange(field.label, value)
-                                    }
+                                    onChange={(value) => handleInlineSpecInputChange(field.label, value)}
                                     options={field.options}
                                     placeholder={`Select ${field.label.toLowerCase()}`}
                                     required
@@ -1879,25 +1968,18 @@ export default function ProductSheetPage() {
                                 ) : field.type === 'textarea' ? (
                                   <textarea
                                     value={(inlineSpecFormData[field.label] as string) || ''}
-                                    onChange={(e) =>
-                                      handleInlineSpecInputChange(field.label, e.target.value)
-                                    }
+                                    onChange={(e) => handleInlineSpecInputChange(field.label, e.target.value)}
                                     placeholder={field.placeholder || `e.g., Specific requirements...`}
                                     rows={3}
-                                    className="w-full px-3 py-2 text-xs rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
+                                    className="w-full px-3 py-2 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
                                   />
                                 ) : field.type === 'number' ? (
                                   <input
                                     type="number"
                                     value={(inlineSpecFormData[field.label] as number) || ''}
-                                    onChange={(e) =>
-                                      handleInlineSpecInputChange(
-                                        field.label,
-                                        parseFloat(e.target.value) || 0
-                                      )
-                                    }
+                                    onChange={(e) => handleInlineSpecInputChange(field.label, parseFloat(e.target.value) || 0)}
                                     placeholder={field.placeholder || `e.g., 50`}
-                                    className="w-full px-3 py-2 text-xs rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                    className="w-full px-3 py-2 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                                     required
                                   />
                                 ) : (
@@ -1912,14 +1994,9 @@ export default function ProductSheetPage() {
                                             .filter((v) => v.length > 0)
                                         : []
                                     }
-                                    onChange={(value) =>
-                                      handleInlineSpecInputChange(field.label, value)
-                                    }
+                                    onChange={(value) => handleInlineSpecInputChange(field.label, value)}
                                     options={[]}
-                                    placeholder={
-                                      field.placeholder ||
-                                      `Type and press Enter to add ${field.label.toLowerCase()}`
-                                    }
+                                    placeholder={field.placeholder || `Type and press Enter to add ${field.label.toLowerCase()}`}
                                     required
                                     className="w-full"
                                   />
@@ -1931,7 +2008,7 @@ export default function ProductSheetPage() {
                           <button
                             type="button"
                             onClick={handleAddInlineGeneratedProduct}
-                            className="w-full px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                            className="w-full px-4 py-2 bg-teal-600 dark:bg-teal-600 hover:bg-teal-700 dark:hover:bg-teal-700 text-white rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
                           >
                             <svg
                               width="16"
@@ -1953,8 +2030,8 @@ export default function ProductSheetPage() {
                     </div>
 
                     {/* Products List or Empty State */}
-                    {newEnquirySelectedProductIds.length === 0 ? (
-                      <div className="border-2 border-dashed border-gray-600 rounded-lg p-12 flex flex-col items-center justify-center bg-[#343541]/50">
+                    {newEnquirySelectedProductIds.length === 0 && customProductRows.length === 0 ? (
+                      <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-12 flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800/50">
                         <svg
                           width="64"
                           height="64"
@@ -1976,204 +2053,185 @@ export default function ProductSheetPage() {
                         </p>
                       </div>
                     ) : (
-                      <div className="space-y-3">
-                        {newEnquirySelectedProductIds.map((productId) => {
-                          const product = productSheetItems.find((p) => p._id === productId);
-                          if (!product) return null;
-                          return (
-                            <div
-                              key={productId}
-                              className="p-3 bg-[#343541] rounded-lg border border-gray-600 space-y-3"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-white truncate">
-                                    {product.displayName || product.category || 'Unnamed Product'}
-                                  </p>
-                                  {product.category && (
-                                    <p className="text-xs text-gray-400 mt-0.5">
-                                      {product.category}
-                                    </p>
-                                  )}
-
-                                  {/* Product Specifications */}
-                                  {(() => {
-                                    const specifications: string[] = [];
-                                    if ((product as any).userAttributes) {
-                                      Object.entries((product as any).userAttributes).forEach(
-                                        ([key, value]) => {
-                                          if (value !== '' && value !== 0 && value !== null) {
-                                            if (
-                                              key.toLowerCase() === 'image_link' ||
-                                              key.toLowerCase() === 'image_attachment'
-                                            ) {
-                                              return;
-                                            }
-                                            if (Array.isArray(value)) {
-                                              specifications.push(`${key}: ${value.join(', ')}`);
-                                            } else {
-                                              specifications.push(`${key}: ${value}`);
-                                            }
-                                          }
-                                        }
-                                      );
-                                    }
-                                    return specifications.length > 0 ? (
-                                      <div className="flex flex-wrap gap-2 mt-2">
-                                        {specifications.slice(0, 3).map((spec, index) => (
-                                          <span
-                                            key={index}
-                                            className="text-xs px-2 py-1 bg-[#202123] text-gray-300 rounded"
-                                          >
-                                            {spec}
-                                          </span>
-                                        ))}
-                                        {specifications.length > 3 && (
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              openSpecModal(
-                                                specifications,
-                                                product.displayName || product.category || 'Product'
-                                              )
-                                            }
-                                            className="text-xs px-2 py-1 bg-[#202123] text-gray-400 rounded hover:text-gray-300 transition-colors"
-                                          >
-                                            +{specifications.length - 3} more
-                                          </button>
-                                        )}
-                                      </div>
-                                    ) : null;
-                                  })()}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setExpandedProductDetails((prev) => {
-                                        const newSet = new Set(prev);
-                                        if (newSet.has(productId)) {
-                                          newSet.delete(productId);
-                                        } else {
-                                          newSet.add(productId);
-                                        }
-                                        return newSet;
-                                      });
-                                    }}
-                                    className="px-2 py-1 text-xs text-gray-400 hover:text-gray-300 flex items-center gap-1"
-                                  >
-                                    {expandedProductDetails.has(productId) ? (
-                                      <>
-                                        <svg
-                                          width="12"
-                                          height="12"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="2"
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                        >
-                                          <polyline points="18 15 12 9 6 15"></polyline>
-                                        </svg>
-                                        Hide Details
-                                      </>
-                                    ) : (
-                                      <>
-                                        <svg
-                                          width="12"
-                                          height="12"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="2"
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                        >
-                                          <polyline points="6 9 12 15 18 9"></polyline>
-                                        </svg>
-                                        Show Details
-                                      </>
-                                    )}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleNewEnquiryProductSelection(productId)}
-                                    className="ml-2 px-2 py-1 text-xs text-red-400 hover:text-red-300"
-                                  >
-                                    Remove
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* Product Details: Quantity, Target Price, Unit */}
-                              {expandedProductDetails.has(productId) && (
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-gray-600">
-                                  <div>
-                                    <label className="block text-xs font-medium text-gray-300 mb-1">
-                                      Quantity
-                                    </label>
+                      <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden flex flex-col" style={{ maxHeight: '400px' }}>
+                        <div className="overflow-y-auto overflow-x-auto flex-1">
+                          <table className="w-full border-collapse bg-white dark:bg-gray-800">
+                          {/* Table Header */}
+                          <thead className="sticky top-0 z-10">
+                            <tr className="bg-gray-100 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600">
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
+                                Name
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
+                                Quantity
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
+                                Unit
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                Target Price
+                              </th>
+                            </tr>
+                          </thead>
+                          {/* Table Body */}
+                          <tbody>
+                            {/* Selected Products from Product Sheet */}
+                            {newEnquirySelectedProductIds.map((productId, index) => {
+                              const product = productSheetItems.find((p) => p._id === productId);
+                              if (!product) return null;
+                              return (
+                                <tr
+                                  key={productId}
+                                  className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                                    index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
+                                  }`}
+                                >
+                                  {/* Name Column */}
+                                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-600">
+                                    <div>
+                                      <p className="font-medium">
+                                        {product.displayName || product.category || 'Unnamed Product'}
+                                      </p>
+                                      {product.category && (
+                                        <p className="text-xs text-gray-400 mt-0.5">{product.category}</p>
+                                      )}
+                                    </div>
+                                  </td>
+                                  {/* Quantity Column */}
+                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
                                     <input
                                       type="number"
                                       min="0"
                                       step="0.01"
                                       value={productDetails[productId]?.quantity || ''}
-                                      onChange={(e) =>
-                                        handleProductDetailChange(
-                                          productId,
-                                          'quantity',
-                                          parseFloat(e.target.value) || 0
-                                        )
-                                      }
+                                      onChange={(e) => handleProductDetailChange(productId, 'quantity', parseFloat(e.target.value) || 0)}
                                       placeholder="0"
-                                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
                                     />
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-medium text-gray-300 mb-1">
-                                      Target Price
-                                    </label>
+                                  </td>
+                                  {/* Unit Column */}
+                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                    <select
+                                      value={productDetails[productId]?.unit || ''}
+                                      onChange={(e) => handleProductDetailChange(productId, 'unit', e.target.value)}
+                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                    >
+                                      <option value="">Select unit</option>
+                                      {STANDARD_UNITS.map((unit) => (
+                                        <option key={unit} value={unit}>
+                                          {unit}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                  {/* Target Price Column */}
+                                  <td className="px-4 py-3">
                                     <input
                                       type="number"
                                       min="0"
                                       step="0.01"
                                       value={productDetails[productId]?.targetPrice || ''}
-                                      onChange={(e) =>
-                                        handleProductDetailChange(
-                                          productId,
-                                          'targetPrice',
-                                          parseFloat(e.target.value) || 0
-                                        )
-                                      }
+                                      onChange={(e) => handleProductDetailChange(productId, 'targetPrice', parseFloat(e.target.value) || 0)}
                                       placeholder="0.00"
-                                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
                                     />
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-medium text-gray-300 mb-1">
-                                      Unit
-                                    </label>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            {/* Custom Product Rows */}
+                            {customProductRows.map((row, index) => {
+                              const totalIndex = newEnquirySelectedProductIds.length + index;
+                              return (
+                                <tr
+                                  key={row.id}
+                                  className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                                    totalIndex % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
+                                  }`}
+                                >
+                                  {/* Name Column */}
+                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="text"
+                                        value={row.name}
+                                        onChange={(e) => handleCustomProductChange(row.id, 'name', e.target.value)}
+                                        placeholder="Enter product name"
+                                        className="flex-1 px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveCustomRow(row.id)}
+                                        className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors"
+                                        aria-label="Remove row"
+                                      >
+                                        <svg
+                                          width="14"
+                                          height="14"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="2"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        >
+                                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </td>
+                                  {/* Quantity Column */}
+                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
                                     <input
-                                      type="text"
-                                      value={productDetails[productId]?.unit || ''}
-                                      onChange={(e) =>
-                                        handleProductDetailChange(productId, 'unit', e.target.value)
-                                      }
-                                      placeholder="e.g., kg, pcs, m"
-                                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={row.quantity || ''}
+                                      onChange={(e) => handleCustomProductChange(row.id, 'quantity', parseFloat(e.target.value) || 0)}
+                                      placeholder="0"
+                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
                                     />
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
+                                  </td>
+                                  {/* Unit Column */}
+                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                    <select
+                                      value={row.unit}
+                                      onChange={(e) => handleCustomProductChange(row.id, 'unit', e.target.value)}
+                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                    >
+                                      <option value="">Select unit</option>
+                                      {STANDARD_UNITS.map((unit) => (
+                                        <option key={unit} value={unit}>
+                                          {unit}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                  {/* Target Price Column */}
+                                  <td className="px-4 py-3">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={row.targetPrice || ''}
+                                      onChange={(e) => handleCustomProductChange(row.id, 'targetPrice', parseFloat(e.target.value) || 0)}
+                                      placeholder="0.00"
+                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                    />
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                        </div>
                       </div>
                     )}
                   </div>
 
                   {/* Enquiry Notes Section */}
-                  <div className="space-y-4 pt-4 border-t border-gray-600">
+                  <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-600">
                     <div className="flex items-center gap-2 mb-1">
                       <svg
                         width="16"
@@ -2184,14 +2242,14 @@ export default function ProductSheetPage() {
                         strokeWidth="2"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        className="text-gray-400"
+                        className="text-gray-500 dark:text-gray-400"
                       >
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                         <polyline points="14 2 14 8 20 8"></polyline>
                         <line x1="16" y1="13" x2="8" y2="13"></line>
                         <line x1="16" y1="17" x2="8" y2="17"></line>
                       </svg>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <label className="block font-medium text-gray-700 dark:text-gray-300">
                         Enquiry Notes
                       </label>
                     </div>
@@ -2205,7 +2263,7 @@ export default function ProductSheetPage() {
                   </div>
 
                   {/* Attachment Section */}
-                  <div className="space-y-4 pt-4 border-t border-gray-600">
+                  <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-600">
                     <div className="flex items-center gap-2 mb-1">
                       <svg
                         width="16"
@@ -2216,13 +2274,13 @@ export default function ProductSheetPage() {
                         strokeWidth="2"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        className="text-gray-400"
+                        className="text-gray-500 dark:text-gray-400"
                       >
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                         <polyline points="17 8 12 3 7 8"></polyline>
                         <line x1="12" y1="3" x2="12" y2="15"></line>
                       </svg>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <label className="block font-medium text-gray-700 dark:text-gray-300">
                         Attachment
                       </label>
                     </div>
@@ -2230,6 +2288,7 @@ export default function ProductSheetPage() {
                       type="file"
                       onChange={(e) => {
                         const file = e.target.files?.[0] || null;
+                        // Fire and forget; handler manages state and errors
                         void handleEnquiryAttachmentChange(file);
                       }}
                       className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 dark:file:bg-teal-900 dark:file:text-teal-200"
@@ -2247,24 +2306,24 @@ export default function ProductSheetPage() {
                   </div>
 
                   {/* Footer */}
-                  <div className="pt-4 border-t border-gray-600">
+                  <div className="pt-4 border-t border-gray-200 dark:border-gray-600">
                     <div className="flex justify-end gap-3">
-                      <button
-                        type="button"
-                        onClick={handleCloseNewEnquiryModal}
-                        className="px-4 py-2 text-sm font-medium text-gray-300 bg-[#343541] hover:bg-[#4A4B5A] rounded-lg transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
+                <button
+                  type="button"
+                  onClick={handleCloseNewEnquiryModal}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
                         disabled={isSubmitting}
-                        className="px-4 py-2 text-sm font-medium text-white bg-teal-500 hover:bg-teal-600 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg transition-colors"
-                      >
+                        className="px-4 py-2 text-sm font-medium text-white bg-teal-600 dark:bg-teal-600 hover:bg-teal-700 dark:hover:bg-teal-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg transition-colors"
+                >
                         {isSubmitting ? 'Creating...' : 'Create Enquiry'}
-                      </button>
+                </button>
                     </div>
-                  </div>
+              </div>
                 </form>
               </div>
             </div>

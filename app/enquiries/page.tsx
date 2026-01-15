@@ -143,12 +143,21 @@ export default function EnquiriesPage() {
   const [isUpdatingEnquiry, setIsUpdatingEnquiry] = useState(false);
   const [editEnquirySelectedProductIds, setEditEnquirySelectedProductIds] = useState<string[]>([]);
   const [isEditEnquiryProductModalOpen, setIsEditEnquiryProductModalOpen] = useState(false);
+  // Edit enquiry address selection state
+  const [editSelectedShippingAddressIndex, setEditSelectedShippingAddressIndex] = useState<number | null>(null);
+  const [editSelectedBillingAddressIndex, setEditSelectedBillingAddressIndex] = useState<number | null>(null);
+  const [editUseNewShippingAddress, setEditUseNewShippingAddress] = useState(false);
+  const [editUseNewBillingAddress, setEditUseNewBillingAddress] = useState(false);
+  const [isEditShippingAddressModalOpen, setIsEditShippingAddressModalOpen] = useState(false);
+  const [isEditBillingAddressModalOpen, setIsEditBillingAddressModalOpen] = useState(false);
   // Product details state: maps productId to { quantity, targetPrice, unit }
   const [productDetails, setProductDetails] = useState<Record<string, { quantity: number; targetPrice: number; unit: string }>>({});
   // Track which product details are expanded (collapsible)
   const [expandedProductDetails, setExpandedProductDetails] = useState<Set<string>>(new Set());
   // Custom product rows (for manual entry)
   const [customProductRows, setCustomProductRows] = useState<Array<{ id: string; name: string; quantity: number; unit: string; targetPrice: number }>>([]);
+  // Edit enquiry custom product rows (for manual entry)
+  const [editCustomProductRows, setEditCustomProductRows] = useState<Array<{ id: string; name: string; quantity: number; unit: string; targetPrice: number }>>([]);
   // Submit mode state - tracks if we're submitting an existing enquiry vs creating new
   const [isSubmitMode, setIsSubmitMode] = useState(false);
   const [enquiryIdForSubmit, setEnquiryIdForSubmit] = useState<string | null>(null);
@@ -584,6 +593,22 @@ export default function EnquiriesPage() {
     return formatAddressAsString(billingAddress);
   };
 
+  // Get formatted shipping address string for edit enquiry display
+  const getEditShippingAddressString = (): string => {
+    if (editSelectedShippingAddressIndex !== null && buyerProfile?.shippingAddress?.[editSelectedShippingAddressIndex] && !editUseNewShippingAddress) {
+      return formatAddressAsString(buyerProfile.shippingAddress[editSelectedShippingAddressIndex]);
+    }
+    return formatAddressAsString(editShippingAddress);
+  };
+
+  // Get formatted billing address string for edit enquiry display
+  const getEditBillingAddressString = (): string => {
+    if (editSelectedBillingAddressIndex !== null && buyerProfile?.billingAddress?.[editSelectedBillingAddressIndex] && !editUseNewBillingAddress) {
+      return formatAddressAsString(buyerProfile.billingAddress[editSelectedBillingAddressIndex]);
+    }
+    return formatAddressAsString(editBillingAddress);
+  };
+
   const handleSubmitEnquiryForm = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -955,6 +980,34 @@ export default function EnquiriesPage() {
     setCustomProductRows((prev) => prev.filter((row) => row.id !== rowId));
   };
 
+  // Handler to add 5 empty custom product rows for edit enquiry
+  const handleEditAddCustomRows = () => {
+    const newRows = Array.from({ length: 5 }, (_, index) => ({
+      id: `edit_custom_${Date.now()}_${index}`,
+      name: '',
+      quantity: 0,
+      unit: '',
+      targetPrice: 0,
+    }));
+    setEditCustomProductRows((prev) => [...prev, ...newRows]);
+  };
+
+  // Handler to update custom product row for edit enquiry
+  const handleEditCustomProductChange = (rowId: string, field: 'name' | 'quantity' | 'unit' | 'targetPrice', value: string | number) => {
+    setEditCustomProductRows((prev) =>
+      prev.map((row) =>
+        row.id === rowId
+          ? { ...row, [field]: value }
+          : row
+      )
+    );
+  };
+
+  // Handler to remove custom product row for edit enquiry
+  const handleEditRemoveCustomRow = (rowId: string) => {
+    setEditCustomProductRows((prev) => prev.filter((row) => row.id !== rowId));
+  };
+
   // Helper function to map product IDs to objects with details
   const mapProductIdsToEnquiryProducts = (productIds: string[]): string[] | { productId: string; quantity?: number; targetPrice?: number; unit?: string }[] => {
     const hasAnyDetails = productIds.some((productId) => {
@@ -988,6 +1041,26 @@ export default function EnquiriesPage() {
       : [];
     
     const customProducts = customProductRows
+      .filter((row) => row.name.trim()) // Only include rows with a name
+      .map((row) => ({
+        name: row.name.trim(),
+        quantity: row.quantity > 0 ? row.quantity : undefined,
+        targetPrice: row.targetPrice > 0 ? row.targetPrice : undefined,
+        unit: row.unit.trim() || undefined,
+      }));
+
+    // Combine both arrays - handle both string[] and object[] cases
+    const selectedArray = Array.isArray(selectedProducts) ? selectedProducts : [];
+    return [...selectedArray, ...customProducts] as Array<string | { productId?: string; name?: string; quantity?: number; targetPrice?: number; unit?: string }>;
+  };
+
+  // Helper function to combine selected products and custom products for edit enquiry
+  const getAllEditEnquiryProducts = (): any => {
+    const selectedProducts = editEnquirySelectedProductIds.length > 0 
+      ? mapProductIdsToEnquiryProducts(editEnquirySelectedProductIds) 
+      : [];
+    
+    const customProducts = editCustomProductRows
       .filter((row) => row.name.trim()) // Only include rows with a name
       .map((row) => ({
         name: row.name.trim(),
@@ -1358,6 +1431,13 @@ export default function EnquiriesPage() {
     // If enquiry status is draft, load data into edit form
     if (enquiry.enquiryStatus === 'draft') {
       setEditEnquiryName(enquiry.enquiryName || '');
+      
+      // Reset address selection state
+      setEditSelectedShippingAddressIndex(null);
+      setEditSelectedBillingAddressIndex(null);
+      setEditUseNewShippingAddress(true);
+      setEditUseNewBillingAddress(true);
+      
       setEditShippingAddress({
         addressLine1: enquiry.shippingAddress?.addressLine1 || '',
         addressLine2: enquiry.shippingAddress?.addressLine2 || '',
@@ -1390,11 +1470,29 @@ export default function EnquiriesPage() {
         setEditEnquiryAttachment(null);
       }
       
-      // Load existing products
-      const enquiryProductIds = enquiry.enquiryProducts?.map((p: any) => 
-        typeof p === 'string' ? p : (p._id || p.id || p.productId)
-      ) || [];
-      setEditEnquirySelectedProductIds(enquiryProductIds);
+      // Load existing products - separate products with productId from custom products
+      const productIds: string[] = [];
+      const customProducts: Array<{ id: string; name: string; quantity: number; unit: string; targetPrice: number }> = [];
+      
+      enquiry.enquiryProducts?.forEach((p: any) => {
+        if (typeof p === 'string') {
+          productIds.push(p);
+        } else if (p.productId) {
+          productIds.push(p.productId);
+        } else if (p.name) {
+          // This is a custom product
+          customProducts.push({
+            id: `edit_custom_${Date.now()}_${customProducts.length}`,
+            name: p.name,
+            quantity: p.quantity || 0,
+            unit: p.unit || '',
+            targetPrice: p.targetPrice || 0,
+          });
+        }
+      });
+      
+      setEditEnquirySelectedProductIds(productIds);
+      setEditCustomProductRows(customProducts);
 
       // Initialize product details from enquiry products
       const details: Record<string, { quantity: number; targetPrice: number; unit: string }> = {};
@@ -1441,6 +1539,13 @@ export default function EnquiriesPage() {
     setEditEnquiryAttachment(null);
     setEditEnquiryAttachmentUrl('');
     setEditEnquirySelectedProductIds([]);
+    setEditCustomProductRows([]);
+    setEditSelectedShippingAddressIndex(null);
+    setEditSelectedBillingAddressIndex(null);
+    setEditUseNewShippingAddress(false);
+    setEditUseNewBillingAddress(false);
+    setProductDetails({});
+    setExpandedProductDetails(new Set());
   };
 
   const handleOpenProductViewModal = (enquiryId: string) => {
@@ -1482,18 +1587,22 @@ export default function EnquiriesPage() {
       return;
     }
 
-    // Validate required address fields
-    if (!editShippingAddress.addressLine1.trim() || !editShippingAddress.city.trim() || 
-        !editShippingAddress.state.trim() || !editShippingAddress.zipCode.trim() || 
-        !editShippingAddress.country.trim()) {
-      alert('Please fill in all required shipping address fields.');
+    const hasShippingAddress =
+      (editSelectedShippingAddressIndex !== null &&
+        buyerProfile?.shippingAddress?.[editSelectedShippingAddressIndex]) ||
+      editShippingAddress.addressLine1.trim();
+    const hasBillingAddress =
+      (editSelectedBillingAddressIndex !== null &&
+        buyerProfile?.billingAddress?.[editSelectedBillingAddressIndex]) ||
+      editBillingAddress.addressLine1.trim();
+
+    if (!hasShippingAddress) {
+      alert('Please enter a shipping address.');
       return;
     }
 
-    if (!editBillingAddress.addressLine1.trim() || !editBillingAddress.city.trim() || 
-        !editBillingAddress.state.trim() || !editBillingAddress.zipCode.trim() || 
-        !editBillingAddress.country.trim()) {
-      alert('Please fill in all required billing address fields.');
+    if (!hasBillingAddress) {
+      alert('Please enter a billing address.');
       return;
     }
 
@@ -1502,7 +1611,7 @@ export default function EnquiriesPage() {
       return;
     }
 
-    if (editEnquirySelectedProductIds.length === 0) {
+    if (editEnquirySelectedProductIds.length === 0 && editCustomProductRows.filter((row) => row.name.trim()).length === 0) {
       alert('Please add at least one product to the enquiry.');
       return;
     }
@@ -1515,29 +1624,49 @@ export default function EnquiriesPage() {
         return;
       }
 
+      let finalShippingAddress;
+      if (
+        editSelectedShippingAddressIndex !== null &&
+        buyerProfile?.shippingAddress?.[editSelectedShippingAddressIndex]
+      ) {
+        finalShippingAddress = buyerProfile.shippingAddress[editSelectedShippingAddressIndex];
+      } else {
+        finalShippingAddress = {
+          addressLine1: editShippingAddress.addressLine1.trim() || '',
+          addressLine2: editShippingAddress.addressLine2?.trim() || undefined,
+          city: editShippingAddress.city?.trim() || editShippingAddress.addressLine1.trim(),
+          state: editShippingAddress.state?.trim() || editShippingAddress.addressLine1.trim(),
+          zipCode: editShippingAddress.zipCode?.trim() || editShippingAddress.addressLine1.trim(),
+          country: editShippingAddress.country?.trim() || editShippingAddress.addressLine1.trim(),
+        };
+      }
+
+      let finalBillingAddress;
+      if (
+        editSelectedBillingAddressIndex !== null &&
+        buyerProfile?.billingAddress?.[editSelectedBillingAddressIndex]
+      ) {
+        finalBillingAddress = buyerProfile.billingAddress[editSelectedBillingAddressIndex];
+      } else {
+        finalBillingAddress = {
+          addressLine1: editBillingAddress.addressLine1.trim() || '',
+          addressLine2: editBillingAddress.addressLine2?.trim() || undefined,
+          city: editBillingAddress.city?.trim() || editBillingAddress.addressLine1.trim(),
+          state: editBillingAddress.state?.trim() || editBillingAddress.addressLine1.trim(),
+          zipCode: editBillingAddress.zipCode?.trim() || editBillingAddress.addressLine1.trim(),
+          country: editBillingAddress.country?.trim() || editBillingAddress.addressLine1.trim(),
+        };
+      }
+
       await updateEnquiry(token, selectedEnquiryForDetail, {
         enquiryName: editEnquiryName.trim(),
-        shippingAddress: {
-          addressLine1: editShippingAddress.addressLine1,
-          addressLine2: editShippingAddress.addressLine2 || undefined,
-          city: editShippingAddress.city,
-          state: editShippingAddress.state,
-          zipCode: editShippingAddress.zipCode,
-          country: editShippingAddress.country,
-        },
-        billingAddress: {
-          addressLine1: editBillingAddress.addressLine1,
-          addressLine2: editBillingAddress.addressLine2 || undefined,
-          city: editBillingAddress.city,
-          state: editBillingAddress.state,
-          zipCode: editBillingAddress.zipCode,
-          country: editBillingAddress.country,
-        },
+        shippingAddress: finalShippingAddress,
+        billingAddress: finalBillingAddress,
         expectedDeliveryDate: new Date(editExpectedDeliveryDate).toISOString(),
         enquiryStatus: 'submitted',
         enquiryNotes: editEnquiryNotes || undefined,
         attachment: editEnquiryAttachmentUrl || undefined,
-        enquiryProducts: editEnquirySelectedProductIds.length > 0 ? mapProductIdsToEnquiryProducts(editEnquirySelectedProductIds) : [],
+        enquiryProducts: getAllEditEnquiryProducts(),
       });
 
       await loadEnquiries();
@@ -1791,17 +1920,17 @@ export default function EnquiriesPage() {
                       return (
                         <div
                           key={enquiryId}
-                          className="bg-gray-800 dark:bg-gray-800 rounded-lg border border-gray-600 dark:border-gray-600 overflow-hidden"
+                          className="bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden shadow-sm"
                         >
                           <div className="flex items-center justify-between p-6">
                             {/* Left Section */}
                             <div className="flex-1">
                               {/* Title and Draft Badge */}
                               <div className="flex items-center gap-3 mb-3">
-                                <h3 className="text-xl font-bold text-white">
+                                <h3 className="text-xl font-bold text-gray-900 dark:text-white">
                                   {enquiry.enquiryName}
                                 </h3>
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded border border-gray-500 dark:border-gray-500 bg-gray-800 dark:bg-gray-800">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded border border-gray-400 dark:border-gray-500 bg-gray-100 dark:bg-gray-700">
                                   <svg
                                     width="14"
                                     height="14"
@@ -1811,7 +1940,7 @@ export default function EnquiriesPage() {
                                     strokeWidth="2"
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
-                                    className="text-white"
+                                    className="text-gray-700 dark:text-gray-300"
                                   >
                                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                     <polyline points="14 2 14 8 20 8"></polyline>
@@ -1820,12 +1949,12 @@ export default function EnquiriesPage() {
                                     <line x1="10" y1="9" x2="8" y2="9"></line>
                                     <line x1="16" y1="9" x2="14" y2="9"></line>
                                   </svg>
-                                  <span className="text-white text-xs font-medium">Draft</span>
+                                  <span className="text-gray-700 dark:text-gray-300 text-xs font-medium">Draft</span>
                                 </span>
                               </div>
 
                               {/* Reference and Last Modified */}
-                              <div className="text-sm text-gray-400 mb-4">
+                              <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                                 {enquiryRef} • Last modified {lastModified}
                               </div>
 
@@ -1835,13 +1964,13 @@ export default function EnquiriesPage() {
                                   {productTags.map((tag: any, index: number) => (
                                     <span
                                       key={index}
-                                      className="inline-flex items-center px-3 py-1 rounded border border-gray-500 dark:border-gray-500 bg-gray-800 dark:bg-gray-800 text-white text-sm"
+                                      className="inline-flex items-center px-3 py-1 rounded border border-teal-600 dark:border-teal-500 bg-teal-600 dark:bg-teal-600 text-white text-sm"
                                     >
                                       {tag.name} x{tag.quantity}
                                     </span>
                                   ))}
                                   {totalProducts > 3 && (
-                                    <span className="inline-flex items-center px-3 py-1 rounded border border-gray-500 dark:border-gray-500 bg-gray-800 dark:bg-gray-800 text-white text-sm">
+                                    <span className="inline-flex items-center px-3 py-1 rounded border border-teal-600 dark:border-teal-500 bg-teal-600 dark:bg-teal-600 text-white text-sm">
                                       +{totalProducts - 3} more
                                     </span>
                                   )}
@@ -1853,7 +1982,7 @@ export default function EnquiriesPage() {
                             <div className="ml-6">
                               <button
                                 onClick={() => handleOpenDetailModal(enquiryId)}
-                                className="px-4 py-2.5 bg-gray-700 dark:bg-gray-700 hover:bg-gray-600 dark:hover:bg-gray-600 text-white rounded-lg font-medium flex items-center gap-2 transition-colors"
+                                className="px-4 py-2.5 bg-teal-600 dark:bg-gray-700 hover:bg-teal-700 dark:hover:bg-gray-600 text-white rounded-lg font-medium flex items-center gap-2 transition-colors"
                               >
                                 Continue Editing
                                 <svg
@@ -1888,20 +2017,20 @@ export default function EnquiriesPage() {
                       return (
                         <div
                           key={enquiryId}
-                          className="bg-gray-800 dark:bg-gray-800 rounded-lg border border-teal-500 dark:border-teal-500 overflow-hidden"
+                          className="bg-white dark:bg-gray-800 rounded-lg border border-teal-500 dark:border-teal-500 overflow-hidden shadow-sm"
                         >
                           <div className="flex items-center justify-between p-6">
                             {/* Left Section */}
                             <div className="flex-1">
                               {/* Title */}
                               <div className="flex items-center gap-3 mb-3">
-                                <h3 className="text-xl font-bold text-white">
+                                <h3 className="text-xl font-bold text-gray-900 dark:text-white">
                                   {enquiry.enquiryName}
                                 </h3>
                               </div>
 
                               {/* Reference and Sent Date */}
-                              <div className="text-sm text-gray-400 mb-4">
+                              <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                                 {submittedEnquiryRef} • Sent on {sentDate}
                               </div>
 
@@ -1911,13 +2040,13 @@ export default function EnquiriesPage() {
                                   {productTags.map((tag: any, index: number) => (
                                     <span
                                       key={index}
-                                      className="inline-flex items-center px-3 py-1 rounded border border-gray-500 dark:border-gray-500 bg-gray-800 dark:bg-gray-800 text-white text-sm"
+                                      className="inline-flex items-center px-3 py-1 rounded border border-teal-600 dark:border-teal-500 bg-teal-600 dark:bg-teal-600 text-white text-sm"
                                     >
                                       {tag.name} x{tag.quantity}
                                     </span>
                                   ))}
                                   {totalProducts > 3 && (
-                                    <span className="inline-flex items-center px-3 py-1 rounded border border-gray-500 dark:border-gray-500 bg-gray-800 dark:bg-gray-800 text-white text-sm">
+                                    <span className="inline-flex items-center px-3 py-1 rounded border border-teal-600 dark:border-teal-500 bg-teal-600 dark:bg-teal-600 text-white text-sm">
                                       +{totalProducts - 3} more
                                     </span>
                                   )}
@@ -1929,7 +2058,7 @@ export default function EnquiriesPage() {
                             <div className="ml-6 flex items-center gap-4">
                               {/* Status */}
                               <div className="flex flex-col items-end">
-                                <span className="text-sm text-gray-400 mb-1">Status</span>
+                                <span className="text-sm text-gray-600 dark:text-gray-400 mb-1">Status</span>
                                 <span className={`text-base font-medium ${statusColor}`}>
                                   {statusText}
                                 </span>
@@ -1938,7 +2067,7 @@ export default function EnquiriesPage() {
                               {/* View Details Button */}
                               <button
                                 onClick={() => handleOpenProductViewModal(enquiryId)}
-                                className="px-4 py-2.5 bg-gray-700 dark:bg-gray-700 hover:bg-gray-600 dark:hover:bg-gray-600 text-white rounded-lg font-medium flex items-center gap-2 transition-colors"
+                                className="px-4 py-2.5 bg-teal-600 dark:bg-gray-700 hover:bg-teal-700 dark:hover:bg-gray-600 text-white rounded-lg font-medium flex items-center gap-2 transition-colors"
                               >
                                 View Details
                                 <svg
@@ -2020,14 +2149,14 @@ export default function EnquiriesPage() {
                       return (
                         <div
                           key={enquiryId}
-                          className="bg-gray-800 dark:bg-gray-800 rounded-lg border border-teal-500 dark:border-teal-500 overflow-hidden"
+                          className="bg-white dark:bg-gray-800 rounded-lg border border-teal-500 dark:border-teal-500 overflow-hidden shadow-sm"
                         >
                           <div className="flex items-center justify-between p-6">
                             {/* Left Section */}
                             <div className="flex-1">
                               {/* Title and Vendors Assigned Badge */}
                               <div className="flex items-center gap-3 mb-3">
-                                <h3 className="text-xl font-bold text-white">
+                                <h3 className="text-xl font-bold text-gray-900 dark:text-white">
                                   {enquiry.enquiryName}
                                 </h3>
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded border border-green-500 dark:border-green-500 bg-green-600 dark:bg-green-600">
@@ -2052,7 +2181,7 @@ export default function EnquiriesPage() {
                               </div>
 
                               {/* Reference and Created Date */}
-                              <div className="text-sm text-gray-400 mb-4">
+                              <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                                 {vendorEnquiryRef} • Created {createdDate}
                               </div>
 
@@ -2062,7 +2191,7 @@ export default function EnquiriesPage() {
                                   {productVendorItems.slice(0, 3).map((item: any, index: number) => (
                                     <span
                                       key={index}
-                                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded border border-gray-500 dark:border-gray-500 bg-gray-700 dark:bg-gray-700 text-white text-sm"
+                                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded border border-teal-600 dark:border-teal-500 bg-teal-600 dark:bg-teal-600 text-white text-sm"
                                     >
                                       <svg
                                         width="12"
@@ -2073,17 +2202,17 @@ export default function EnquiriesPage() {
                                         strokeWidth="2"
                                         strokeLinecap="round"
                                         strokeLinejoin="round"
-                                        className="text-gray-400"
+                                        className="text-white"
                                       >
                                         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
                                         <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
                                         <line x1="12" y1="22.08" x2="12" y2="12"></line>
                                       </svg>
-                                      {item.productName} x{item.quantity} → <span className="text-green-400">{item.vendorName}</span>
+                                      {item.productName} x{item.quantity} → <span className="text-green-300">{item.vendorName}</span>
                                     </span>
                                   ))}
                                   {productVendorItems.length > 3 && (
-                                    <span className="inline-flex items-center px-3 py-1 rounded border border-gray-500 dark:border-gray-500 bg-gray-700 dark:bg-gray-700 text-white text-sm">
+                                    <span className="inline-flex items-center px-3 py-1 rounded border border-teal-600 dark:border-teal-500 bg-teal-600 dark:bg-teal-600 text-white text-sm">
                                       +{productVendorItems.length - 3} more
                                     </span>
                                   )}
@@ -2095,16 +2224,16 @@ export default function EnquiriesPage() {
                             <div className="ml-6 flex items-center gap-4">
                               {/* Vendors Count */}
                               <div className="flex flex-col items-end">
-                                <span className="text-sm text-white mb-1">Vendors</span>
-                                <span className="text-xl font-bold text-green-500">
+                                <span className="text-sm text-gray-600 dark:text-gray-400 mb-1">Vendors</span>
+                                <span className="text-xl font-bold text-green-600 dark:text-green-500">
                                   {vendorsCount}
                                 </span>
                               </div>
 
                               {/* Quotes Count */}
                               <div className="flex flex-col items-end">
-                                <span className="text-sm text-white mb-1">Quotes</span>
-                                <span className="text-xl font-bold text-white">
+                                <span className="text-sm text-gray-600 dark:text-gray-400 mb-1">Quotes</span>
+                                <span className="text-xl font-bold text-gray-900 dark:text-white">
                                   {quotesCount}
                                 </span>
                               </div>
@@ -2112,7 +2241,7 @@ export default function EnquiriesPage() {
                               {/* View Details Button */}
                               <button
                                 onClick={() => router.push(`/enquiries/${enquiryId}`)}
-                                className="px-4 py-2.5 bg-gray-700 dark:bg-gray-700 hover:bg-gray-600 dark:hover:bg-gray-600 text-white rounded-lg font-medium flex items-center gap-2 transition-colors"
+                                className="px-4 py-2.5 bg-teal-600 dark:bg-gray-700 hover:bg-teal-700 dark:hover:bg-gray-600 text-white rounded-lg font-medium flex items-center gap-2 transition-colors"
                               >
                                 View Details
                                 <svg
@@ -3397,8 +3526,8 @@ export default function EnquiriesPage() {
                     </div>
 
                     {/* Inline Product Generation Field */}
-                    <div className="space-y-3 p-3 bg-[#343541] rounded-lg border border-gray-600">
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <div className="space-y-3 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Generate Product with AI
                       </label>
                       {!inlineGeneratedFields ? (
@@ -3408,7 +3537,7 @@ export default function EnquiriesPage() {
                             value={inlineProductKeyword}
                             onChange={(e) => setInlineProductKeyword(e.target.value)}
                             placeholder="e.g., laptop, office chair, printer"
-                            className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                            className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                             onKeyPress={(e) => {
                               if (e.key === 'Enter' && !isGeneratingInline) {
                                 handleInlineGenerateProduct();
@@ -3420,7 +3549,7 @@ export default function EnquiriesPage() {
                             type="button"
                             onClick={handleInlineGenerateProduct}
                             disabled={isGeneratingInline || !inlineProductKeyword.trim()}
-                            className="px-4 py-2 bg-teal-500 hover:bg-teal-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center"
+                            className="px-4 py-2 bg-teal-600 dark:bg-teal-600 hover:bg-teal-700 dark:hover:bg-teal-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center"
                           >
                             {isGeneratingInline ? (
                               <svg
@@ -3454,10 +3583,10 @@ export default function EnquiriesPage() {
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
                             <div>
-                              <h4 className="text-sm font-semibold text-white">
+                              <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
                                 {inlineGeneratedFields.item}
                               </h4>
-                              <p className="text-xs text-gray-400 mt-0.5">AI Generated</p>
+                              <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">AI Generated</p>
                             </div>
                             <button
                               type="button"
@@ -3466,7 +3595,7 @@ export default function EnquiriesPage() {
                                 setInlineSpecFormData({});
                                 setInlineProductKeyword('');
                               }}
-                              className="text-xs text-gray-400 hover:text-gray-300"
+                              className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300"
                             >
                               Cancel
                             </button>
@@ -3476,9 +3605,9 @@ export default function EnquiriesPage() {
                           <div className="space-y-3 max-h-64 overflow-y-auto">
                             {inlineGeneratedFields.fields.map((field, index) => (
                               <div key={index} className="space-y-1">
-                                <label className="block text-xs font-medium text-gray-300">
+                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                                   {field.label}
-                                  {field.type !== 'textarea' && <span className="text-red-400 ml-1">*</span>}
+                                  {field.type !== 'textarea' && <span className="text-red-500 dark:text-red-400 ml-1">*</span>}
                                 </label>
                                 {field.type === 'dropdown' && field.options ? (
                                   <CreatableSelect
@@ -3495,7 +3624,7 @@ export default function EnquiriesPage() {
                                     onChange={(e) => handleInlineSpecInputChange(field.label, e.target.value)}
                                     placeholder={field.placeholder || `e.g., Specific requirements...`}
                                     rows={3}
-                                    className="w-full px-3 py-2 text-xs rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
+                                    className="w-full px-3 py-2 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
                                   />
                                 ) : field.type === 'number' ? (
                                   <input
@@ -3503,7 +3632,7 @@ export default function EnquiriesPage() {
                                     value={(inlineSpecFormData[field.label] as number) || ''}
                                     onChange={(e) => handleInlineSpecInputChange(field.label, parseFloat(e.target.value) || 0)}
                                     placeholder={field.placeholder || `e.g., 50`}
-                                    className="w-full px-3 py-2 text-xs rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                    className="w-full px-3 py-2 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                                     required
                                   />
                                 ) : (
@@ -3874,7 +4003,7 @@ export default function EnquiriesPage() {
             <div className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl bg-white dark:bg-gray-800 shadow-xl transform transition-transform duration-300 ease-in-out">
               <div className="flex h-full flex-col">
                 {/* Sidebar Header */}
-                <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                       Edit Enquiry
@@ -3906,293 +4035,211 @@ export default function EnquiriesPage() {
 
                 {/* Sidebar Body */}
                 <div className="flex-1 overflow-y-auto">
-                  <form onSubmit={handleSendEnquiry} className="p-6 space-y-6">
+                  <form onSubmit={handleSendEnquiry} className="px-6 py-4 space-y-6">
                     {/* Enquiry Details Section */}
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2 mb-4">
-                        <svg
-                          width="20"
-                          height="20"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="text-gray-600 dark:text-gray-400"
-                        >
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                          <polyline points="14 2 14 8 20 8"></polyline>
-                          <line x1="16" y1="13" x2="8" y2="13"></line>
-                          <line x1="16" y1="17" x2="8" y2="17"></line>
-                        </svg>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Enquiry Details</h3>
+
+                    <div className='flex items-center gap-5'>
+                      <div className='w-1/2'>
+                        <label className="block font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Enquiry Name <span className="text-red-500 dark:text-red-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={editEnquiryName}
+                          onChange={(e) => setEditEnquiryName(e.target.value)}
+                              placeholder="e.g., Office Furniture Order Q1"
+                              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                          autoFocus
+                          required
+                        />
                       </div>
-                      <div className="flex items-center gap-5">
-                        <div className="w-1/2">
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            Enquiry Name <span className="text-red-400">*</span>
+                      {/* Expected Delivery Date Section */}
+                      <div className="w-1/2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <label className="block font-medium text-gray-700 dark:text-gray-300">
+                            Expected Delivery Date <span className="text-red-500 dark:text-red-400">*</span>
                           </label>
+                        </div>
+                        <div className="relative">
                           <input
-                            type="text"
-                            value={editEnquiryName}
-                            onChange={(e) => setEditEnquiryName(e.target.value)}
-                            placeholder="e.g., Office Furniture Order Q1"
-                            className="w-full rounded-lg border border-teal-300 bg-[#343541] px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                            type="date"
+                            value={editExpectedDeliveryDate}
+                            onChange={(e) => setEditExpectedDeliveryDate(e.target.value)}
+                            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                            placeholder="dd-mm-yyyy"
                             required
                           />
                         </div>
-                        <div className="w-1/2">
-                          <div className="flex items-center gap-2 mb-1">
-                            <label className="block text-sm font-medium text-gray-300">
-                              Expected Delivery Date <span className="text-red-400">*</span>
+                      </div>
+                    </div>
+                  </div>
+
+                    {/* Addresses Section */}
+                    <div className="space-y-4 pt-2 border-t border-gray-200 dark:border-gray-600">
+                      <div className="grid grid-cols-2 gap-4">
+                        {/* Shipping Address Input */}
+                        <div>
+                          <div className='flex justify-between'>
+                            <label className="block font-medium text-gray-700 dark:text-gray-300 mb-2 self-end">
+                              Shipping Address <span className="text-red-400">*</span>
                             </label>
+                            <button
+                              type="button"
+                              onClick={() => setIsEditShippingAddressModalOpen(true)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-sm mb-2 font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                            >
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                              </svg>
+                              Add
+                            </button>
                           </div>
-                          <div className="relative">
+                          {editSelectedShippingAddressIndex !== null && buyerProfile?.shippingAddress?.[editSelectedShippingAddressIndex] && !editUseNewShippingAddress ? (
+                            <div className="w-full px-4 py-2.5 min-h-[42px] text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg flex items-center justify-between">
+                              <div className="flex-1">
+                                <p className="text-sm">
+                                  {formatAddressAsString(buyerProfile.shippingAddress[editSelectedShippingAddressIndex])}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditSelectedShippingAddressIndex(null);
+                                  setEditUseNewShippingAddress(true);
+                                }}
+                                className="ml-2 p-1 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                                aria-label="Remove address"
+                              >
+                                <svg
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                              </button>
+                            </div>
+                          ) : (
                             <input
-                              type="date"
-                              value={editExpectedDeliveryDate}
-                              onChange={(e) => setEditExpectedDeliveryDate(e.target.value)}
-                              className="w-full rounded-lg border border-gray-600 bg-[#343541] px-3 py-2 pr-10 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                              type="text"
+                              value={getEditShippingAddressString()}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setEditShippingAddress({
+                                  addressLine1: value,
+                                  addressLine2: '',
+                                  city: '',
+                                  state: '',
+                                  zipCode: '',
+                                  country: '',
+                                });
+                                setEditUseNewShippingAddress(true);
+                                setEditSelectedShippingAddressIndex(null);
+                              }}
+                              placeholder="Enter full shipping address"
                               required
+                              className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
                             />
+                          )}
+                        </div>
+                        
+                        {/* Billing Address Input */}
+                        <div>
+                          <div className='flex justify-between'>
+                            <label className="block font-medium text-gray-700 dark:text-gray-300 mb-2 self-end">
+                              Billing Address <span className="text-red-400">*</span>
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => setIsEditBillingAddressModalOpen(true)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-sm mb-2 font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                            >
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                              </svg>
+                              Add
+                            </button>
                           </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Shipping Address Section */}
-                    <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-                      <div className="flex items-center gap-2 mb-4">
-                        <svg
-                          width="20"
-                          height="20"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="text-gray-600 dark:text-gray-400"
-                        >
-                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                          <circle cx="12" cy="10" r="3"></circle>
-                        </svg>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Shipping Address</h3>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Address Line 1 <span className="text-red-500 dark:text-red-400">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={editShippingAddress.addressLine1}
-                          onChange={(e) =>
-                            setEditShippingAddress((prev) => ({ ...prev, addressLine1: e.target.value }))
-                          }
-                          placeholder="Street address"
-                          className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Address Line 2
-                        </label>
-                        <input
-                          type="text"
-                          value={editShippingAddress.addressLine2}
-                          onChange={(e) =>
-                            setEditShippingAddress((prev) => ({ ...prev, addressLine2: e.target.value }))
-                          }
-                          placeholder="Apartment, suite, etc. (optional)"
-                          className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            City <span className="text-red-400">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={editShippingAddress.city}
-                            onChange={(e) =>
-                              setEditShippingAddress((prev) => ({ ...prev, city: e.target.value }))
-                            }
-                            placeholder="City"
-                            className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            State <span className="text-red-500 dark:text-red-400">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={editShippingAddress.state}
-                            onChange={(e) =>
-                              setEditShippingAddress((prev) => ({ ...prev, state: e.target.value }))
-                            }
-                            placeholder="State"
-                            className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                            required
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            ZIP Code <span className="text-red-400">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={editShippingAddress.zipCode}
-                            onChange={(e) =>
-                              setEditShippingAddress((prev) => ({ ...prev, zipCode: e.target.value }))
-                            }
-                            placeholder="ZIP code"
-                            className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Country <span className="text-red-500 dark:text-red-400">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={editShippingAddress.country}
-                            onChange={(e) =>
-                              setEditShippingAddress((prev) => ({ ...prev, country: e.target.value }))
-                            }
-                            placeholder="Country"
-                            className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                            required
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Billing Address Section */}
-                    <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-                      <div className="flex items-center gap-2 mb-4">
-                        <svg
-                          width="20"
-                          height="20"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="text-gray-600 dark:text-gray-400"
-                        >
-                          <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-                          <line x1="1" y1="10" x2="23" y2="10"></line>
-                        </svg>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Billing Address</h3>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Address Line 1 <span className="text-red-500 dark:text-red-400">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={editBillingAddress.addressLine1}
-                          onChange={(e) =>
-                            setEditBillingAddress((prev) => ({ ...prev, addressLine1: e.target.value }))
-                          }
-                          placeholder="Street address"
-                          className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Address Line 2
-                        </label>
-                        <input
-                          type="text"
-                          value={editBillingAddress.addressLine2}
-                          onChange={(e) =>
-                            setEditBillingAddress((prev) => ({ ...prev, addressLine2: e.target.value }))
-                          }
-                          placeholder="Apartment, suite, etc. (optional)"
-                          className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            City <span className="text-red-400">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={editBillingAddress.city}
-                            onChange={(e) =>
-                              setEditBillingAddress((prev) => ({ ...prev, city: e.target.value }))
-                            }
-                            placeholder="City"
-                            className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            State <span className="text-red-500 dark:text-red-400">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={editBillingAddress.state}
-                            onChange={(e) =>
-                              setEditBillingAddress((prev) => ({ ...prev, state: e.target.value }))
-                            }
-                            placeholder="State"
-                            className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                            required
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            ZIP Code <span className="text-red-400">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={editBillingAddress.zipCode}
-                            onChange={(e) =>
-                              setEditBillingAddress((prev) => ({ ...prev, zipCode: e.target.value }))
-                            }
-                            placeholder="ZIP code"
-                            className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Country <span className="text-red-500 dark:text-red-400">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={editBillingAddress.country}
-                            onChange={(e) =>
-                              setEditBillingAddress((prev) => ({ ...prev, country: e.target.value }))
-                            }
-                            placeholder="Country"
-                            className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                            required
-                          />
+                          {editSelectedBillingAddressIndex !== null && buyerProfile?.billingAddress?.[editSelectedBillingAddressIndex] && !editUseNewBillingAddress ? (
+                            <div className="w-full px-4 py-2.5 min-h-[42px] text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg flex items-center justify-between">
+                              <div className="flex-1">
+                                <p className="text-sm">
+                                  {formatAddressAsString(buyerProfile.billingAddress[editSelectedBillingAddressIndex])}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditSelectedBillingAddressIndex(null);
+                                  setEditUseNewBillingAddress(true);
+                                }}
+                                className="ml-2 p-1 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                                aria-label="Remove address"
+                              >
+                                <svg
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                              </button>
+                            </div>
+                          ) : (
+                            <input
+                              type="text"
+                              value={getEditBillingAddressString()}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setEditBillingAddress({
+                                  addressLine1: value,
+                                  addressLine2: '',
+                                  city: '',
+                                  state: '',
+                                  zipCode: '',
+                                  country: '',
+                                });
+                                setEditUseNewBillingAddress(true);
+                                setEditSelectedBillingAddressIndex(null);
+                              }}
+                              placeholder="Enter full billing address"
+                              required
+                              className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400"
+                            />
+                          )}
                         </div>
                       </div>
                     </div>
@@ -4200,7 +4247,7 @@ export default function EnquiriesPage() {
                     
 
                     {/* Products Section */}
-                    <div className="space-y-4 pt-4 border-t border-gray-600">
+                    <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-600">
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
                           <svg
@@ -4212,14 +4259,14 @@ export default function EnquiriesPage() {
                             strokeWidth="2"
                             strokeLinecap="round"
                             strokeLinejoin="round"
-                            className="text-gray-300"
+                            className="text-gray-600 dark:text-gray-300"
                           >
                             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                             <line x1="3" y1="9" x2="21" y2="9"></line>
                             <line x1="9" y1="21" x2="9" y2="9"></line>
                           </svg>
-                          <h3 className="text-lg font-semibold text-white">
-                            Products ({editEnquirySelectedProductIds.length})
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            Products ({editEnquirySelectedProductIds.length + editCustomProductRows.length})
                           </h3>
                         </div>
                         <div className="flex gap-2">
@@ -4228,7 +4275,7 @@ export default function EnquiriesPage() {
                             onClick={() => {
                               setIsEditEnquiryProductModalOpen(true);
                             }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-300 bg-[#343541] border border-gray-600 hover:bg-[#4A4B5A] rounded-lg transition-colors"
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
                           >
                             <svg
                               width="16"
@@ -4251,10 +4298,8 @@ export default function EnquiriesPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
-                              setIsGenerateProductModalOpen(true);
-                            }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-300 bg-[#343541] border border-gray-600 hover:bg-[#4A4B5A] rounded-lg transition-colors"
+                            onClick={handleEditAddCustomRows}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
                           >
                             <svg
                               width="16"
@@ -4266,16 +4311,17 @@ export default function EnquiriesPage() {
                               strokeLinecap="round"
                               strokeLinejoin="round"
                             >
-                              <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                          </svg>
-                          Generate
-                        </button>
+                              <line x1="12" y1="5" x2="12" y2="19"></line>
+                              <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            Add
+                          </button>
+                        </div>
                       </div>
-                    </div>
 
                     {/* Inline Product Generation Field */}
-                    <div className="space-y-3 p-3 bg-[#343541] rounded-lg border border-gray-600">
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <div className="space-y-3 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Generate Product with AI
                       </label>
                       {!inlineGeneratedFields ? (
@@ -4285,7 +4331,7 @@ export default function EnquiriesPage() {
                             value={inlineProductKeyword}
                             onChange={(e) => setInlineProductKeyword(e.target.value)}
                             placeholder="e.g., laptop, office chair, printer"
-                            className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                            className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                             onKeyPress={(e) => {
                               if (e.key === 'Enter' && !isGeneratingInline) {
                                 handleInlineGenerateProduct();
@@ -4297,7 +4343,7 @@ export default function EnquiriesPage() {
                             type="button"
                             onClick={handleInlineGenerateProduct}
                             disabled={isGeneratingInline || !inlineProductKeyword.trim()}
-                            className="px-4 py-2 bg-teal-500 hover:bg-teal-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center"
+                            className="px-4 py-2 bg-teal-600 dark:bg-teal-600 hover:bg-teal-700 dark:hover:bg-teal-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center"
                           >
                             {isGeneratingInline ? (
                               <svg
@@ -4331,10 +4377,10 @@ export default function EnquiriesPage() {
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
                             <div>
-                              <h4 className="text-sm font-semibold text-white">
+                              <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
                                 {inlineGeneratedFields.item}
                               </h4>
-                              <p className="text-xs text-gray-400 mt-0.5">AI Generated</p>
+                              <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">AI Generated</p>
                             </div>
                             <button
                               type="button"
@@ -4343,7 +4389,7 @@ export default function EnquiriesPage() {
                                 setInlineSpecFormData({});
                                 setInlineProductKeyword('');
                               }}
-                              className="text-xs text-gray-400 hover:text-gray-300"
+                              className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300"
                             >
                               Cancel
                             </button>
@@ -4353,9 +4399,9 @@ export default function EnquiriesPage() {
                           <div className="space-y-3 max-h-64 overflow-y-auto">
                             {inlineGeneratedFields.fields.map((field, index) => (
                               <div key={index} className="space-y-1">
-                                <label className="block text-xs font-medium text-gray-300">
+                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                                   {field.label}
-                                  {field.type !== 'textarea' && <span className="text-red-400 ml-1">*</span>}
+                                  {field.type !== 'textarea' && <span className="text-red-500 dark:text-red-400 ml-1">*</span>}
                                 </label>
                                 {field.type === 'dropdown' && field.options ? (
                                   <CreatableSelect
@@ -4372,7 +4418,7 @@ export default function EnquiriesPage() {
                                     onChange={(e) => handleInlineSpecInputChange(field.label, e.target.value)}
                                     placeholder={field.placeholder || `e.g., Specific requirements...`}
                                     rows={3}
-                                    className="w-full px-3 py-2 text-xs rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
+                                    className="w-full px-3 py-2 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
                                   />
                                 ) : field.type === 'number' ? (
                                   <input
@@ -4380,63 +4426,27 @@ export default function EnquiriesPage() {
                                     value={(inlineSpecFormData[field.label] as number) || ''}
                                     onChange={(e) => handleInlineSpecInputChange(field.label, parseFloat(e.target.value) || 0)}
                                     placeholder={field.placeholder || `e.g., 50`}
-                                    className="w-full px-3 py-2 text-xs rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                    className="w-full px-3 py-2 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                                     required
                                   />
                                 ) : (
-                                  <div className="space-y-2">
-                                    {/* Display existing values as tags */}
-                                    {(() => {
-                                      const fieldValue = inlineSpecFormData[field.label];
-                                      const values = Array.isArray(fieldValue) ? fieldValue : (typeof fieldValue === 'string' && fieldValue.trim() ? (fieldValue.includes(',') ? fieldValue.split(',').map(v => v.trim()).filter(v => v) : [fieldValue.trim()]) : []);
-                                      return values.length > 0 ? (
-                                        <div className="flex flex-wrap gap-2 mb-2">
-                                          {values.map((value, idx) => (
-                                            <span
-                                              key={idx}
-                                              className="inline-flex items-center gap-1.5 px-2 py-1 bg-teal-500/20 text-teal-300 text-xs rounded border border-teal-500/30"
-                                            >
-                                              {value}
-                                              <button
-                                                type="button"
-                                                onClick={() => handleInlineRemoveValue(field.label, value)}
-                                                className="text-teal-300 hover:text-teal-100 transition-colors"
-                                              >
-                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                                                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                                                </svg>
-                                              </button>
-                                            </span>
-                                          ))}
-                                        </div>
-                                      ) : null;
-                                    })()}
-                                    {/* Input field */}
-                                    <input
-                                      type="text"
-                                      value={inlineTextInputValues[field.label] || ''}
-                                      onChange={(e) => {
-                                        setInlineTextInputValues(prev => ({ ...prev, [field.label]: e.target.value }));
-                                      }}
-                                      onKeyDown={(e) => {
-                                        handleInlineTextInputKeyDown(e, field.label);
-                                        // Clear the input value in state after adding
-                                        if (e.key === 'Enter') {
-                                          setInlineTextInputValues(prev => ({ ...prev, [field.label]: '' }));
-                                        }
-                                      }}
-                                      placeholder={(() => {
-                                        const fieldValue = inlineSpecFormData[field.label];
-                                        const hasValues = Array.isArray(fieldValue) ? fieldValue.length > 0 : (typeof fieldValue === 'string' && fieldValue.trim());
-                                        return hasValues 
-                                          ? `Add another ${field.label.toLowerCase()} (press Enter to add)`
-                                          : (field.placeholder || `Enter ${field.label.toLowerCase()} (press Enter to add)`);
-                                      })()}
-                                      className="w-full px-3 py-2 text-xs rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                                      required={!Array.isArray(inlineSpecFormData[field.label]) || (Array.isArray(inlineSpecFormData[field.label]) && inlineSpecFormData[field.label].length === 0)}
-                                    />
-                                  </div>
+                                  <CreatableSelect
+                                    value={
+                                      Array.isArray(inlineSpecFormData[field.label])
+                                        ? (inlineSpecFormData[field.label] as string[])
+                                        : inlineSpecFormData[field.label]
+                                        ? String(inlineSpecFormData[field.label])
+                                            .split(',')
+                                            .map((v) => v.trim())
+                                            .filter((v) => v.length > 0)
+                                        : []
+                                    }
+                                    onChange={(value) => handleInlineSpecInputChange(field.label, value)}
+                                    options={[]}
+                                    placeholder={field.placeholder || `Type and press Enter to add ${field.label.toLowerCase()}`}
+                                    required
+                                    className="w-full"
+                                  />
                                 )}
                               </div>
                             ))}
@@ -4486,7 +4496,7 @@ export default function EnquiriesPage() {
                                 alert(error.message || 'Failed to add product. Please try again.');
                               }
                             }}
-                            className="w-full px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                            className="w-full px-4 py-2 bg-teal-600 dark:bg-teal-600 hover:bg-teal-700 dark:hover:bg-teal-700 text-white rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
                           >
                             <svg
                               width="16"
@@ -4508,7 +4518,7 @@ export default function EnquiriesPage() {
                     </div>
 
                     {/* Products List or Empty State */}
-                    {editEnquirySelectedProductIds.length === 0 ? (
+                    {editEnquirySelectedProductIds.length === 0 && editCustomProductRows.length === 0 ? (
                       <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-12 flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800/50">
                         <svg
                           width="64"
@@ -4531,230 +4541,236 @@ export default function EnquiriesPage() {
                         </p>
                       </div>
                     ) : (
-                      <div className="space-y-2">
-                        {editEnquirySelectedProductIds.map((productId) => {
-                          const product = productSheetItems.find((p) => p._id === productId);
-                          if (!product) return null;
-                          return (
-                            <div
-                              key={productId}
-                              className="p-3 bg-[#343541] rounded-lg border border-gray-600 space-y-3"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-white truncate">
-                                    {product.displayName || product.category || 'Unnamed Product'}
-                                  </p>
-                                  {product.category && (
-                                    <p className="text-xs text-gray-400 mt-0.5">{product.category}</p>
-                                  )}
-                                  
-                                  {/* Product Specifications */}
-                                  {(() => {
-                                    const specifications: string[] = [];
-                                    if (product.userAttributes) {
-                                      Object.entries(product.userAttributes).forEach(([key, value]) => {
-                                        if (value !== '' && value !== 0 && value !== null) {
-                                          // Skip image fields
-                                          if (key.toLowerCase() === 'image_link' || key.toLowerCase() === 'image_attachment') {
-                                            return;
-                                          }
-                                          if (Array.isArray(value)) {
-                                            specifications.push(`${key}: ${value.join(', ')}`);
-                                          } else {
-                                            specifications.push(`${key}: ${value}`);
-                                          }
-                                        }
-                                      });
-                                    }
-                                    return specifications.length > 0 ? (
-                                      <div className="flex flex-wrap gap-2 mt-2">
-                                        {specifications.slice(0, 3).map((spec, index) => (
-                                          <span
-                                            key={index}
-                                            className="text-xs px-2 py-1 bg-[#202123] text-gray-300 rounded"
-                                          >
-                                            {spec}
-                                          </span>
-                                        ))}
-                                        {specifications.length > 3 && (
-                                          <button
-                                            type="button"
-                                            onClick={() => openSpecModal(specifications, product.displayName || product.category || 'Product')}
-                                            className="text-xs px-2 py-1 bg-[#202123] text-gray-400 rounded hover:text-gray-300 transition-colors"
-                                          >
-                                            +{specifications.length - 3} more
-                                          </button>
-                                        )}
-                                      </div>
-                                    ) : null;
-                                  })()}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setExpandedProductDetails((prev) => {
-                                        const newSet = new Set(prev);
-                                        if (newSet.has(productId)) {
-                                          newSet.delete(productId);
-                                        } else {
-                                          newSet.add(productId);
-                                        }
-                                        return newSet;
-                                      });
-                                    }}
-                                    className="px-2 py-1 text-xs text-gray-400 hover:text-gray-300 flex items-center gap-1"
-                                  >
-                                    {expandedProductDetails.has(productId) ? (
-                                      <>
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                          <polyline points="18 15 12 9 6 15"></polyline>
-                                        </svg>
-                                        Hide Details
-                                      </>
-                                    ) : (
-                                      <>
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                          <polyline points="6 9 12 15 18 9"></polyline>
-                                        </svg>
-                                        Show Details
-                                      </>
-                                    )}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditEnquirySelectedProductIds((prev) =>
-                                        prev.filter((id) => id !== productId)
-                                      );
-                                    }}
-                                    className="ml-3 p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
-                                    aria-label="Remove product"
-                                  >
-                                    <svg
-                                      width="16"
-                                      height="16"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
+                      <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden flex flex-col" style={{ maxHeight: '400px' }}>
+                        <div className="overflow-y-auto overflow-x-auto flex-1">
+                          <table className="w-full border-collapse bg-white dark:bg-gray-800">
+                          {/* Table Header */}
+                          <thead className="sticky top-0 z-10">
+                            <tr className="bg-gray-100 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600">
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
+                                Name
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
+                                Quantity
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
+                                Unit
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                Target Price
+                              </th>
+                            </tr>
+                          </thead>
+                          {/* Table Body */}
+                          <tbody>
+                            {/* Selected Products from Product Sheet */}
+                            {editEnquirySelectedProductIds.map((productId, index) => {
+                              const product = productSheetItems.find((p) => p._id === productId);
+                              if (!product) return null;
+                              return (
+                                <tr
+                                  key={productId}
+                                  className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                                    index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
+                                  }`}
+                                >
+                                  {/* Name Column */}
+                                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-600">
+                                    <div>
+                                      <p className="font-medium">
+                                        {product.displayName || product.category || 'Unnamed Product'}
+                                      </p>
+                                      {product.category && (
+                                        <p className="text-xs text-gray-400 mt-0.5">{product.category}</p>
+                                      )}
+                                    </div>
+                                  </td>
+                                  {/* Quantity Column */}
+                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={productDetails[productId]?.quantity || ''}
+                                      onChange={(e) => handleProductDetailChange(productId, 'quantity', parseFloat(e.target.value) || 0)}
+                                      placeholder="0"
+                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                    />
+                                  </td>
+                                  {/* Unit Column */}
+                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                    <select
+                                      value={productDetails[productId]?.unit || ''}
+                                      onChange={(e) => handleProductDetailChange(productId, 'unit', e.target.value)}
+                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
                                     >
-                                      <line x1="18" y1="6" x2="6" y2="18"></line>
-                                      <line x1="6" y1="6" x2="18" y2="18"></line>
-                                    </svg>
-                                  </button>
-                                </div>
-                              </div>
-                              
-                              {/* Product Details: Quantity, Target Price, Unit */}
-                              {expandedProductDetails.has(productId) && (
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-gray-600">
-                                <div>
-                                  <label className="block text-xs font-medium text-gray-300 mb-1">
-                                    Quantity
-                                  </label>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={productDetails[productId]?.quantity || ''}
-                                    onChange={(e) => handleProductDetailChange(productId, 'quantity', parseFloat(e.target.value) || 0)}
-                                    placeholder="0"
-                                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-xs font-medium text-gray-300 mb-1">
-                                    Target Price
-                                  </label>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={productDetails[productId]?.targetPrice || ''}
-                                    onChange={(e) => handleProductDetailChange(productId, 'targetPrice', parseFloat(e.target.value) || 0)}
-                                    placeholder="0.00"
-                                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-xs font-medium text-gray-300 mb-1">
-                                    Unit
-                                  </label>
-                                  <select
-                                    value={productDetails[productId]?.unit || ''}
-                                    onChange={(e) => handleProductDetailChange(productId, 'unit', e.target.value)}
-                                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-600 bg-[#202123] text-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                                  >
-                                    <option value="">Select unit</option>
-                                    {STANDARD_UNITS.map((unit) => (
-                                      <option key={unit} value={unit}>
-                                        {unit}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
-                              )}
-                            </div>
-                          );
-                          })}
+                                      <option value="">Select unit</option>
+                                      {STANDARD_UNITS.map((unit) => (
+                                        <option key={unit} value={unit}>
+                                          {unit}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                  {/* Target Price Column */}
+                                  <td className="px-4 py-3">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={productDetails[productId]?.targetPrice || ''}
+                                      onChange={(e) => handleProductDetailChange(productId, 'targetPrice', parseFloat(e.target.value) || 0)}
+                                      placeholder="0.00"
+                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                    />
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            {/* Custom Product Rows */}
+                            {editCustomProductRows.map((row, index) => {
+                              const totalIndex = editEnquirySelectedProductIds.length + index;
+                              return (
+                                <tr
+                                  key={row.id}
+                                  className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                                    totalIndex % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
+                                  }`}
+                                >
+                                  {/* Name Column */}
+                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="text"
+                                        value={row.name}
+                                        onChange={(e) => handleEditCustomProductChange(row.id, 'name', e.target.value)}
+                                        placeholder="Enter product name"
+                                        className="flex-1 px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleEditRemoveCustomRow(row.id)}
+                                        className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors"
+                                        aria-label="Remove row"
+                                      >
+                                        <svg
+                                          width="14"
+                                          height="14"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="2"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        >
+                                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </td>
+                                  {/* Quantity Column */}
+                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={row.quantity || ''}
+                                      onChange={(e) => handleEditCustomProductChange(row.id, 'quantity', parseFloat(e.target.value) || 0)}
+                                      placeholder="0"
+                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                    />
+                                  </td>
+                                  {/* Unit Column */}
+                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                    <select
+                                      value={row.unit}
+                                      onChange={(e) => handleEditCustomProductChange(row.id, 'unit', e.target.value)}
+                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                    >
+                                      <option value="">Select unit</option>
+                                      {STANDARD_UNITS.map((unit) => (
+                                        <option key={unit} value={unit}>
+                                          {unit}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                  {/* Target Price Column */}
+                                  <td className="px-4 py-3">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={row.targetPrice || ''}
+                                      onChange={(e) => handleEditCustomProductChange(row.id, 'targetPrice', parseFloat(e.target.value) || 0)}
+                                      placeholder="0.00"
+                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                    />
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                        </div>
                       </div>
                     )}
-                    </div>
+                  </div>
 
-                    {/* Notes Section */}
-                    <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-                      <div className="flex items-center gap-2 mb-4">
+                    {/* Enquiry Notes Section */}
+                    <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-600">
+                      <div className="flex items-center gap-2 mb-1">
                         <svg
-                          width="20"
-                          height="20"
+                          width="16"
+                          height="16"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
                           strokeWidth="2"
                           strokeLinecap="round"
                           strokeLinejoin="round"
-                          className="text-gray-600 dark:text-gray-400"
+                          className="text-gray-500 dark:text-gray-400"
                         >
                           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                           <polyline points="14 2 14 8 20 8"></polyline>
                           <line x1="16" y1="13" x2="8" y2="13"></line>
                           <line x1="16" y1="17" x2="8" y2="17"></line>
                         </svg>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Notes</h3>
+                        <label className="block font-medium text-gray-700 dark:text-gray-300">
+                          Enquiry Notes
+                        </label>
                       </div>
                       <textarea
                         value={editEnquiryNotes}
                         onChange={(e) => setEditEnquiryNotes(e.target.value)}
                         placeholder="Add any additional notes or requirements..."
                         rows={4}
-                        className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400 resize-none"
+                        className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400 resize-none"
                       />
                     </div>
 
                     {/* Attachment Section */}
-                    <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-                      <div className="flex items-center gap-2 mb-4">
+                    <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-600">
+                      <div className="flex items-center gap-2 mb-1">
                         <svg
-                          width="20"
-                          height="20"
+                          width="16"
+                          height="16"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
                           strokeWidth="2"
                           strokeLinecap="round"
                           strokeLinejoin="round"
-                          className="text-gray-600 dark:text-gray-400"
+                          className="text-gray-500 dark:text-gray-400"
                         >
                           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                           <polyline points="17 8 12 3 7 8"></polyline>
                           <line x1="12" y1="3" x2="12" y2="15"></line>
                         </svg>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Attachment</h3>
+                        <label className="block font-medium text-gray-700 dark:text-gray-300">
+                          Attachment
+                        </label>
                       </div>
                       <input
                         type="file"
@@ -4763,66 +4779,46 @@ export default function EnquiriesPage() {
                           // Fire and forget; handler manages state and errors
                           void handleEditEnquiryAttachmentChange(file);
                         }}
-                        className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-teal-50 dark:file:bg-teal-900 file:text-teal-700 dark:file:text-teal-200 hover:file:bg-teal-100 dark:hover:file:bg-teal-800"
+                        className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 dark:file:bg-teal-900 dark:file:text-teal-200"
                       />
                       {editEnquiryAttachment && (
-                        <p className="text-sm text-gray-400">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
                           Selected: {editEnquiryAttachment.name}
                         </p>
                       )}
                       {editEnquiryAttachmentUrl && !editEnquiryAttachment && (
-                        <p className="text-sm text-gray-400">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
                           Current attachment exists
                         </p>
                       )}
                     </div>
 
-                    {/* Form Footer */}
-                    <div className="pt-6 border-t border-gray-200 dark:border-gray-600 flex justify-end gap-3">
-                      <button
-                        type="button"
-                        onClick={handleCloseDetailModal}
+                    {/* Footer */}
+                    <div className="pt-4 border-t border-gray-200 dark:border-gray-600">
+                      <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={handleCloseDetailModal}
                         className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
                         disabled={isUpdatingEnquiry}
-                        className="px-4 py-2 text-sm font-medium text-white bg-teal-600 dark:bg-teal-600 hover:bg-teal-700 dark:hover:bg-teal-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg transition-colors flex items-center gap-2"
-                      >
-                        {isUpdatingEnquiry ? (
-                          <>
-                            <div className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                            Sending...
-                          </>
-                        ) : (
-                          <>
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <line x1="22" y1="2" x2="11" y2="13"></line>
-                              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                            </svg>
-                            Send Enquiry
-                          </>
-                        )}
-                      </button>
+                        className="px-4 py-2 text-sm font-medium text-white bg-teal-600 dark:bg-teal-600 hover:bg-teal-700 dark:hover:bg-teal-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg transition-colors"
+                >
+                        {isUpdatingEnquiry ? 'Updating...' : 'Update Enquiry'}
+                </button>
                     </div>
-                  </form>
-                </div>
+              </div>
+                </form>
               </div>
             </div>
-          </>
-        );
-      })()}
+          </div>
+        </>
+      );
+    })()}
 
       {/* Edit Enquiry Product Selection Modal */}
       {isEditEnquiryProductModalOpen && (
@@ -5691,6 +5687,240 @@ export default function EnquiriesPage() {
                         country: '',
                       });
                       setIsBillingAddressModalOpen(false);
+                    }}
+                    className="w-4 h-4 text-teal-500 border-gray-300 dark:border-gray-600 focus:ring-teal-500"
+                  />
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">Use new address</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Shipping Address Selection Modal */}
+      {isEditShippingAddressModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setIsEditShippingAddressModalOpen(false)}
+        >
+          <div 
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Select Shipping Address
+              </h2>
+              <button
+                onClick={() => setIsEditShippingAddressModalOpen(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                aria-label="Close modal"
+              >
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-4">
+              {buyerProfile?.shippingAddress && buyerProfile.shippingAddress.length > 0 ? (
+                <>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
+                    Select from saved addresses:
+                  </label>
+                  <div className="space-y-2">
+                    {buyerProfile.shippingAddress.map((address, index) => (
+                      <label
+                        key={index}
+                        className="flex items-start gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition-colors"
+                      >
+                        <input
+                          type="radio"
+                          name="editShippingAddressModal"
+                          checked={editSelectedShippingAddressIndex === index && !editUseNewShippingAddress}
+                          onChange={() => {
+                            setEditSelectedShippingAddressIndex(index);
+                            setEditUseNewShippingAddress(false);
+                            setEditShippingAddress({
+                              addressLine1: address.addressLine1 || '',
+                              addressLine2: address.addressLine2 || '',
+                              city: address.city || '',
+                              state: address.state || '',
+                              zipCode: address.zipCode || '',
+                              country: address.country || '',
+                            });
+                            setIsEditShippingAddressModalOpen(false);
+                          }}
+                          className="mt-1 w-4 h-4 text-teal-500 border-gray-300 dark:border-gray-600 focus:ring-teal-500"
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {address.addressLine1}
+                            {address.addressLine2 && `, ${address.addressLine2}`}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {address.city}, {address.state} {address.zipCode}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{address.country}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                  No saved shipping addresses found.
+                </p>
+              )}
+              
+              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                <label className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition-colors">
+                  <input
+                    type="radio"
+                    name="editShippingAddressModal"
+                    checked={editUseNewShippingAddress}
+                    onChange={() => {
+                      setEditUseNewShippingAddress(true);
+                      setEditSelectedShippingAddressIndex(null);
+                      setEditShippingAddress({
+                        addressLine1: '',
+                        addressLine2: '',
+                        city: '',
+                        state: '',
+                        zipCode: '',
+                        country: '',
+                      });
+                      setIsEditShippingAddressModalOpen(false);
+                    }}
+                    className="w-4 h-4 text-teal-500 border-gray-300 dark:border-gray-600 focus:ring-teal-500"
+                  />
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">Use new address</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Billing Address Selection Modal */}
+      {isEditBillingAddressModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setIsEditBillingAddressModalOpen(false)}
+        >
+          <div 
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Select Billing Address
+              </h2>
+              <button
+                onClick={() => setIsEditBillingAddressModalOpen(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                aria-label="Close modal"
+              >
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-4">
+              {buyerProfile?.billingAddress && buyerProfile.billingAddress.length > 0 ? (
+                <>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
+                    Select from saved addresses:
+                  </label>
+                  <div className="space-y-2">
+                    {buyerProfile.billingAddress.map((address, index) => (
+                      <label
+                        key={index}
+                        className="flex items-start gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition-colors"
+                      >
+                        <input
+                          type="radio"
+                          name="editBillingAddressModal"
+                          checked={editSelectedBillingAddressIndex === index && !editUseNewBillingAddress}
+                          onChange={() => {
+                            setEditSelectedBillingAddressIndex(index);
+                            setEditUseNewBillingAddress(false);
+                            setEditBillingAddress({
+                              addressLine1: address.addressLine1 || '',
+                              addressLine2: address.addressLine2 || '',
+                              city: address.city || '',
+                              state: address.state || '',
+                              zipCode: address.zipCode || '',
+                              country: address.country || '',
+                            });
+                            setIsEditBillingAddressModalOpen(false);
+                          }}
+                          className="mt-1 w-4 h-4 text-teal-500 border-gray-300 dark:border-gray-600 focus:ring-teal-500"
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {address.addressLine1}
+                            {address.addressLine2 && `, ${address.addressLine2}`}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {address.city}, {address.state} {address.zipCode}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{address.country}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                  No saved billing addresses found.
+                </p>
+              )}
+              
+              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                <label className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition-colors">
+                  <input
+                    type="radio"
+                    name="editBillingAddressModal"
+                    checked={editUseNewBillingAddress}
+                    onChange={() => {
+                      setEditUseNewBillingAddress(true);
+                      setEditSelectedBillingAddressIndex(null);
+                      setEditBillingAddress({
+                        addressLine1: '',
+                        addressLine2: '',
+                        city: '',
+                        state: '',
+                        zipCode: '',
+                        country: '',
+                      });
+                      setIsEditBillingAddressModalOpen(false);
                     }}
                     className="w-4 h-4 text-teal-500 border-gray-300 dark:border-gray-600 focus:ring-teal-500"
                   />

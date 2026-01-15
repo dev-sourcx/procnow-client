@@ -710,9 +710,9 @@ export default function EnquiryDetailPage() {
                     return (
                       <div key={productId} className="grid grid-cols-7 gap-6">
                         {/* Left Column - Product Details */}
-                        <div className="col-span-2 bg-gray-800 dark:bg-gray-800 rounded-lg border border-gray-700 dark:border-gray-700 p-6">
+                        <div className="col-span-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600 p-6">
                           {!productDetails ? (
-                            <div className="text-center py-8 text-gray-400">
+                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                               <p>Product details unavailable</p>
                             </div>
                           ) : (
@@ -729,7 +729,7 @@ export default function EnquiryDetailPage() {
                                   }}
                                 />
                               ) : (
-                                <div className="w-32 h-32 bg-gray-700 rounded-lg flex items-center justify-center">
+                                <div className="w-32 h-32 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
                                   <svg
                                     width="40"
                                     height="40"
@@ -739,7 +739,7 @@ export default function EnquiryDetailPage() {
                                     strokeWidth="2"
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
-                                    className="text-gray-500"
+                                    className="text-gray-500 dark:text-gray-400"
                                   >
                                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                                     <circle cx="8.5" cy="8.5" r="1.5"></circle>
@@ -751,11 +751,11 @@ export default function EnquiryDetailPage() {
 
                             {/* Product Name */}
                             <div className="mb-3">
-                              <h3 className="text-xl font-bold text-white mb-3">
+                              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">
                                 {productDetails.displayName}
                               </h3>
                               <div className="flex items-center gap-2">
-                                <button className="px-3 py-1.5 bg-gray-700 dark:bg-gray-700 text-white rounded-lg text-sm font-medium">
+                                <button className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium">
                                   {quoteCount} quotes
                                 </button>
                                 {quoteCount > 0 && (
@@ -768,28 +768,28 @@ export default function EnquiryDetailPage() {
 
                             {/* Description */}
                             <div>
-                              <p className="text-sm text-white/90">
+                              <p className="text-sm text-gray-700 dark:text-gray-300">
                                 {productDetails.description}
                               </p>
                             </div>
 
                             {/* Quantity and Target Price Row */}
                             <div className="flex items-center gap-2 text-sm">
-                              <span className="text-white">Qty: </span>
-                              <span className="font-medium text-white">
+                              <span className="text-gray-700 dark:text-gray-300">Qty: </span>
+                              <span className="font-medium text-gray-900 dark:text-white">
                                 {productDetails.quantity}
                               </span>
-                              <span className="text-white">•</span>
-                              <span className="text-white">Target: </span>
-                              <span className="font-medium text-white">
+                              <span className="text-gray-700 dark:text-gray-300">•</span>
+                              <span className="text-gray-700 dark:text-gray-300">Target: </span>
+                              <span className="font-medium text-gray-900 dark:text-white">
                                 ${productDetails.targetPrice}/unit
                               </span>
                             </div>
 
                             {/* Need By Date */}
                             <div>
-                              <span className="text-sm text-white">Need by: </span>
-                              <span className="text-sm font-bold text-white">
+                              <span className="text-sm text-gray-700 dark:text-gray-300">Need by: </span>
+                              <span className="text-sm font-bold text-gray-900 dark:text-white">
                                 {formatDate(productDetails.needByDate)}
                               </span>
                             </div>
@@ -821,7 +821,13 @@ export default function EnquiryDetailPage() {
                                           <span className="text-sm font-medium text-gray-900 dark:text-white">
                                             {vendorQuote.vendorName}
                                           </span>
-                                          <span className="px-3 py-1 bg-teal-500 text-white rounded-lg text-xs font-medium">
+                                          <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                                            buyerStatus === 'accepted' 
+                                              ? 'bg-green-500 dark:bg-green-500 text-white' 
+                                              : buyerStatus === 'rejected' 
+                                              ? 'bg-red-500 dark:bg-red-500 text-white' 
+                                              : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                          }`}>
                                             {buyerStatus === 'accepted' ? 'Accepted' : buyerStatus === 'rejected' ? 'Rejected' : 'Pending'}
                                           </span>
                                         </div>
