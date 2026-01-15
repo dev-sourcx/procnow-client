@@ -111,7 +111,7 @@ export default function Home() {
   const [specModalItems, setSpecModalItems] = useState<string[]>([]);
   const [specModalTitle, setSpecModalTitle] =
     useState<string>("Specifications");
-  const [isFilterOpen, setIsFilterOpen] = useState(true);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isFilterCollapsed, setIsFilterCollapsed] = useState(false);
   const [discoverFilterMeta, setDiscoverFilterMeta] = useState<Record<string, string[]> | null>(null);
   const [discoverSelectedFilters, setDiscoverSelectedFilters] = useState<Record<string, string[]>>({});
@@ -711,31 +711,6 @@ export default function Home() {
     <>
       {/* Chat Container + Discover Filters */}
       <div className="flex-1 flex overflow-hidden bg-gray-50 dark:bg-gray-900 h-[calc(100vh-68.8px)] relative">
-        {/* Filter Toggle Button (Right Side) - Only show when filter is closed */}
-        {!isFilterOpen && (
-          <button
-            type="button"
-            onClick={() => {
-              setIsFilterOpen(true);
-              setIsFilterCollapsed(false);
-            }}
-            className="hidden md:flex absolute left-4 top-4 z-40 items-center justify-center w-10 h-10 rounded-lg bg-teal-600 hover:bg-teal-700 text-white shadow-lg transition-colors"
-            aria-label="Open filters"
-            title="Open filters"
-          >
-            <svg
-              className="w-5 h-5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polygon points="3 4 21 4 14 12 14 19 10 21 10 12 3 4" />
-            </svg>
-          </button>
-        )}
         {/* Chat Container */}
         <div className="flex-1 flex flex-col overflow-hidden">
           <ChatContainer
@@ -785,6 +760,8 @@ export default function Home() {
             discoverFilterMeta={discoverFilterMeta}
             discoverSelectedFilters={discoverSelectedFilters}
             setDiscoverSelectedFilters={setDiscoverSelectedFilters}
+            isFilterOpen={isFilterOpen}
+            setIsFilterCollapsed={setIsFilterCollapsed}
           />
         </div>
 

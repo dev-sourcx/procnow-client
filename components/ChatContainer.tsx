@@ -40,6 +40,8 @@ interface ChatContainerProps {
   discoverFilterMeta?: Record<string, string[]> | null;
   discoverSelectedFilters?: Record<string, string[]>;
   setDiscoverSelectedFilters?: (filters: Record<string, string[]>) => void;
+  isFilterOpen?: boolean;
+  setIsFilterCollapsed?: (isCollapsed: boolean | ((prev: boolean) => boolean)) => void;
 }
 
 export default function ChatContainer({
@@ -51,7 +53,9 @@ export default function ChatContainer({
   setDiscoverFilterMeta,
   discoverFilterMeta,
   discoverSelectedFilters = {},
-  setDiscoverSelectedFilters
+  setDiscoverSelectedFilters,
+  setIsFilterCollapsed,
+  isFilterOpen,
 }: ChatContainerProps) {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -630,6 +634,31 @@ export default function ChatContainer({
 
   return (
     <div className="flex h-full w-full flex-col bg-white dark:bg-gray-800 shadow-lg overflow-hidden">
+      {/* Filter Toggle Button (Right Side) - Only show when filter is closed */}
+      {!isFilterOpen && (
+          <button
+            type="button"
+            onClick={() => {
+              setIsFilterOpen(true);
+              setIsFilterCollapsed(false);
+            }}
+            className="hidden md:flex items-center justify-center w-10 h-10 rounded-lg bg-teal-600 self-end mr-4 mt-4 hover:bg-teal-700 text-white shadow-lg transition-colors"
+            aria-label="Open filters"
+            title="Open filters"
+          >
+            <svg
+              className="w-5 h-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polygon points="3 4 21 4 14 12 14 19 10 21 10 12 3 4" />
+            </svg>
+          </button>
+        )}
       {/* Messages */}
       <div className="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-gray-800 px-6 py-4">
         {messages.length === 0 ? (
