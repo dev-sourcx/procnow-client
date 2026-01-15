@@ -850,7 +850,7 @@ export default function ProductCard({
       )}
 
       {/* Product Card */}
-      <div className="group relative flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 hover:scale-105 w-full max-w-xs">
+      <div className="group relative flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 hover:scale-[1.15] w-full max-w-xs">
         {/* Image Container */}
         <div className="relative w-full aspect-[4/3] overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
           {/* Favorite Icon */}
