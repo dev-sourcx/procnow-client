@@ -40,8 +40,13 @@ export default function ProductSheetPage() {
   const [specFormData, setSpecFormData] = useState<Record<string, string | number | string[]>>({});
   const [isSubmittingSpec, setIsSubmittingSpec] = useState(false);
   const [specModalItems, setSpecModalItems] = useState<string[]>([]);
-  const [specModalTitle, setSpecModalTitle] = useState<string>('Specifications');
+  const [specModalTitle, setSpecModalTitle] = useState<string>('Description');
   const [enquiryCount, setEnquiryCount] = useState<number>(0);
+  
+  // State for description modal
+  const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
+  const [descriptionModalContent, setDescriptionModalContent] = useState<string>('');
+  const [descriptionModalProductName, setDescriptionModalProductName] = useState<string>('');
   
   // Enquiry sidebar state
   const [isNewEnquiryModalOpen, setIsNewEnquiryModalOpen] = useState(false);
@@ -86,7 +91,7 @@ export default function ProductSheetPage() {
   const [inlineGeneratedFields, setInlineGeneratedFields] = useState<GeneratedFieldsResponse | null>(null);
   const [inlineSpecFormData, setInlineSpecFormData] = useState<Record<string, any>>({});
   // Product details state: maps productId to { quantity, targetPrice, unit }
-  const [productDetails, setProductDetails] = useState<Record<string, { quantity: number; targetPrice: number; unit: string }>>({});
+  const [productDetails, setProductDetails] = useState<Record<string, { quantity: number; targetPrice: number; unit: string; isAdded?: boolean }>>({});
   // Track which product details are expanded (collapsible)
   const [expandedProductDetails, setExpandedProductDetails] = useState<Set<string>>(new Set());
   // Helper function to create default 5 empty custom product rows
@@ -97,11 +102,12 @@ export default function ProductSheetPage() {
       quantity: 0,
       unit: '',
       targetPrice: 0,
+      isAdded: false,
     }));
   };
 
   // Custom product rows (for manual entry) - initialize with 5 empty rows
-  const [customProductRows, setCustomProductRows] = useState<Array<{ id: string; name: string; quantity: number; unit: string; targetPrice: number }>>(createDefaultCustomRows());
+  const [customProductRows, setCustomProductRows] = useState<Array<{ id: string; name: string; quantity: number; unit: string; targetPrice: number; isAdded?: boolean }>>(createDefaultCustomRows());
 
   // Product selection for enquiry
   const [productSheetItems, setProductSheetItems] = useState<ProductSheetItem[]>([]);
@@ -308,13 +314,21 @@ export default function ProductSheetPage() {
   };
 
   // Helper function to combine selected products and custom products for enquiry
+  // Only includes products that are in the ribbon (have isAdded === true)
   const getAllEnquiryProducts = (): any => {
-    const selectedProducts = newEnquirySelectedProductIds.length > 0 
-      ? mapProductIdsToEnquiryProducts(newEnquirySelectedProductIds) 
+    // Filter products that are in ribbon (isAdded === true)
+    const ribbonProducts = newEnquirySelectedProductIds.filter((productId) => {
+      const details = productDetails[productId];
+      return details?.isAdded === true;
+    });
+    
+    const selectedProducts = ribbonProducts.length > 0 
+      ? mapProductIdsToEnquiryProducts(ribbonProducts) 
       : [];
     
+    // Filter custom products that are in ribbon (isAdded === true)
     const customProducts = customProductRows
-      .filter((row) => row.name.trim()) // Only include rows with a name
+      .filter((row) => row.isAdded === true) // Only include rows explicitly added to ribbon
       .map((row) => ({
         name: row.name.trim(),
         quantity: row.quantity > 0 ? row.quantity : undefined,
@@ -598,7 +612,7 @@ export default function ProductSheetPage() {
 
   const openSpecModal = (items: string[], title?: string) => {
     setSpecModalItems(items);
-    setSpecModalTitle(title || 'Specifications');
+    setSpecModalTitle(title || 'Description');
     setIsSpecModalOpen(true);
   };
 
@@ -775,13 +789,51 @@ export default function ProductSheetPage() {
     });
   };
 
+  // Handler to add product to ribbon
+  const handleAddProductToRibbon = (productId: string) => {
+    setProductDetails((prev) => {
+      const currentDetails = prev[productId];
+      const quantity = currentDetails?.quantity && currentDetails.quantity > 0 ? currentDetails.quantity : 1;
+      const unit = currentDetails?.unit && currentDetails.unit.trim() !== '' ? currentDetails.unit : 'pcs';
+      const targetPrice = currentDetails?.targetPrice || 0;
+      return {
+        ...prev,
+        [productId]: {
+          quantity,
+          unit,
+          targetPrice,
+          isAdded: true, // Mark as explicitly added to ribbon
+        },
+      };
+    });
+  };
+
+  // Handler to add custom product to ribbon
+  const handleAddCustomProductToRibbon = (rowId: string) => {
+    setCustomProductRows((prev) =>
+      prev.map((row) => {
+        if (row.id === rowId) {
+          const quantity = row.quantity && row.quantity > 0 ? row.quantity : 1;
+          const unit = row.unit && row.unit.trim() !== '' ? row.unit : 'pcs';
+          return {
+            ...row,
+            quantity,
+            unit,
+            isAdded: true, // Mark as explicitly added to ribbon
+          };
+        }
+        return row;
+      })
+    );
+  };
+
   // Handler to open AI generation for a specific product (inline)
   const handleOpenAIForProduct = async (productId: string) => {
     const product = productSheetItems.find((p) => p._id === productId);
     if (product) {
       const productName = product.displayName || product.category || '';
       if (!productName.trim()) {
-        alert('Product name is required to generate specifications');
+        alert('Product name is required to generate description');
         return;
       }
       
@@ -812,7 +864,7 @@ export default function ProductSheetPage() {
         setProductListAISpecFormData(initialData);
       } catch (error) {
         console.error('Error generating fields:', error);
-        alert(error instanceof Error ? error.message : 'Failed to generate specifications. Please try again.');
+        alert(error instanceof Error ? error.message : 'Failed to generate description. Please try again.');
         setIsProductListAIModalOpen(false);
       } finally {
         setIsGeneratingProductListAI(false);
@@ -885,7 +937,7 @@ export default function ProductSheetPage() {
         ...prev,
         [currentProductIdForSpec]: { ...productListAISpecFormData }
       }));
-      alert('Specifications saved successfully!');
+      alert('Description saved successfully!');
       handleCloseProductListAIModal();
     } else if (currentRowIdForSpec) {
       // Save to custom product row
@@ -893,7 +945,7 @@ export default function ProductSheetPage() {
         ...prev,
         [currentRowIdForSpec]: { ...productListAISpecFormData }
       }));
-      alert('Specifications saved successfully!');
+      alert('Description saved successfully!');
       handleCloseProductListAIModal();
     }
   };
@@ -919,20 +971,23 @@ export default function ProductSheetPage() {
       // Prepare userAttributes from saved specifications
       const userAttributes: Record<string, any> = {};
       Object.entries(savedSpecs).forEach(([key, value]) => {
-        if (value !== '' && value !== 0 && value !== null && value !== undefined) {
+        // Include value if it's not empty string, null, or undefined
+        // Allow 0, false, and empty arrays as valid values
+        if (value !== '' && value !== null && value !== undefined) {
           if (Array.isArray(value) && value.length === 0) {
+            // Skip empty arrays
             return;
           }
           userAttributes[key] = value;
         }
       });
 
-      // Create product in database
+      // Create product in database - always include userAttributes even if empty
       const newProduct = await addProductItem(token, {
         productSource: 'ai_generated',
         displayName: row.name.trim(),
         category: 'Custom',
-        userAttributes: userAttributes,
+        userAttributes: Object.keys(userAttributes).length > 0 ? userAttributes : {},
         adminProductId: null,
         externalRef: null,
       });
@@ -942,16 +997,17 @@ export default function ProductSheetPage() {
         setNewEnquirySelectedProductIds((prev) => [...prev, newProduct._id]);
         
         // Also set product details (quantity, unit, targetPrice) from the row
-        if (row.quantity || row.unit || row.targetPrice) {
-          setProductDetails((prev) => ({
-            ...prev,
-            [newProduct._id]: {
-              quantity: row.quantity || 0,
-              unit: row.unit || '',
-              targetPrice: row.targetPrice || 0,
-            }
-          }));
-        }
+        // Always set product details to ensure it appears in ribbon
+        // Use row values if available, otherwise use defaults (quantity: 1, unit: 'pcs')
+        setProductDetails((prev) => ({
+          ...prev,
+          [newProduct._id]: {
+            quantity: row.quantity && row.quantity > 0 ? row.quantity : 1,
+            unit: row.unit && row.unit.trim() !== '' ? row.unit : 'pcs',
+            targetPrice: row.targetPrice || 0,
+            isAdded: true, // Mark as added since it's created and added
+          }
+        }));
 
         // Move specifications from custom row to the created product
         if (Object.keys(savedSpecs).length > 0) {
@@ -1298,7 +1354,7 @@ export default function ProductSheetPage() {
                     <line x1="9" y1="21" x2="9" y2="9"></line>
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">My Products</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">My Cart</h3>
                 <span className="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-full">
                   {productCount} products
                 </span>
@@ -1416,12 +1472,12 @@ export default function ProductSheetPage() {
                               setSelectedProductIds([]);
                             }
                           }}
-                          className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500"
+                          className="custom-checkbox w-4 h-4 rounded focus:ring-2 focus:ring-teal-500 focus:ring-offset-1"
                         />
                       </label>
                     </th>
                     <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Product Name</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Specifications</th>
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300" style={{ width: '400px', minWidth: '400px', maxWidth: '600px' }}>Description</th>
                     <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Action</th>
                   </tr>
                 </thead>
@@ -1429,8 +1485,8 @@ export default function ProductSheetPage() {
                   {filteredProducts.map((product) => {
                     const isSelected = selectedProductIds.includes(product.id);
                     
-                    // Parse specifications to show as key: value badges (exclude description and price)
-                    const specBadges = product.specifications
+                    // Parse specifications to show as comma-separated text (exclude description and price)
+                    const specText = product.specifications
                       .filter(spec => {
                         const lowerSpec = spec.toLowerCase();
                         return !lowerSpec.includes('description') && 
@@ -1443,7 +1499,8 @@ export default function ProductSheetPage() {
                           return spec;
                         }
                         return spec;
-                      });
+                      })
+                      .join(', ');
 
                     return (
                       <tr
@@ -1465,7 +1522,7 @@ export default function ProductSheetPage() {
                                   setSelectedProductIds(prev => [...prev, product.id]);
                                 }
                               }}
-                              className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500"
+                              className="custom-checkbox w-4 h-4 rounded focus:ring-2 focus:ring-teal-500 focus:ring-offset-1"
                             />
                           </label>
                         </td>
@@ -1476,26 +1533,27 @@ export default function ProductSheetPage() {
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{product.addedDate}</div>
                         </td>
 
-                        {/* Specifications */}
-                        <td className="py-4 px-4">
-                          <div className="flex flex-wrap gap-1.5">
-                            {specBadges.slice(0, 3).map((spec, index) => (
-                              <span
-                                key={index}
-                                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700"
-                              >
-                                {spec}
-                              </span>
-                            ))}
-                            {specBadges.length > 3 && (
-                              <button
-                                type="button"
-                                onClick={() => openSpecModal(specBadges, product.name)}
-                                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 hover:text-gray-700"
-                              >
-                                +{specBadges.length - 3} more
-                              </button>
-                            )}
+                        {/* Description */}
+                        <td className="py-4 px-4" style={{ width: '400px', minWidth: '400px', maxWidth: '600px' }}>
+                          <div 
+                            className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 cursor-pointer hover:text-teal-600 dark:hover:text-teal-400 transition-colors" 
+                            style={{ 
+                              display: '-webkit-box',
+                              WebkitLineClamp: 3,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                              wordBreak: 'break-word'
+                            }}
+                            onClick={() => {
+                              if (specText && specText.length > 0) {
+                                setDescriptionModalContent(specText);
+                                setDescriptionModalProductName(product.name);
+                                setIsDescriptionModalOpen(true);
+                              }
+                            }}
+                            title={specText && specText.length > 0 ? 'Click to view full description' : undefined}
+                          >
+                            {specText || <span className="text-gray-400 dark:text-gray-500 italic">No description</span>}
                           </div>
                         </td>
 
@@ -1750,7 +1808,7 @@ export default function ProductSheetPage() {
                     <circle cx="20" cy="21" r="1"></circle>
                     <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
                   </svg>
-                  {isSubmittingSpec ? 'Adding...' : 'Add to My Products'}
+                  {isSubmittingSpec ? 'Adding...' : 'Add to My Cart'}
                 </button>
               </div>
             </form>
@@ -2053,14 +2111,11 @@ export default function ProductSheetPage() {
                             strokeLinecap="round"
                             strokeLinejoin="round"
                           >
-                            <line x1="8" y1="6" x2="21" y2="6"></line>
-                            <line x1="8" y1="12" x2="21" y2="12"></line>
-                            <line x1="8" y1="18" x2="21" y2="18"></line>
-                            <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                            <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                            <circle cx="9" cy="21" r="1"></circle>
+                            <circle cx="20" cy="21" r="1"></circle>
+                            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
                           </svg>
-                          Select
+                          Pull from cart
                         </button>
                           <button
                             type="button"
@@ -2085,356 +2140,471 @@ export default function ProductSheetPage() {
                         </div>
                     </div>
 
-                    {/* Products List or Empty State */}
-                    {newEnquirySelectedProductIds.length === 0 && customProductRows.length === 0 ? (
-                      <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-12 flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800/50">
-                        <svg
-                          width="64"
-                          height="64"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="text-gray-500 mb-4"
-                        >
-                          <circle cx="9" cy="21" r="1"></circle>
-                          <circle cx="20" cy="21" r="1"></circle>
-                          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
-                        </svg>
-                        <p className="text-gray-400 font-medium mb-1">No products added yet</p>
-                        <p className="text-gray-500 text-sm text-center">
-                          Use Select or Generate buttons above
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden flex flex-col" style={{ maxHeight: '400px' }}>
-                        <div className="overflow-y-auto overflow-x-auto flex-1">
-                          <table className="w-full border-collapse bg-white dark:bg-gray-800">
-                          {/* Table Header */}
-                          <thead className="sticky top-0 z-10">
-                            <tr className="bg-gray-100 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600">
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
-                                Name
-                              </th>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
-                                Quantity
-                              </th>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
-                                Unit
-                              </th>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
-                              Target Unit Price
-                              </th>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Action
-                              </th>
-                            </tr>
-                          </thead>
-                          {/* Table Body */}
-                          <tbody>
-                            {/* Selected Products from Product Sheet */}
-                            {newEnquirySelectedProductIds.map((productId, index) => {
-                          const product = productSheetItems.find((p) => p._id === productId);
-                          if (!product) return null;
-                          return (
-                                <tr
-                              key={productId}
-                                  className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                                    index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
-                                  }`}
+                    {/* Added Products Ribbons */}
+                    {(() => {
+                      const addedProducts = newEnquirySelectedProductIds.filter((productId) => {
+                        const details = productDetails[productId];
+                        return details?.isAdded === true; // Only show products explicitly added via "Add" button
+                      });
+                      const addedCustomProducts = customProductRows.filter((row) => {
+                        return row.isAdded === true; // Only show custom products explicitly added via "Add" button
+                      });
+                      const hasAddedProducts = addedProducts.length > 0 || addedCustomProducts.length > 0;
+                      if (!hasAddedProducts) return null;
+                      return (
+                        <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-600 mb-4">
+                          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Added Products</h3>
+                          <div className="space-y-2">
+                            {addedProducts.map((productId) => {
+                              const product = productSheetItems.find((p) => p._id === productId);
+                              if (!product) return null;
+                              const details = productDetails[productId];
+                              if (!details) return null;
+                              return (
+                                <div
+                                  key={productId}
+                                  className="w-full bg-teal-50 dark:bg-teal-900/20 border-l-4 border-teal-600 dark:border-teal-400 rounded-r-lg p-3"
                                 >
-                                  {/* Name Column */}
-                                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-600">
+                                  <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-2">
-                                      <div className="flex-1">
-                                        <p className="font-medium">
-                                    {product.displayName || product.category || 'Unnamed Product'}
-                                  </p>
-                                  {product.category && (
-                                          <p className="text-xs text-gray-400 mt-0.5">{product.category}</p>
-                                        )}
-                                      </div>
-                                      <div className="flex items-center gap-1">
-                                        {/* Detail Icon */}
-                                        <button
-                                          type="button"
-                                          onClick={() => handleToggleProductDetails(productId)}
-                                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-400/10 rounded transition-colors"
-                                          aria-label="View details"
-                                          title="View details"
-                                        >
-                                          <svg
-                                            width="16"
-                                            height="16"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="2"
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                        >
-                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                            <polyline points="14 2 14 8 20 8"></polyline>
-                                            <line x1="16" y1="13" x2="8" y2="13"></line>
-                                            <line x1="16" y1="17" x2="8" y2="17"></line>
-                                            <line x1="10" y1="9" x2="8" y2="9"></line>
-                                        </svg>
-                                  </button>
-                                        {/* Remove Icon */}
-                                  <button
-                                    type="button"
-                                          onClick={() => handleRemoveSelectedProduct(productId)}
-                                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors"
-                                          aria-label="Remove product"
-                                          title="Remove product"
-                                        >
-                                          <svg
-                                            width="16"
-                                            height="16"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                          >
-                                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                                          </svg>
-                                  </button>
-                                </div>
-                              </div>
-                                  </td>
-                                  {/* Quantity Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={productDetails[productId]?.quantity || ''}
-                                      onChange={(e) => handleProductDetailChange(productId, 'quantity', parseFloat(e.target.value) || 0)}
-                                      placeholder="0"
-                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                    />
-                                  </td>
-                                  {/* Unit Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                    <select
-                                      value={productDetails[productId]?.unit || ''}
-                                      onChange={(e) => handleProductDetailChange(productId, 'unit', e.target.value)}
-                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                    >
-                                      <option value="">Select unit</option>
-                                      {STANDARD_UNITS.map((unit) => (
-                                        <option key={unit} value={unit}>
-                                          {unit}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </td>
-                                  {/* Target Price Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={productDetails[productId]?.targetPrice || ''}
-                                      onChange={(e) => handleProductDetailChange(productId, 'targetPrice', parseFloat(e.target.value) || 0)}
-                                      placeholder="0.00"
-                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                    />
-                                  </td>
-                                  {/* Action Column - Added Button (disabled) */}
-                                  <td className="px-4 py-3">
-                                    <button
-                                      type="button"
-                                      disabled
-                                      className="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg cursor-not-allowed flex items-center gap-1"
-                                      title="Product already added"
-                                    >
-                                      <svg
-                                        width="14"
-                                        height="14"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                      >
+                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-teal-600 dark:text-teal-400 flex-shrink-0">
                                         <polyline points="20 6 9 17 4 12"></polyline>
                                       </svg>
-                                      Added
-                                    </button>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                            {/* Custom Product Rows */}
-                            {customProductRows.map((row, index) => {
-                              const totalIndex = newEnquirySelectedProductIds.length + index;
-                              return (
-                                <tr
-                                  key={row.id}
-                                  className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                                    totalIndex % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
-                                  }`}
-                                >
-                                  {/* Name Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                    <div className="flex items-center gap-2">
-                                    <input
-                                      type="text"
-                                        value={row.name}
-                                        onChange={(e) => handleCustomProductChange(row.id, 'name', e.target.value)}
-                                        placeholder="Enter product name"
-                                        className="flex-1 px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                      />
-                                      <div className="flex items-center gap-1">
-                                        {/* AI Icon */}
-                                        <button
-                                          type="button"
-                                          onClick={() => handleOpenAIForCustomProduct(row.id)}
-                                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-teal-500 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-400/10 rounded transition-colors"
-                                          aria-label="Generate with AI"
-                                          title="Generate with AI"
-                                        >
-                                          <svg
-                                            width="16"
-                                            height="16"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                          >
-                                            <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                                          </svg>
-                                        </button>
-                                        {/* Detail Icon */}
-                                        <button
-                                          type="button"
-                                          onClick={() => handleViewProductSpecifications(undefined, row.id)}
-                                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-400/10 rounded transition-colors"
-                                          aria-label="View details"
-                                          title="View details"
-                                        >
-                                          <svg
-                                            width="16"
-                                            height="16"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                          >
-                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                            <polyline points="14 2 14 8 20 8"></polyline>
-                                            <line x1="16" y1="13" x2="8" y2="13"></line>
-                                            <line x1="16" y1="17" x2="8" y2="17"></line>
-                                            <line x1="10" y1="9" x2="8" y2="9"></line>
-                                          </svg>
-                                        </button>
-                                        {/* Remove Icon */}
-                                        <button
-                                          type="button"
-                                          onClick={() => handleRemoveCustomRow(row.id)}
-                                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors"
-                                          aria-label="Remove row"
-                                          title="Remove row"
-                                        >
-                                          <svg
-                                            width="16"
-                                            height="16"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                          >
-                                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                                          </svg>
-                                        </button>
-                                  </div>
-                                </div>
-                                  </td>
-                                  {/* Quantity Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={row.quantity || ''}
-                                      onChange={(e) => handleCustomProductChange(row.id, 'quantity', parseFloat(e.target.value) || 0)}
-                                      placeholder="0"
-                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                    />
-                                  </td>
-                                  {/* Unit Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                    <select
-                                      value={row.unit}
-                                      onChange={(e) => handleCustomProductChange(row.id, 'unit', e.target.value)}
-                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                    >
-                                      <option value="">Select unit</option>
-                                      {STANDARD_UNITS.map((unit) => (
-                                        <option key={unit} value={unit}>
-                                          {unit}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </td>
-                                  {/* Target Price Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={row.targetPrice || ''}
-                                      onChange={(e) => handleCustomProductChange(row.id, 'targetPrice', parseFloat(e.target.value) || 0)}
-                                      placeholder="0.00"
-                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                    />
-                                  </td>
-                                  {/* Action Column - Add Button */}
-                                  <td className="px-4 py-3">
+                                      <span className="font-medium text-teal-900 dark:text-teal-100 text-sm">
+                                        {product.displayName || product.category || 'Unnamed Product'}
+                                      </span>
+                                    </div>
                                     <button
                                       type="button"
-                                      onClick={() => handleCreateProductFromRow(row.id)}
-                                      className="px-3 py-1.5 text-xs font-medium text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-400/10 hover:bg-teal-100 dark:hover:bg-teal-400/20 border border-teal-200 dark:border-teal-700 rounded-lg transition-colors flex items-center gap-1"
-                                      title="Create product and add to enquiry"
+                                      onClick={() => handleRemoveSelectedProduct(productId)}
+                                      className="p-1.5 text-teal-600 dark:text-teal-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors"
+                                      aria-label="Remove product"
+                                      title="Remove product"
                                     >
-                                      <svg
-                                        width="14"
-                                        height="14"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                      >
-                                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
                                       </svg>
-                                      Add
                                     </button>
-                                  </td>
-                                </tr>
-                          );
-                        })}
-                          </tbody>
-                        </table>
+                                  </div>
+                                  <div className="flex items-center gap-3 text-xs text-teal-700 dark:text-teal-300 ml-6">
+                                    {details.quantity && <span>Qty: {details.quantity}</span>}
+                                    {details.unit && <span>Unit: {details.unit}</span>}
+                                    {details.targetPrice && <span>Price: {details.targetPrice}</span>}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {addedCustomProducts.map((row) => {
+                              return (
+                                <div
+                                  key={row.id}
+                                  className="w-full bg-teal-50 dark:bg-teal-900/20 border-l-4 border-teal-600 dark:border-teal-400 rounded-r-lg p-3 flex items-center justify-between"
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-teal-600 dark:text-teal-400 flex-shrink-0">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                      </svg>
+                                      <span className="font-medium text-teal-900 dark:text-teal-100 text-sm">
+                                        {row.name || 'Custom Product'}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-xs text-teal-700 dark:text-teal-300 ml-6">
+                                      {row.quantity && <span>Qty: {row.quantity}</span>}
+                                      {row.unit && <span>Unit: {row.unit}</span>}
+                                      {row.targetPrice && <span>Price: {row.targetPrice}</span>}
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveCustomRow(row.id)}
+                                    className="p-1.5 text-teal-600 dark:text-teal-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors ml-2"
+                                    aria-label="Remove product"
+                                    title="Remove product"
+                                  >
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
+
+                    {/* Products List or Empty State */}
+                    {(() => {
+                      // Filter out added products from the list (only show products not in ribbon)
+                      const incompleteProducts = newEnquirySelectedProductIds.filter((productId) => {
+                        const details = productDetails[productId];
+                        return details?.isAdded !== true; // Show products that are not added to ribbon
+                      });
+                      const incompleteCustomProducts = customProductRows.filter((row) => {
+                        return row.isAdded !== true; // Show custom products that are not added to ribbon
+                      });
+                      const hasIncompleteProducts = incompleteProducts.length > 0 || incompleteCustomProducts.length > 0;
+                      
+                      if (!hasIncompleteProducts) {
+                        if (newEnquirySelectedProductIds.length === 0 && customProductRows.length === 0) {
+                          return (
+                            <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-12 flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800/50">
+                              <svg
+                                width="64"
+                                height="64"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="text-gray-500 mb-4"
+                              >
+                                <circle cx="9" cy="21" r="1"></circle>
+                                <circle cx="20" cy="21" r="1"></circle>
+                                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                              </svg>
+                              <p className="text-gray-400 font-medium mb-1">No products added yet</p>
+                              <p className="text-gray-500 text-sm text-center">
+                                Use Select or Generate buttons above
+                              </p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }
+                      
+                      return (
+                        <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden flex flex-col" style={{ maxHeight: '400px' }}>
+                          <div className="overflow-y-auto overflow-x-auto flex-1">
+                            <table className="w-full border-collapse bg-white dark:bg-gray-800">
+                              {/* Table Header */}
+                              <thead className="sticky top-0 z-10">
+                                <tr className="bg-gray-100 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600">
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
+                                    Name
+                                  </th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
+                                    Quantity
+                                  </th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
+                                    Unit
+                                  </th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
+                                    Target Unit Price
+                                  </th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                    Action
+                                  </th>
+                                </tr>
+                              </thead>
+                              {/* Table Body */}
+                              <tbody>
+                                {/* Selected Products from Product Sheet */}
+                                {incompleteProducts.map((productId, index) => {
+                                  const product = productSheetItems.find((p) => p._id === productId);
+                                  if (!product) return null;
+                                  return (
+                                    <tr
+                                      key={productId}
+                                      className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                                        index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
+                                      }`}
+                                    >
+                                      {/* Name Column */}
+                                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-600">
+                                        <div className="flex items-center gap-2">
+                                          <div className="flex-1">
+                                            <p className="font-medium">
+                                              {product.displayName || product.category || 'Unnamed Product'}
+                                            </p>
+                                            {product.category && (
+                                              <p className="text-xs text-gray-400 mt-0.5">{product.category}</p>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center gap-1">
+                                            {/* Detail Icon */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleToggleProductDetails(productId)}
+                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-400/10 rounded transition-colors"
+                                              aria-label="View details"
+                                              title="View details"
+                                            >
+                                              <svg
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              >
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                <polyline points="14 2 14 8 20 8"></polyline>
+                                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                                <line x1="10" y1="9" x2="8" y2="9"></line>
+                                              </svg>
+                                            </button>
+                                            {/* Remove Icon */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleRemoveSelectedProduct(productId)}
+                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors"
+                                              aria-label="Remove product"
+                                              title="Remove product"
+                                            >
+                                              <svg
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              >
+                                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                                              </svg>
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </td>
+                                      {/* Quantity Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={productDetails[productId]?.quantity || ''}
+                                          onChange={(e) => handleProductDetailChange(productId, 'quantity', parseFloat(e.target.value) || 0)}
+                                          placeholder="0"
+                                          className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                        />
+                                      </td>
+                                      {/* Unit Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <select
+                                          value={productDetails[productId]?.unit || ''}
+                                          onChange={(e) => handleProductDetailChange(productId, 'unit', e.target.value)}
+                                          className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                        >
+                                          <option value="">Select unit</option>
+                                          {STANDARD_UNITS.map((unit) => (
+                                            <option key={unit} value={unit}>
+                                              {unit}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </td>
+                                      {/* Target Price Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={productDetails[productId]?.targetPrice || ''}
+                                          onChange={(e) => handleProductDetailChange(productId, 'targetPrice', parseFloat(e.target.value) || 0)}
+                                          placeholder="0.00"
+                                          className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                        />
+                                      </td>
+                                      {/* Action Column - Add Button */}
+                                      <td className="px-4 py-3">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleAddProductToRibbon(productId)}
+                                          className="px-3 py-1.5 text-xs font-medium text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-400/10 hover:bg-teal-100 dark:hover:bg-teal-400/20 border border-teal-200 dark:border-teal-700 rounded-lg transition-colors flex items-center gap-1"
+                                          title="Add to ribbon"
+                                        >
+                                          <svg
+                                            width="14"
+                                            height="14"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                          >
+                                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                                          </svg>
+                                          Add
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                                {/* Custom Product Rows - Only incomplete products */}
+                                {incompleteCustomProducts.map((row, index) => {
+                                  const totalIndex = incompleteProducts.length + index;
+                                  return (
+                                    <tr
+                                      key={row.id}
+                                      className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                                        totalIndex % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
+                                      }`}
+                                    >
+                                      {/* Name Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <div className="flex items-center gap-2">
+                                          <input
+                                            type="text"
+                                            value={row.name}
+                                            onChange={(e) => handleCustomProductChange(row.id, 'name', e.target.value)}
+                                            placeholder="Enter product name"
+                                            className="flex-1 px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                          />
+                                          <div className="flex items-center gap-1">
+                                            {/* AI Icon */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenAIForCustomProduct(row.id)}
+                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-teal-500 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-400/10 rounded transition-colors"
+                                              aria-label="Generate with AI"
+                                              title="Generate with AI"
+                                            >
+                                              <svg
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              >
+                                                <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                              </svg>
+                                            </button>
+                                            {/* Detail Icon */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleViewProductSpecifications(undefined, row.id)}
+                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-400/10 rounded transition-colors"
+                                              aria-label="View details"
+                                              title="View details"
+                                            >
+                                              <svg
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              >
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                <polyline points="14 2 14 8 20 8"></polyline>
+                                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                              </svg>
+                                            </button>
+                                            {/* Remove Icon */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleRemoveCustomRow(row.id)}
+                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors"
+                                              aria-label="Remove row"
+                                              title="Remove row"
+                                            >
+                                              <svg
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              >
+                                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                                              </svg>
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </td>
+                                      {/* Quantity Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={row.quantity || ''}
+                                          onChange={(e) => handleCustomProductChange(row.id, 'quantity', parseFloat(e.target.value) || 0)}
+                                          placeholder="0"
+                                          className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                        />
+                                      </td>
+                                      {/* Unit Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <select
+                                          value={row.unit || ''}
+                                          onChange={(e) => handleCustomProductChange(row.id, 'unit', e.target.value)}
+                                          className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                        >
+                                          <option value="">Select unit</option>
+                                          {STANDARD_UNITS.map((unit) => (
+                                            <option key={unit} value={unit}>
+                                              {unit}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </td>
+                                      {/* Target Price Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={row.targetPrice || ''}
+                                          onChange={(e) => handleCustomProductChange(row.id, 'targetPrice', parseFloat(e.target.value) || 0)}
+                                          placeholder="0.00"
+                                          className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                        />
+                                      </td>
+                                      {/* Action Column - Add Button */}
+                                      <td className="px-4 py-3">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleAddCustomProductToRibbon(row.id)}
+                                          className="px-3 py-1.5 text-xs font-medium text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-400/10 hover:bg-teal-100 dark:hover:bg-teal-400/20 border border-teal-200 dark:border-teal-700 rounded-lg transition-colors flex items-center gap-1"
+                                          title="Add to ribbon"
+                                        >
+                                          <svg
+                                            width="14"
+                                            height="14"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                          >
+                                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                                          </svg>
+                                          Add
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Enquiry Notes Section */}
@@ -3126,7 +3296,7 @@ export default function ProductSheetPage() {
                 </svg>
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Generated Specifications
+                    Generated Description
                   </h2>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
                     {productListAIProductName}
@@ -3226,7 +3396,7 @@ export default function ProductSheetPage() {
                 </div>
               ) : (
                 <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                  <p>No specifications generated yet.</p>
+                  <p>No description generated yet.</p>
                 </div>
               )}
             </div>
@@ -3243,7 +3413,7 @@ export default function ProductSheetPage() {
                 onClick={handleSaveProductSpecifications}
                 className="px-4 py-2 text-sm font-medium text-white bg-teal-600 dark:bg-teal-600 hover:bg-teal-700 dark:hover:bg-teal-700 rounded-lg transition-colors"
               >
-                Save Specifications
+                Save Description
               </button>
             </div>
           </div>
@@ -3282,7 +3452,7 @@ export default function ProductSheetPage() {
                 </svg>
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Product Specifications
+                    Product Description
                   </h2>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
                     {viewSpecProductId 
@@ -3360,9 +3530,9 @@ export default function ProductSheetPage() {
                         <line x1="16" y1="13" x2="8" y2="13"></line>
                         <line x1="16" y1="17" x2="8" y2="17"></line>
                       </svg>
-                      <p className="text-gray-500 dark:text-gray-400 font-medium mb-1">No specifications added yet</p>
+                      <p className="text-gray-500 dark:text-gray-400 font-medium mb-1">No description added yet</p>
                       <p className="text-gray-400 dark:text-gray-500 text-sm">
-                        Click the AI icon to generate and add specifications
+                        Click the AI icon to generate and add description
                       </p>
                     </div>
                   );
@@ -3408,6 +3578,67 @@ export default function ProductSheetPage() {
             <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
               <button
                 onClick={() => setIsViewSpecModalOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Description Modal */}
+      {isDescriptionModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setIsDescriptionModalOpen(false)}
+        >
+          <div 
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Description
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
+                  {descriptionModalProductName}
+                </p>
+              </div>
+              <button
+                onClick={() => setIsDescriptionModalOpen(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                aria-label="Close modal"
+              >
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
+                {descriptionModalContent || <span className="text-gray-400 dark:text-gray-500 italic">No description</span>}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+              <button
+                onClick={() => setIsDescriptionModalOpen(false)}
                 className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
               >
                 Close

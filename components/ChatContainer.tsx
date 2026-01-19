@@ -4,12 +4,12 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import MessageList from './MessageList';
 import InputBox from './InputBox';
-import ProductSection from './ProductSection';
+import aiLogo from '@/images/ai.png';
+import filterLogo from '@/images/filter.png';
 import {
   sendChatMessage,
   checkApiHealth,
   ChatMessage,
-  getProducts,
   Product,
   createChatSession,
   updateChatSession,
@@ -22,7 +22,6 @@ import {
   Message, 
   getGuestSession,
   saveGuestSession,
-  deleteGuestSession,
   getGuestMessages,
   saveGuestMessages,
 } from '@/lib/storage';
@@ -632,54 +631,34 @@ export default function ChatContainer({
   };
 
 
+  // Check if filters are available
+  const hasFilters = discoverFilterMeta && Object.keys(discoverFilterMeta).length > 0;
+
   return (
-    <div className="flex h-full w-full flex-col bg-white dark:bg-gray-800 shadow-lg overflow-hidden">
-      {/* Filter Toggle Button (Right Side) - Only show when filter is closed */}
-      {!isFilterOpen && (
+    <div className="flex h-full w-full flex-col bg-white dark:bg-[rgb(19,25,33)] shadow-lg overflow-hidden">
+      {/* Filter Toggle Button (Right Side) - Only show when filters are available and filter panel is closed */}
+      {hasFilters && !isFilterOpen && (
           <button
             type="button"
             onClick={() => {
-              setIsFilterOpen(true);
-              setIsFilterCollapsed(false);
+              setIsFilterOpen?.(true);
+              setIsFilterCollapsed?.(false);
             }}
-            className="hidden md:flex items-center justify-center w-10 h-10 rounded-lg bg-teal-600 self-end mr-4 mt-4 hover:bg-teal-700 text-white shadow-lg transition-colors"
+            className="absolute top-4 right-4 z-20 flex items-center justify-center w-10 h-10 rounded-lg bg-teal-600 hover:bg-teal-700 text-white shadow-lg transition-colors"
             aria-label="Open filters"
             title="Open filters"
           >
-            <svg
-              className="w-5 h-5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polygon points="3 4 21 4 14 12 14 19 10 21 10 12 3 4" />
-            </svg>
+            <img src={filterLogo.src} alt="Filters" className="w-5 h-5 brightness-0 invert" />
           </button>
         )}
       {/* Messages */}
-      <div className="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-gray-800 px-6 py-4">
+      <div className="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-[rgb(19,25,33)] px-6 py-4">
         {messages.length === 0 ? (
           <div className="flex items-start pt-4">
             <div className="flex gap-3 max-w-[85%]">
               {/* Avatar */}
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-100 dark:bg-teal-900 text-teal-600 dark:text-teal-400">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-                  <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-                  <path d="M2 17l10 5 10-5"></path>
-                  <path d="M2 12l10 5 10-5"></path>
-            </svg>
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-100 dark:bg-teal-900">
+            <img src={aiLogo.src} alt="AI Assistant" className="w-5 h-5 brightness-0 invert" />
               </div>
               {/* Greeting Message */}
               <div className="flex flex-col">
@@ -693,7 +672,7 @@ export default function ChatContainer({
           </div>
         ) : (
           <>
-            <MessageList messages={messages} />
+            <MessageList messages={messages} isLoading={isLoading} />
             <div ref={messagesEndRef} />
           </>
         )}
@@ -701,13 +680,13 @@ export default function ChatContainer({
 
       {/* Horizontal Filter Values Section */}
       {discoverFilterMeta && Object.keys(discoverFilterMeta).length > 0 && (
-        <div className="relative border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+        <div className="relative border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[rgb(19,25,33)]/50">
           {/* Left Arrow */}
           {showLeftArrow && (
             <button
               type="button"
               onClick={scrollLeft}
-              className="absolute left-0 top-0 bottom-0 z-10 px-2 bg-gradient-to-r from-gray-50 to-transparent dark:from-gray-800/50 dark:to-transparent hover:from-gray-100 dark:hover:from-gray-700 flex items-center justify-center"
+              className="absolute left-0 top-0 bottom-0 z-10 px-2 bg-gradient-to-r from-gray-50 to-transparent dark:from-[rgb(19,25,33)]/50 dark:to-transparent hover:from-gray-100 dark:hover:from-[rgb(19,25,33)] flex items-center justify-center"
               aria-label="Scroll left"
             >
               <svg
@@ -763,7 +742,7 @@ export default function ChatContainer({
             <button
               type="button"
               onClick={scrollRight}
-              className="absolute right-0 top-0 bottom-0 z-10 px-2 bg-gradient-to-l from-gray-50 to-transparent dark:from-gray-800/50 dark:to-transparent hover:from-gray-100 dark:hover:from-gray-700 flex items-center justify-center"
+              className="absolute right-0 top-0 bottom-0 z-10 px-2 bg-gradient-to-l from-gray-50 to-transparent dark:from-[rgb(19,25,33)]/50 dark:to-transparent hover:from-gray-100 dark:hover:from-[rgb(19,25,33)] flex items-center justify-center"
               aria-label="Scroll right"
             >
               <svg

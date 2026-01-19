@@ -9,7 +9,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
+    --background: rgb(19 25 33);
     --foreground: #ededed;
   }
 }
@@ -35,6 +35,54 @@ body {
   }
 }
 
+/* Custom Checkbox Styles - Hollow with theme-colored tick */
+.custom-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: transparent;
+  border: 2px solid rgb(209, 213, 219) !important;
+  border-radius: 0.25rem;
+  position: relative;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.custom-checkbox:checked {
+  background-color: transparent;
+  border-color: rgb(20, 184, 166) !important;
+}
+
+.custom-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -60%) rotate(45deg);
+  width: 4px;
+  height: 8px;
+  border: solid rgb(20, 184, 166);
+  border-width: 0 2px 2px 0;
+}
+
+.dark .custom-checkbox {
+  border-color: rgb(75, 85, 99) !important;
+}
+
+.dark .custom-checkbox:checked {
+  border-color: rgb(20, 184, 166) !important;
+}
+
+.dark .custom-checkbox:checked::after {
+  border-color: rgb(20, 184, 166);
+}
+
+/* Ensure checkboxes are always hollow (no background fill) */
+.custom-checkbox:checked {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
 /* ChatGPT-like scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
@@ -54,3 +102,91 @@ body {
   background: #555;
 }
 
+/* Custom animations for loader */
+@keyframes pulse-delay-1 {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-delay-2 {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-delay-3 {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-pulse-delay-1 {
+  animation: pulse-delay-1 1.5s ease-in-out infinite;
+  animation-delay: 0ms;
+}
+
+.animate-pulse-delay-2 {
+  animation: pulse-delay-2 1.5s ease-in-out infinite;
+  animation-delay: 150ms;
+}
+
+.animate-pulse-delay-3 {
+  animation: pulse-delay-3 1.5s ease-in-out infinite;
+  animation-delay: 300ms;
+}
+
+/* Letter P Loading Animation */
+@keyframes letterP-load {
+  0% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  25% {
+    transform: scale(1.1) rotate(5deg);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(0.95) rotate(-5deg);
+    opacity: 1;
+  }
+  75% {
+    transform: scale(1.1) rotate(5deg);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes ring-rotate {
+  0% {
+    transform: rotate(0deg);
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: rotate(360deg);
+    opacity: 0.3;
+  }
+}
+
+.animate-letter-p {
+  animation: letterP-load 2s ease-in-out infinite;
+}
+
+.animate-ring {
+  animation: ring-rotate 2s linear infinite;
+}

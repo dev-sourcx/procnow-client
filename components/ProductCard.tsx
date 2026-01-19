@@ -493,7 +493,7 @@ export default function ProductCard({
 
             {/* Modal Body */}
             <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
-              <div className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-900">
+              <div className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-[rgb(19,25,33)]">
                 <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm p-6 space-y-6">
                 {error && (
                   <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
@@ -850,9 +850,9 @@ export default function ProductCard({
       )}
 
       {/* Product Card */}
-      <div className="group relative flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 hover:scale-[1.15] w-full max-w-xs">
+      <div className="group relative flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 hover:scale-[1.15] w-full">
         {/* Image Container */}
-        <div className="relative w-full aspect-[4/3] overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+        <div className="relative w-full overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
           {/* Favorite Icon */}
           <button
             onClick={() => setIsFavorite(!isFavorite)}
@@ -877,7 +877,7 @@ export default function ProductCard({
           <img
             src={imageUrl}
             alt={product.title || 'Product image'}
-            className="max-w-full max-h-full w-auto h-auto object-contain group-hover:scale-105 transition-transform duration-300"
+            className="w-full h-auto object-contain group-hover:scale-105 transition-transform duration-300"
             onError={(e) => {
               const target = e.target as HTMLImageElement;
               // Only set error state if we haven't already, and if it's not already the placeholder

@@ -2,6 +2,7 @@
 
 import { Message as MessageType } from '@/lib/storage';
 import { useEffect, useRef } from 'react';
+import aiLogo from '@/images/ai.png';
 
 interface MessageProps {
   message: MessageType;
@@ -40,21 +41,8 @@ export default function Message({ message }: MessageProps) {
               </svg>
             </div>
           ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-100 dark:bg-teal-900 text-teal-600 dark:text-teal-400">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-                <path d="M2 17l10 5 10-5"></path>
-                <path d="M2 12l10 5 10-5"></path>
-              </svg>
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-100 dark:bg-teal-900">
+              <img src={aiLogo.src} alt="AI Assistant" className="w-5 h-5 brightness-0 invert" />
             </div>
           )}
         </div>

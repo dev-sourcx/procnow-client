@@ -317,7 +317,7 @@ export default function Sidebar({
                         <line x1="16" y1="17" x2="8" y2="17"></line>
                         <polyline points="10 9 9 9 8 9"></polyline>
                       </svg>
-                      My Products
+                      My Cart
                     </div>
                     {productCount > 0 && (
                       <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${

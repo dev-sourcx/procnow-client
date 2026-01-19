@@ -1243,7 +1243,7 @@ export default function BriefPage() {
 
       
           {/* Content Container */}
-          <div className="flex h-full w-full flex-col bg-gray-50 dark:bg-gray-900">
+          <div className="flex h-full w-full flex-col bg-gray-50 dark:bg-[rgb(19,25,33)]">
 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto bg-gray-50">

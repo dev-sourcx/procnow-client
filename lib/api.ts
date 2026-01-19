@@ -225,8 +225,15 @@ export async function getCurrentUser(token: string): Promise<CurrentUser> {
  * Get Google OAuth authorization URL
  * Calls: GET /api/auth/google
  */
-export async function getGoogleAuthUrl(): Promise<string> {
-  const response = await fetch(`${API_URL}/api/auth/google`, {
+export async function getGoogleAuthUrl(redirect?: string, phone?: string): Promise<string> {
+  const params = new URLSearchParams();
+  if (redirect) params.append('redirect', redirect);
+  if (phone) params.append('phone', phone);
+  
+  const queryString = params.toString();
+  const url = `${API_URL}/api/auth/google${queryString ? `?${queryString}` : ''}`;
+  
+  const response = await fetch(url, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',

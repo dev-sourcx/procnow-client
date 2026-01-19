@@ -934,7 +934,7 @@ export default function EnquiryDetailPage() {
                                               handleQuoteSelect(productId, quoteId);
                                             }}
                                             disabled={isSubmitting}
-                                            className={`w-4 h-4 text-teal-600 bg-gray-100 border-gray-300 rounded-full focus:ring-teal-500 dark:focus:ring-teal-500 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 ${
+                                            className={`custom-checkbox w-4 h-4 rounded focus:ring-2 focus:ring-teal-500 focus:ring-offset-1 ${
                                               isSubmitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
                                             }`}
                                           />

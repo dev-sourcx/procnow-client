@@ -30,6 +30,9 @@ function GoogleAuthSuccessContent() {
           // Store token
           saveAuthToken(token);
           
+          // Clear phone from sessionStorage if it was stored
+          sessionStorage.removeItem('google_signup_phone');
+          
           // Sync guest session if exists
           const guestData = getGuestSessionData();
           if (guestData) {

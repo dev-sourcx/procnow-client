@@ -6,6 +6,7 @@ import Sidebar from '@/components/Sidebar';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getAuthToken, clearAuthToken, ChatSession, getGuestSession, deleteGuestSession } from '@/lib/storage';
 import { getCurrentUser, type CurrentUser, getChatSessions } from '@/lib/api';
+import filterLogo from '@/images/filter.png';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -230,16 +231,24 @@ export default function DashboardLayout({
 
   if (isCheckingAuth) {
     return (
-      <main className="flex h-screen w-full items-center justify-center bg-white dark:bg-gray-900">
-        <p className="text-gray-600 dark:text-gray-400">Checking authentication...</p>
+      <main className="flex h-screen w-full items-center justify-center bg-white dark:bg-[rgb(19,25,33)]">
+        <div className="flex flex-col items-center justify-center relative">
+          {/* Rotating Ring */}
+          <div className="absolute w-24 h-24 border-4 border-transparent border-t-teal-600 dark:border-t-teal-400 rounded-full animate-ring"></div>
+          
+          {/* Letter P with Animation */}
+          <div className="relative z-10">
+            <span className="text-6xl font-bold text-teal-600 dark:text-teal-400 animate-letter-p inline-block">P</span>
+          </div>
+        </div>
       </main>
     );
   }
 
   if (pathname === '/login' || pathname === '/signup') {
     return (
-      <main className="flex h-screen w-full bg-white dark:bg-gray-900">
-        <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 flex flex-col">
+      <main className="flex h-screen w-full bg-white dark:bg-[rgb(19,25,33)]">
+        <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-[rgb(19,25,33)] flex flex-col">
           {children}
         </div>
       </main>
@@ -247,7 +256,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <main className="flex h-screen w-full bg-white dark:bg-gray-900">
+    <main className="flex h-screen w-full bg-white dark:bg-[rgb(19,25,33)]">
       {/* Sidebar */}
       <Sidebar
         onNewChat={handleNewChat}
@@ -322,18 +331,7 @@ export default function DashboardLayout({
                       }}
                       className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
                     >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <polygon points="3 4 21 4 14 12 14 19 10 21 10 12 3 4" />
-                      </svg>
+                      <img src={filterLogo.src} alt="Filters" className="w-4 h-4 brightness-0 invert" />
                       <span>Filters</span>
                     </button>
                   )}
@@ -433,7 +431,7 @@ export default function DashboardLayout({
         )}
 
         {/* Page Content */}
-        <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 flex flex-col">
+        <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-[rgb(19,25,33)] flex flex-col">
           {children}
         </div>
       </div>

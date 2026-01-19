@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface DiscoverFiltersProps {
   onClose?: () => void;
@@ -103,9 +104,9 @@ export default function DiscoverFilters({
   );
 
   return (
-    <aside className={`h-full ${isCollapsed ? 'w-12' : 'w-80'} border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col shadow-lg transition-all duration-300`}>
+    <aside className={`h-full ${isCollapsed ? 'w-12' : 'w-80'} border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-[rgb(19,25,33)] flex flex-col shadow-lg transition-all duration-300`}>
       {/* Header */}
-      <div className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'justify-between px-4'} py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur`}>
+      <div className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'justify-between px-4'} py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-[rgb(19,25,33)]/80 backdrop-blur`}>
         <div className="flex items-center gap-2">
           {onToggleCollapse && (
             <button
@@ -238,7 +239,7 @@ export default function DiscoverFilters({
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => toggleFilter(filterKey, category)}
-                            className="w-4 h-4 text-teal-600 border-gray-300 dark:border-gray-600 rounded focus:ring-teal-500"
+                            className="custom-checkbox w-4 h-4 rounded focus:ring-2 focus:ring-teal-500 focus:ring-offset-1"
                           />
                           <span className="text-sm text-gray-700 dark:text-gray-300">
                             {category}
@@ -270,7 +271,7 @@ export default function DiscoverFilters({
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => toggleFilter(filterKey, price)}
-                            className="w-4 h-4 text-teal-600 border-gray-300 dark:border-gray-600 rounded focus:ring-teal-500"
+                            className="custom-checkbox w-4 h-4 rounded focus:ring-2 focus:ring-teal-500 focus:ring-offset-1"
                           />
                           <span className="text-sm text-gray-700 dark:text-gray-300">
                             {price}
@@ -300,7 +301,7 @@ export default function DiscoverFilters({
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => toggleFilter('storage', storage)}
-                            className="w-4 h-4 text-teal-600 border-gray-300 dark:border-gray-600 rounded focus:ring-teal-500"
+                            className="custom-checkbox w-4 h-4 rounded focus:ring-2 focus:ring-teal-500 focus:ring-offset-1"
                           />
                           <span className="text-sm text-gray-700 dark:text-gray-300">
                             {storage}
@@ -330,7 +331,7 @@ export default function DiscoverFilters({
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => toggleFilter('rating', rating)}
-                            className="w-4 h-4 text-teal-600 border-gray-300 dark:border-gray-600 rounded focus:ring-teal-500"
+                            className="custom-checkbox w-4 h-4 rounded focus:ring-2 focus:ring-teal-500 focus:ring-offset-1"
                           />
                           <span className="text-sm text-gray-700 dark:text-gray-300">
                             {rating}
@@ -360,7 +361,7 @@ export default function DiscoverFilters({
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => toggleFilter('availability', availability)}
-                            className="w-4 h-4 text-teal-600 border-gray-300 dark:border-gray-600 rounded focus:ring-teal-500"
+                            className="custom-checkbox w-4 h-4 rounded focus:ring-2 focus:ring-teal-500 focus:ring-offset-1"
                           />
                           <span className="text-sm text-gray-700 dark:text-gray-300">
                             {availability}
@@ -436,7 +437,7 @@ export default function DiscoverFilters({
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => toggleFilter(key, value)}
-                              className="w-4 h-4 text-teal-600 border-gray-300 dark:border-gray-600 rounded focus:ring-teal-500"
+                              className="custom-checkbox w-4 h-4 rounded focus:ring-2 focus:ring-teal-500 focus:ring-offset-1"
                             />
                             <span className="text-sm text-gray-700 dark:text-gray-300">
                               {value}
@@ -456,7 +457,7 @@ export default function DiscoverFilters({
 
       {/* Footer */}
       {!isCollapsed && (
-        <div className="border-t border-gray-200 dark:border-gray-800 p-3 flex items-center justify-start bg-gray-50 dark:bg-gray-900">
+        <div className="border-t border-gray-200 dark:border-gray-800 p-3 flex items-center justify-start bg-gray-50 dark:bg-[rgb(19,25,33)]">
           <button
             type="button"
             onClick={clearAllFilters}

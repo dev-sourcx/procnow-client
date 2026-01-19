@@ -28,12 +28,10 @@ import {
   Enquiry,
   EnquiryProduct,
 } from "@/lib/storage";
-import CreatableSelect from "@/components/CreatableSelect";
 import { requireAuth } from "@/lib/auth";
 import type { Product } from "@/lib/api";
 
 export default function Home() {
-  const router = useRouter();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [activeMode, setActiveMode] = useState<"discover" | "specify">(
@@ -710,7 +708,7 @@ export default function Home() {
   return (
     <>
       {/* Chat Container + Discover Filters */}
-      <div className="flex-1 flex overflow-hidden bg-gray-50 dark:bg-gray-900 h-[calc(100vh-68.8px)] relative">
+      <div className="flex-1 flex overflow-hidden bg-gray-50 dark:bg-[rgb(19,25,33)] h-[calc(100vh-68.8px)] relative">
         {/* Chat Container */}
         <div className="flex-1 flex flex-col overflow-hidden">
           <ChatContainer

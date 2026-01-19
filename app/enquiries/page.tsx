@@ -166,8 +166,8 @@ export default function EnquiriesPage() {
   const [editUseNewBillingAddress, setEditUseNewBillingAddress] = useState(false);
   const [isEditShippingAddressModalOpen, setIsEditShippingAddressModalOpen] = useState(false);
   const [isEditBillingAddressModalOpen, setIsEditBillingAddressModalOpen] = useState(false);
-  // Product details state: maps productId to { quantity, targetPrice, unit }
-  const [productDetails, setProductDetails] = useState<Record<string, { quantity: number; targetPrice: number; unit: string }>>({});
+  // Product details state: maps productId to { quantity, targetPrice, unit, isAdded }
+  const [productDetails, setProductDetails] = useState<Record<string, { quantity: number; targetPrice: number; unit: string; isAdded?: boolean }>>({});
   // Track which product details are expanded (collapsible)
   const [expandedProductDetails, setExpandedProductDetails] = useState<Set<string>>(new Set());
   // Helper function to create default 5 empty custom product rows
@@ -178,11 +178,12 @@ export default function EnquiriesPage() {
       quantity: 0,
       unit: '',
       targetPrice: 0,
+      isAdded: false,
     }));
   };
 
   // Custom product rows (for manual entry) - initialize with 5 empty rows
-  const [customProductRows, setCustomProductRows] = useState<Array<{ id: string; name: string; quantity: number; unit: string; targetPrice: number }>>(createDefaultCustomRows());
+  const [customProductRows, setCustomProductRows] = useState<Array<{ id: string; name: string; quantity: number; unit: string; targetPrice: number; isAdded?: boolean }>>(createDefaultCustomRows());
   // Edit enquiry custom product rows (for manual entry)
   const [editCustomProductRows, setEditCustomProductRows] = useState<Array<{ id: string; name: string; quantity: number; unit: string; targetPrice: number }>>([]);
   // Submit mode state - tracks if we're submitting an existing enquiry vs creating new
@@ -303,7 +304,7 @@ export default function EnquiriesPage() {
       }
 
       const fetchedEnquiries = await getEnquiries(token);
-    // Sort by updatedAt descending (most recent first)
+      // Sort by updatedAt descending (most recent first)
       fetchedEnquiries.sort((a, b) => {
         const dateA = new Date(b.updatedAt || b.createdAt || '').getTime();
         const dateB = new Date(a.updatedAt || a.createdAt || '').getTime();
@@ -427,7 +428,7 @@ export default function EnquiriesPage() {
     if (!enquiry) return;
 
     const enquiryProducts = enquiry.enquiryProducts || [];
-    
+
     if (enquiryProducts.length === 0) {
       showToast({ type: 'error', message: 'Please add at least one product to the enquiry before submitting.' });
       setOpenMenuId(null);
@@ -436,14 +437,14 @@ export default function EnquiriesPage() {
 
     // Pre-populate all form fields with enquiry data
     setEnquiryName(enquiry.enquiryName || '');
-    
+
     // Pre-fill shipping address
     if (enquiry.shippingAddress) {
       const addr = enquiry.shippingAddress;
       if (typeof addr === 'string') {
         try {
           const parsed = JSON.parse(addr);
-      setShippingAddress({
+          setShippingAddress({
             addressLine1: parsed.addressLine1 || '',
             addressLine2: parsed.addressLine2 || '',
             city: parsed.city || '',
@@ -469,7 +470,7 @@ export default function EnquiriesPage() {
           state: (addr as any).state || '',
           zipCode: (addr as any).zipCode || '',
           country: (addr as any).country || '',
-      });
+        });
       }
     } else {
       setShippingAddress({
@@ -540,7 +541,7 @@ export default function EnquiriesPage() {
 
     // Pre-fill enquiry notes
     setEnquiryNotes(enquiry.enquiryNotes || '');
-    
+
     // Pre-fill attachment
     if (enquiry.attachment) {
       setEnquiryAttachmentUrl(enquiry.attachment);
@@ -550,7 +551,7 @@ export default function EnquiriesPage() {
     }
 
     // Pre-fill selected product IDs
-    const productIds = enquiry.enquiryProducts?.map((ep: any) => 
+    const productIds = enquiry.enquiryProducts?.map((ep: any) =>
       typeof ep === 'string' ? ep : ep.productId || ep._id
     ) || [];
     setNewEnquirySelectedProductIds(productIds);
@@ -561,7 +562,7 @@ export default function EnquiriesPage() {
     // Set submit mode and enquiry ID
     setIsSubmitMode(true);
     setEnquiryIdForSubmit(enquiryId);
-    
+
     // Open the sidebar form (same as create enquiry)
     setIsNewEnquiryModalOpen(true);
     setOpenMenuId(null);
@@ -654,7 +655,7 @@ export default function EnquiriesPage() {
     if (!enquiry) return;
 
     // Validate required fields - check if saved address selected or new address entered
-    const hasShippingAddress = (selectedShippingAddressIndex !== null && buyerProfile?.shippingAddress?.[selectedShippingAddressIndex]) 
+    const hasShippingAddress = (selectedShippingAddressIndex !== null && buyerProfile?.shippingAddress?.[selectedShippingAddressIndex])
       || shippingAddress.addressLine1.trim();
     const hasBillingAddress = (selectedBillingAddressIndex !== null && buyerProfile?.billingAddress?.[selectedBillingAddressIndex])
       || billingAddress.addressLine1.trim();
@@ -719,15 +720,15 @@ export default function EnquiriesPage() {
       });
 
       await loadEnquiries();
-    
-    // Show success message
+
+      // Show success message
       const enquiryProducts = enquiry.enquiryProducts || [];
       showToast({
         type: 'success',
         message: `Enquiry "${enquiry.enquiryName}" has been submitted successfully with ${enquiryProducts.length} product(s).`,
       });
-    
-    handleCloseSubmitModal();
+
+      handleCloseSubmitModal();
     } catch (error: any) {
       console.error('Error submitting enquiry:', error);
       showToast({ type: 'error', message: error.message || 'Failed to submit enquiry. Please try again.' });
@@ -779,7 +780,7 @@ export default function EnquiriesPage() {
     try {
       const token = getAuthToken();
       if (!token) return;
-      
+
       const profile = await getBuyerProfile(token);
       setBuyerProfile(profile);
     } catch (error) {
@@ -904,7 +905,7 @@ export default function EnquiriesPage() {
     try {
       // Call backend to generate fields from keyword
       const fields = await generateFieldsFromKeyword(productKeyword.trim());
-      
+
       // Initialize form data with empty values
       const initialData: Record<string, string | number | string[]> = {};
       fields.fields.forEach((field) => {
@@ -916,7 +917,7 @@ export default function EnquiriesPage() {
           initialData[field.label] = '';
         }
       });
-      
+
       setSpecFormData(initialData);
       setGeneratedFields(fields);
     } catch (error) {
@@ -932,37 +933,37 @@ export default function EnquiriesPage() {
   };
 
   // Handle adding multiple values to text fields on Enter key (for modal)
-  const handleTextInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, fieldLabel: string) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const input = e.currentTarget;
-      const currentValue = input.value.trim();
-      
-      if (currentValue) {
-        const existingValue = specFormData[fieldLabel];
-        let values: string[] = [];
-        
-        // If existing value is an array, use it; if string, convert to array; otherwise start fresh
-        if (Array.isArray(existingValue)) {
-          values = [...existingValue];
-        } else if (typeof existingValue === 'string' && existingValue.trim()) {
-          // Split by comma if it's a comma-separated string, otherwise treat as single value
-          values = existingValue.includes(',') 
-            ? existingValue.split(',').map(v => v.trim()).filter(v => v)
-            : [existingValue.trim()];
-        }
-        
-        // Add new value if it doesn't already exist
-        if (!values.includes(currentValue)) {
-          values.push(currentValue);
-          handleSpecInputChange(fieldLabel, values);
-        }
-        
-        // Clear the input field
-        input.value = '';
-      }
-    }
-  };
+  // const handleTextInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, fieldLabel: string) => {
+  //   if (e.key === 'Enter') {
+  //     e.preventDefault();
+  //     const input = e.currentTarget;
+  //     const currentValue = input.value.trim();
+
+  //     if (currentValue) {
+  //       const existingValue = specFormData[fieldLabel];
+  //       let values: string[] = [];
+
+  //       // If existing value is an array, use it; if string, convert to array; otherwise start fresh
+  //       if (Array.isArray(existingValue)) {
+  //         values = [...existingValue];
+  //       } else if (typeof existingValue === 'string' && existingValue.trim()) {
+  //         // Split by comma if it's a comma-separated string, otherwise treat as single value
+  //         values = existingValue.includes(',') 
+  //           ? existingValue.split(',').map(v => v.trim()).filter(v => v)
+  //           : [existingValue.trim()];
+  //       }
+
+  //       // Add new value if it doesn't already exist
+  //       if (!values.includes(currentValue)) {
+  //         values.push(currentValue);
+  //         handleSpecInputChange(fieldLabel, values);
+  //       }
+
+  //       // Clear the input field
+  //       input.value = '';
+  //     }
+  //   }
+  // };
 
   // Remove a value from a multi-value text field (for modal)
   const handleRemoveValue = (fieldLabel: string, valueToRemove: string) => {
@@ -984,6 +985,45 @@ export default function EnquiriesPage() {
         [field]: value,
       },
     }));
+  };
+
+  // Handler to add product to ribbon
+  const handleAddProductToRibbon = (productId: string) => {
+    setProductDetails((prev) => {
+      const currentDetails = prev[productId];
+      const quantity = currentDetails?.quantity && currentDetails.quantity > 0 ? currentDetails.quantity : 1;
+      const unit = currentDetails?.unit && currentDetails.unit.trim() !== '' ? currentDetails.unit : 'pcs';
+      const targetPrice = currentDetails?.targetPrice || 0;
+      return {
+        ...prev,
+        [productId]: {
+          quantity,
+          unit,
+          targetPrice,
+          userAttributes: productSpecifications[productId] || {},
+          isAdded: true, // Mark as explicitly added to ribbon
+        },
+      };
+    });
+  };
+
+  // Handler to add custom product to ribbon
+  const handleAddCustomProductToRibbon = (rowId: string) => {
+    setCustomProductRows((prev) =>
+      prev.map((row) => {
+        if (row.id === rowId) {
+          const quantity = row.quantity && row.quantity > 0 ? row.quantity : 1;
+          const unit = row.unit && row.unit.trim() !== '' ? row.unit : 'pcs';
+          return {
+            ...row,
+            quantity,
+            unit,
+            isAdded: true, // Mark as explicitly added to ribbon
+          };
+        }
+        return row;
+      })
+    );
   };
 
   // Handler to add 5 empty custom product rows
@@ -1034,17 +1074,17 @@ export default function EnquiriesPage() {
         alert('Product name is required to generate specifications');
         return;
       }
-      
+
       setCurrentProductIdForSpec(productId);
       setCurrentRowIdForSpec(null);
       setIsGeneratingProductListAI(true);
       setProductListAIProductName(productName);
       setIsProductListAIModalOpen(true);
-      
+
       try {
         const fields = await generateFieldsFromKeyword(productName.trim());
         setProductListAIGeneratedFields(fields);
-        
+
         // Initialize form data with existing specifications or empty values
         const existingSpecs = productSpecifications[productId] || {};
         const initialData: Record<string, string | number | string[]> = {};
@@ -1077,17 +1117,17 @@ export default function EnquiriesPage() {
       alert('Please enter a product name first');
       return;
     }
-    
+
     setCurrentProductIdForSpec(null);
     setCurrentRowIdForSpec(rowId);
     setIsGeneratingProductListAI(true);
     setProductListAIProductName(row.name);
     setIsProductListAIModalOpen(true);
-    
+
     try {
       const fields = await generateFieldsFromKeyword(row.name.trim());
       setProductListAIGeneratedFields(fields);
-      
+
       // Initialize form data with existing specifications or empty values
       const existingSpecs = customProductSpecifications[rowId] || {};
       const initialData: Record<string, string | number | string[]> = {};
@@ -1169,20 +1209,23 @@ export default function EnquiriesPage() {
       // Prepare userAttributes from saved specifications
       const userAttributes: Record<string, any> = {};
       Object.entries(savedSpecs).forEach(([key, value]) => {
-        if (value !== '' && value !== 0 && value !== null && value !== undefined) {
+        // Include value if it's not empty string, null, or undefined
+        // Allow 0, false, and empty arrays as valid values
+        if (value !== '' && value !== null && value !== undefined) {
           if (Array.isArray(value) && value.length === 0) {
+            // Skip empty arrays
             return;
           }
           userAttributes[key] = value;
         }
       });
 
-      // Create product in database
+      // Create product in database - always include userAttributes even if empty
       const newProduct = await addProductItem(token, {
         productSource: 'ai_generated',
         displayName: row.name.trim(),
         category: 'Custom',
-        userAttributes: userAttributes,
+        userAttributes: Object.keys(userAttributes).length > 0 ? userAttributes : {},
         adminProductId: null,
         externalRef: null,
       });
@@ -1190,18 +1233,18 @@ export default function EnquiriesPage() {
       // Add the created product to the enquiry's product list
       if (newProduct._id) {
         setNewEnquirySelectedProductIds((prev) => [...prev, newProduct._id]);
-        
-        // Also set product details (quantity, unit, targetPrice) from the row
-        if (row.quantity || row.unit || row.targetPrice) {
-          setProductDetails((prev) => ({
-            ...prev,
-            [newProduct._id]: {
-              quantity: row.quantity || 0,
-              unit: row.unit || '',
-              targetPrice: row.targetPrice || 0,
-            }
-          }));
-        }
+
+        // Always set product details to ensure it appears in ribbon
+        // Use row values if available, otherwise use defaults (quantity: 1, unit: 'pcs')
+        setProductDetails((prev) => ({
+          ...prev,
+          [newProduct._id]: {
+            quantity: row.quantity && row.quantity > 0 ? row.quantity : 1,
+            unit: row.unit && row.unit.trim() !== '' ? row.unit : 'pcs',
+            targetPrice: row.targetPrice || 0,
+            isAdded: true, // Mark as added since it's created and added
+          }
+        }));
 
         // Move specifications from custom row to the created product
         if (Object.keys(savedSpecs).length > 0) {
@@ -1213,7 +1256,7 @@ export default function EnquiriesPage() {
 
         // Remove the custom product row
         setCustomProductRows((prev) => prev.filter((r) => r.id !== rowId));
-        
+
         // Remove saved specifications for this row
         setCustomProductSpecifications((prev) => {
           const newSpecs = { ...prev };
@@ -1259,20 +1302,23 @@ export default function EnquiriesPage() {
       // Prepare userAttributes from saved specifications
       const userAttributes: Record<string, any> = {};
       Object.entries(savedSpecs).forEach(([key, value]) => {
-        if (value !== '' && value !== 0 && value !== null && value !== undefined) {
+        // Include value if it's not empty string, null, or undefined
+        // Allow 0, false, and empty arrays as valid values
+        if (value !== '' && value !== null && value !== undefined) {
           if (Array.isArray(value) && value.length === 0) {
+            // Skip empty arrays
             return;
           }
           userAttributes[key] = value;
         }
       });
 
-      // Create product in database
+      // Create product in database - always include userAttributes even if empty
       const newProduct = await addProductItem(token, {
         productSource: 'ai_generated',
         displayName: row.name.trim(),
         category: 'Custom',
-        userAttributes: userAttributes,
+        userAttributes: Object.keys(userAttributes).length > 0 ? userAttributes : {},
         adminProductId: null,
         externalRef: null,
       });
@@ -1280,7 +1326,7 @@ export default function EnquiriesPage() {
       // Add the created product to the edit enquiry's product list
       if (newProduct._id) {
         setEditEnquirySelectedProductIds((prev) => [...prev, newProduct._id]);
-        
+
         // Also set product details (quantity, unit, targetPrice) from the row
         if (row.quantity || row.unit || row.targetPrice) {
           setProductDetails((prev) => ({
@@ -1303,7 +1349,7 @@ export default function EnquiriesPage() {
 
         // Remove the edit custom product row
         setEditCustomProductRows((prev) => prev.filter((r) => r.id !== rowId));
-        
+
         // Remove saved specifications for this row
         setCustomProductSpecifications((prev) => {
           const newSpecs = { ...prev };
@@ -1390,11 +1436,11 @@ export default function EnquiriesPage() {
       const details = productDetails[productId];
       return details && (details.quantity || details.targetPrice || details.unit);
     });
-    
+
     if (!hasAnyDetails) {
       return productIds; // Return as string array if no details
     }
-    
+
     // Return as object array with details
     return productIds.map((productId) => {
       const details = productDetails[productId];
@@ -1411,19 +1457,49 @@ export default function EnquiriesPage() {
   };
 
   // Helper function to combine selected products and custom products for enquiry
+  // Only includes products that are in the ribbon (have quantity > 0 and unit filled)
   const getAllEnquiryProducts = (): any => {
-    const selectedProducts = newEnquirySelectedProductIds.length > 0 
-      ? mapProductIdsToEnquiryProducts(newEnquirySelectedProductIds) 
+    // Filter products that are in ribbon (quantity > 0 and unit filled)
+    const ribbonProducts = newEnquirySelectedProductIds.filter((productId) => {
+      const details = productDetails[productId];
+      return details?.quantity && details?.quantity > 0 && details?.unit && details?.unit.trim() !== '';
+    });
+
+    const selectedProducts = ribbonProducts.length > 0
+      ? mapProductIdsToEnquiryProducts(ribbonProducts)
       : [];
-    
+
+    // Filter custom products that are in ribbon (have name, quantity > 0, and unit filled)
     const customProducts = customProductRows
-      .filter((row) => row.name.trim()) // Only include rows with a name
-      .map((row) => ({
-        name: row.name.trim(),
-        quantity: row.quantity > 0 ? row.quantity : undefined,
-        targetPrice: row.targetPrice > 0 ? row.targetPrice : undefined,
-        unit: row.unit.trim() || undefined,
-      }));
+      .filter((row) => {
+        return row.name && row.name.trim() !== '' && row.quantity && row.quantity > 0 && row.unit && row.unit.trim() !== '';
+      })
+      .map((row) => {
+        // Get saved specifications for this row
+        const savedSpecs = customProductSpecifications[row.id] || {};
+
+        // Prepare userAttributes from saved specifications
+        const userAttributes: Record<string, any> = {};
+        Object.entries(savedSpecs).forEach(([key, value]) => {
+          // Include value if it's not empty string, null, or undefined
+          // Allow 0, false, and empty arrays as valid values
+          if (value !== '' && value !== null && value !== undefined) {
+            if (Array.isArray(value) && value.length === 0) {
+              // Skip empty arrays
+              return;
+            }
+            userAttributes[key] = value;
+          }
+        });
+
+        return {
+          name: row.name.trim(),
+          quantity: row.quantity > 0 ? row.quantity : undefined,
+          targetPrice: row.targetPrice > 0 ? row.targetPrice : undefined,
+          unit: row.unit.trim() || undefined,
+          userAttributes: Object.keys(userAttributes).length > 0 ? userAttributes : undefined,
+        };
+      });
 
     // Combine both arrays - handle both string[] and object[] cases
     const selectedArray = Array.isArray(selectedProducts) ? selectedProducts : [];
@@ -1431,19 +1507,49 @@ export default function EnquiriesPage() {
   };
 
   // Helper function to combine selected products and custom products for edit enquiry
+  // Only includes products that are in the ribbon (have quantity > 0 and unit filled)
   const getAllEditEnquiryProducts = (): any => {
-    const selectedProducts = editEnquirySelectedProductIds.length > 0 
-      ? mapProductIdsToEnquiryProducts(editEnquirySelectedProductIds) 
+    // Filter products that are in ribbon (quantity > 0 and unit filled)
+    const ribbonProducts = editEnquirySelectedProductIds.filter((productId) => {
+      const details = productDetails[productId];
+      return details?.quantity && details?.quantity > 0 && details?.unit && details?.unit.trim() !== '';
+    });
+
+    const selectedProducts = ribbonProducts.length > 0
+      ? mapProductIdsToEnquiryProducts(ribbonProducts)
       : [];
-    
+
+    // Filter custom products that are in ribbon (have name, quantity > 0, and unit filled)
     const customProducts = editCustomProductRows
-      .filter((row) => row.name.trim()) // Only include rows with a name
-      .map((row) => ({
-        name: row.name.trim(),
-        quantity: row.quantity > 0 ? row.quantity : undefined,
-        targetPrice: row.targetPrice > 0 ? row.targetPrice : undefined,
-        unit: row.unit.trim() || undefined,
-      }));
+      .filter((row) => {
+        return row.name && row.name.trim() !== '' && row.quantity && row.quantity > 0 && row.unit && row.unit.trim() !== '';
+      })
+      .map((row) => {
+        // Get saved specifications for this row
+        const savedSpecs = customProductSpecifications[row.id] || {};
+
+        // Prepare userAttributes from saved specifications
+        const userAttributes: Record<string, any> = {};
+        Object.entries(savedSpecs).forEach(([key, value]) => {
+          // Include value if it's not empty string, null, or undefined
+          // Allow 0, false, and empty arrays as valid values
+          if (value !== '' && value !== null && value !== undefined) {
+            if (Array.isArray(value) && value.length === 0) {
+              // Skip empty arrays
+              return;
+            }
+            userAttributes[key] = value;
+          }
+        });
+
+        return {
+          name: row.name.trim(),
+          quantity: row.quantity > 0 ? row.quantity : undefined,
+          targetPrice: row.targetPrice > 0 ? row.targetPrice : undefined,
+          unit: row.unit.trim() || undefined,
+          userAttributes: Object.keys(userAttributes).length > 0 ? userAttributes : undefined,
+        };
+      });
 
     // Combine both arrays - handle both string[] and object[] cases
     const selectedArray = Array.isArray(selectedProducts) ? selectedProducts : [];
@@ -1460,7 +1566,7 @@ export default function EnquiriesPage() {
     try {
       // Call backend to generate fields from keyword
       const fields = await generateFieldsFromKeyword(inlineProductKeyword.trim());
-      
+
       // Initialize form data with empty values
       const initialData: Record<string, string | number | string[]> = {};
       fields.fields.forEach((field) => {
@@ -1472,7 +1578,7 @@ export default function EnquiriesPage() {
           initialData[field.label] = '';
         }
       });
-      
+
       setInlineSpecFormData(initialData);
       setInlineGeneratedFields(fields);
     } catch (error) {
@@ -1493,27 +1599,27 @@ export default function EnquiriesPage() {
       e.preventDefault();
       const input = e.currentTarget;
       const currentValue = input.value.trim();
-      
+
       if (currentValue) {
         const existingValue = inlineSpecFormData[fieldLabel];
         let values: string[] = [];
-        
+
         // If existing value is an array, use it; if string, convert to array; otherwise start fresh
         if (Array.isArray(existingValue)) {
           values = [...existingValue];
         } else if (typeof existingValue === 'string' && existingValue.trim()) {
           // Split by comma if it's a comma-separated string, otherwise treat as single value
-          values = existingValue.includes(',') 
+          values = existingValue.includes(',')
             ? existingValue.split(',').map(v => v.trim()).filter(v => v)
             : [existingValue.trim()];
         }
-        
+
         // Add new value if it doesn't already exist
         if (!values.includes(currentValue)) {
           values.push(currentValue);
           handleInlineSpecInputChange(fieldLabel, values);
         }
-        
+
         // Clear the input field
         input.value = '';
       }
@@ -1628,7 +1734,7 @@ export default function EnquiriesPage() {
           setEditEnquirySelectedProductIds((prev) => [...prev, newProduct._id]);
         } else {
           // Add to new enquiry products
-        setNewEnquirySelectedProductIds((prev) => [...prev, newProduct._id]);
+          setNewEnquirySelectedProductIds((prev) => [...prev, newProduct._id]);
         }
       }
 
@@ -1643,19 +1749,19 @@ export default function EnquiriesPage() {
 
   const handleSaveNewEnquiry = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Require authentication before saving enquiry
     if (!requireAuth()) {
       return;
     }
-    
+
     if (!enquiryName.trim()) {
       alert('Please enter an enquiry name');
       return;
     }
 
     // Validate required address fields - check if saved address selected or new address entered
-    const hasShippingAddress = (selectedShippingAddressIndex !== null && buyerProfile?.shippingAddress?.[selectedShippingAddressIndex]) 
+    const hasShippingAddress = (selectedShippingAddressIndex !== null && buyerProfile?.shippingAddress?.[selectedShippingAddressIndex])
       || shippingAddress.addressLine1.trim();
     const hasBillingAddress = (selectedBillingAddressIndex !== null && buyerProfile?.billingAddress?.[selectedBillingAddressIndex])
       || billingAddress.addressLine1.trim();
@@ -1774,15 +1880,15 @@ export default function EnquiriesPage() {
           enquiryName: enquiryName.trim(),
           shippingAddress: finalShippingAddressCreate,
           billingAddress: finalBillingAddressCreate,
-        expectedDeliveryDate: new Date(expectedDeliveryDate).toISOString(),
-        enquiryStatus: enquiryStatus,
-        enquiryNotes: enquiryNotes || undefined,
-        attachment: enquiryAttachmentUrl || undefined,
-        enquiryProducts: getAllEnquiryProducts() as any,
-      });
+          expectedDeliveryDate: new Date(expectedDeliveryDate).toISOString(),
+          enquiryStatus: enquiryStatus,
+          enquiryNotes: enquiryNotes || undefined,
+          attachment: enquiryAttachmentUrl || undefined,
+          enquiryProducts: getAllEnquiryProducts() as any,
+        });
 
-      await loadEnquiries();
-    handleCloseNewEnquiryModal();
+        await loadEnquiries();
+        handleCloseNewEnquiryModal();
       }
     } catch (error: any) {
       console.error('Error saving enquiry:', error);
@@ -1807,13 +1913,13 @@ export default function EnquiriesPage() {
     // If enquiry status is draft, load data into edit form
     if (enquiry.enquiryStatus === 'draft') {
       setEditEnquiryName(enquiry.enquiryName || '');
-      
+
       // Reset address selection state
       setEditSelectedShippingAddressIndex(null);
       setEditSelectedBillingAddressIndex(null);
       setEditUseNewShippingAddress(true);
       setEditUseNewBillingAddress(true);
-      
+
       setEditShippingAddress({
         addressLine1: enquiry.shippingAddress?.addressLine1 || '',
         addressLine2: enquiry.shippingAddress?.addressLine2 || '',
@@ -1831,13 +1937,13 @@ export default function EnquiriesPage() {
         country: enquiry.billingAddress?.country || '',
       });
       setEditExpectedDeliveryDate(
-        enquiry.expectedDeliveryDate 
+        enquiry.expectedDeliveryDate
           ? new Date(enquiry.expectedDeliveryDate).toISOString().split('T')[0]
           : ''
       );
       setEditEnquiryStatus(enquiry.enquiryStatus || 'draft');
       setEditEnquiryNotes(enquiry.enquiryNotes || '');
-      
+
       // Pre-fill attachment
       if (enquiry.attachment) {
         setEditEnquiryAttachmentUrl(enquiry.attachment);
@@ -1845,11 +1951,11 @@ export default function EnquiriesPage() {
         setEditEnquiryAttachmentUrl('');
         setEditEnquiryAttachment(null);
       }
-      
+
       // Load existing products - separate products with productId from custom products
       const productIds: string[] = [];
       const customProducts: Array<{ id: string; name: string; quantity: number; unit: string; targetPrice: number }> = [];
-      
+
       enquiry.enquiryProducts?.forEach((p: any) => {
         if (typeof p === 'string') {
           productIds.push(p);
@@ -1866,7 +1972,7 @@ export default function EnquiriesPage() {
           });
         }
       });
-      
+
       setEditEnquirySelectedProductIds(productIds);
       setEditCustomProductRows(customProducts);
 
@@ -1950,14 +2056,14 @@ export default function EnquiriesPage() {
 
   const handleSendEnquiry = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!selectedEnquiryForDetail) return;
 
     // Require authentication before sending enquiry
     if (!requireAuth()) {
       return;
     }
-    
+
     if (!editEnquiryName.trim()) {
       alert('Please enter an enquiry name');
       return;
@@ -2064,12 +2170,12 @@ export default function EnquiriesPage() {
 
     setSelectedEnquiryId(enquiryId);
     setModalProducts(productSheetItems);
-    
+
     // Load existing enquiry to get already added products
     const enquiry = enquiries.find((e) => e._id === enquiryId);
-    
+
     // Initialize selected products list
-    const enquiryProductIds = enquiry?.enquiryProducts?.map((p: any) => 
+    const enquiryProductIds = enquiry?.enquiryProducts?.map((p: any) =>
       typeof p === 'string' ? p : p._id || p
     ) || [];
     setSelectedProductIds(enquiryProductIds);
@@ -2089,7 +2195,7 @@ export default function EnquiriesPage() {
       }
     });
     setProductDetails(details);
-    
+
     setIsProductModalOpen(true);
     // Trigger animation
     setTimeout(() => setIsDrawerAnimating(true), 10);
@@ -2140,7 +2246,7 @@ export default function EnquiriesPage() {
       // Show success message
       const enquiry = enquiries.find((e) => e._id === selectedEnquiryId);
       alert(`Successfully added ${selectedProductIds.length} product(s) to "${enquiry?.enquiryName || 'enquiry'}".`);
-      
+
       // Close the drawer
       handleCloseProductModal();
     } catch (error: any) {
@@ -2164,7 +2270,7 @@ export default function EnquiriesPage() {
   };
 
   return (
-      <>
+    <>
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col relative w-full px-6 py-6">
 
@@ -2194,7 +2300,7 @@ export default function EnquiriesPage() {
           />
 
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
+          <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-[rgb(19,25,33)]">
             <div>
               {/* Summary and New Enquiry Button */}
               <div className="mb-6 flex items-center justify-between">
@@ -2248,14 +2354,14 @@ export default function EnquiriesPage() {
                       <polyline points="22,6 12,13 2,6"></polyline>
                     </svg>
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                      {activeTab === 'draft' ? 'No draft enquiries' : 
-                       activeTab === 'sentToAdmin' ? 'No quote requests' : 
-                       'No quotes received'}
+                      {activeTab === 'draft' ? 'No draft enquiries' :
+                        activeTab === 'sentToAdmin' ? 'No quote requests' :
+                          'No quotes received'}
                     </h3>
                     <p className="text-gray-600 dark:text-gray-400 mb-6">
-                      {activeTab === 'draft' ? 'Create your first enquiry' : 
-                       activeTab === 'sentToAdmin' ? 'Submit an enquiry to request quotes' : 
-                       'No quotes have been received yet'}
+                      {activeTab === 'draft' ? 'Create your first enquiry' :
+                        activeTab === 'sentToAdmin' ? 'Submit an enquiry to request quotes' :
+                          'No quotes have been received yet'}
                     </p>
                   </div>
                 </div>
@@ -2264,30 +2370,30 @@ export default function EnquiriesPage() {
                   {getFilteredEnquiries().map((enquiry) => {
                     const enquiryId = enquiry._id || '';
                     const isExpanded = expandedEnquiries.has(enquiryId);
-                    const enquiryProducts = Array.isArray(enquiry.enquiryProducts) 
-                      ? enquiry.enquiryProducts 
+                    const enquiryProducts = Array.isArray(enquiry.enquiryProducts)
+                      ? enquiry.enquiryProducts
                       : [];
                     const totalProducts = enquiryProducts.length;
 
                     // Format enquiry ID for display (e.g., ENQ-D-001)
                     const enquiryRef = enquiry._id ? `ENQ-${enquiry._id.slice(-6).toUpperCase()}` : 'ENQ-XXXXXX';
-                    const lastModified = enquiry.updatedAt && enquiry.updatedAt !== enquiry.createdAt 
+                    const lastModified = enquiry.updatedAt && enquiry.updatedAt !== enquiry.createdAt
                       ? formatDate(enquiry.updatedAt as string)
                       : formatDate(enquiry.createdAt as string);
 
                     // Get product names for tags (limit to first few for display)
                     const productTags = enquiryProducts.slice(0, 3).map((product: any) => {
                       const productId = typeof product === 'string' ? product : (product._id || product.id);
-                      const productData = typeof product === 'string' 
+                      const productData = typeof product === 'string'
                         ? getProductById(productId)
                         : product;
-                      
+
                       if (!productData) return null;
-                      
+
                       const productName = productData.displayName || productData.externalRef || 'Unknown Product';
                       // Try to get quantity from product data or default to 1
                       const quantity = productData.quantity || product.quantity || 1;
-                      
+
                       return { name: productName, quantity };
                     }).filter(Boolean);
 
@@ -2385,7 +2491,7 @@ export default function EnquiriesPage() {
                       // Format enquiry ID for display (e.g., ENQ-S-001 for submitted)
                       const submittedEnquiryRef = enquiry._id ? `ENQ-S-${enquiry._id.slice(-6).toUpperCase()}` : 'ENQ-XXXXXX';
                       const sentDate = formatDate(enquiry.createdAt as string);
-                      
+
                       // Determine status - for submitted enquiries, show "Processing" or similar
                       const statusText = 'Processing';
                       const statusColor = 'text-orange-500';
@@ -2476,9 +2582,9 @@ export default function EnquiriesPage() {
                         if (!quote.visibletoClient) return false;
                         const assignment = quote.vendorAssignmentId as any;
                         const enquiryProduct = assignment?.enquiryProductId as any;
-                        const quoteEnquiryId = enquiryProduct?.enquiryId?._id?.toString() || 
-                                             enquiryProduct?.enquiryId?.toString() ||
-                                             enquiryProduct?.enquiryId;
+                        const quoteEnquiryId = enquiryProduct?.enquiryId?._id?.toString() ||
+                          enquiryProduct?.enquiryId?.toString() ||
+                          enquiryProduct?.enquiryId;
                         return quoteEnquiryId === enquiryId;
                       });
 
@@ -2491,7 +2597,7 @@ export default function EnquiriesPage() {
                         const vendor = assignment?.vendorId as any;
                         const enquiryProduct = assignment?.enquiryProductId as any;
                         const product = enquiryProduct?.productsheetitemid as any;
-                        
+
                         if (!vendor || !product) return;
 
                         const vendorId = typeof vendor === 'string' ? vendor : (vendor._id || vendor.id);
@@ -2661,9 +2767,8 @@ export default function EnquiriesPage() {
                                 strokeWidth="2"
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
-                                className={`text-gray-500 dark:text-gray-400 transition-transform duration-200 ${
-                                  isExpanded ? 'rotate-90' : ''
-                                }`}
+                                className={`text-gray-500 dark:text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''
+                                  }`}
                               >
                                 <polyline points="9 18 15 12 9 6"></polyline>
                               </svg>
@@ -2763,7 +2868,7 @@ export default function EnquiriesPage() {
                                   <circle cx="12" cy="19" r="1"></circle>
                                 </svg>
                               </button>
-                              
+
                               {/* Dropdown Menu */}
                               {openMenuId === enquiryId && (
                                 <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10 overflow-hidden">
@@ -2812,7 +2917,7 @@ export default function EnquiriesPage() {
 
                         {/* Accordion Content */}
                         {isExpanded && (
-                          <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900">
+                          <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-[rgb(19,25,33)]">
                             <div className="flex items-center justify-between mb-4">
                               <h4 className="text-sm font-medium text-gray-900 dark:text-white">
                                 Products ({enquiryProducts.length})
@@ -2827,10 +2932,10 @@ export default function EnquiriesPage() {
                                 {enquiryProducts.map((product: any, index: number) => {
                                   // Handle both string IDs and populated product objects
                                   const productId = typeof product === 'string' ? product : (product._id || product.id);
-                                  const productData = typeof product === 'string' 
+                                  const productData = typeof product === 'string'
                                     ? getProductById(productId)
                                     : product;
-                                  
+
                                   if (!productData) {
                                     return (
                                       <div
@@ -2856,8 +2961,8 @@ export default function EnquiriesPage() {
                                     });
                                   }
 
-                                  const imageLink = productData.userAttributes?.image_link || 
-                                                    productData.userAttributes?.Image_Attachment || '';
+                                  const imageLink = productData.userAttributes?.image_link ||
+                                    productData.userAttributes?.Image_Attachment || '';
 
                                   return (
                                     <div
@@ -2902,11 +3007,11 @@ export default function EnquiriesPage() {
                                           <div className="flex-1">
                                             {/* Category */}
                                             {productData.category && (
-                                            <span className="inline-block px-2 py-0.5 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 text-xs font-medium rounded-full mb-1">
+                                              <span className="inline-block px-2 py-0.5 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 text-xs font-medium rounded-full mb-1">
                                                 {productData.category.toUpperCase()}
-                                            </span>
+                                              </span>
                                             )}
-                                            
+
                                             {/* Product Name */}
                                             <h4 className="text-base font-semibold text-gray-900 dark:text-white mt-1 mb-2">
                                               {productData.displayName || 'Unnamed Product'}
@@ -2978,7 +3083,7 @@ export default function EnquiriesPage() {
                                                 />
                                               </div>
                                             </div>
-                                              </div>
+                                          </div>
                                         </div>
                                       </div>
                                     </div>
@@ -3000,11 +3105,11 @@ export default function EnquiriesPage() {
 
       {/* Submit Enquiry Modal - Removed: Now using sidebar form for submitting */}
       {false && isSubmitModalOpen && selectedEnquiryForSubmit && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={handleCloseSubmitModal}
         >
-          <div 
+          <div
             className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
@@ -3178,17 +3283,15 @@ export default function EnquiriesPage() {
       {isProductModalOpen && (
         <>
           {/* Backdrop */}
-          <div 
-            className={`fixed inset-0 z-50 bg-black/50 transition-opacity duration-300 ${
-              isDrawerAnimating ? 'opacity-100' : 'opacity-0'
-            }`}
+          <div
+            className={`fixed inset-0 z-50 bg-black/50 transition-opacity duration-300 ${isDrawerAnimating ? 'opacity-100' : 'opacity-0'
+              }`}
             onClick={handleCloseProductModal}
           />
           {/* Drawer */}
-          <div 
-            className={`fixed right-0 top-0 bottom-0 z-50 w-full max-w-4xl bg-white dark:bg-gray-800 shadow-xl flex flex-col transform transition-transform duration-300 ease-out ${
-              isDrawerAnimating ? 'translate-x-0' : 'translate-x-full'
-            }`}
+          <div
+            className={`fixed right-0 top-0 bottom-0 z-50 w-full max-w-4xl bg-white dark:bg-gray-800 shadow-xl flex flex-col transform transition-transform duration-300 ease-out ${isDrawerAnimating ? 'translate-x-0' : 'translate-x-full'
+              }`}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Drawer Header */}
@@ -3250,7 +3353,7 @@ export default function EnquiriesPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                      {modalProducts.map((product: ProductSheetItem) => (
+                  {modalProducts.map((product: ProductSheetItem) => (
                     <div
                       key={product._id}
                       className="flex items-start gap-4 p-4 border border-gray-700 rounded-lg hover:bg-[#2d2d2d] transition-colors"
@@ -3258,35 +3361,35 @@ export default function EnquiriesPage() {
                       {/* Product Image */}
                       <div className="flex-shrink-0">
                         {(() => {
-                          const imageLink = product.userAttributes?.image_link || 
-                                            product.userAttributes?.Image_Attachment || '';
+                          const imageLink = product.userAttributes?.image_link ||
+                            product.userAttributes?.Image_Attachment || '';
                           return imageLink ? (
-                          <img
+                            <img
                               src={imageLink}
                               alt={product.displayName || 'Product'}
-                            className="w-20 h-20 object-cover rounded-lg"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = '/placeholder-product.jpg';
-                            }}
-                          />
-                        ) : (
-                          <div className="w-20 h-20 bg-[#202123] rounded-lg flex items-center justify-center">
-                            <svg
-                              width="24"
-                              height="24"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              className="text-gray-500"
-                            >
-                              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                              <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                              <polyline points="21 15 16 10 5 21"></polyline>
-                            </svg>
-                          </div>
+                              className="w-20 h-20 object-cover rounded-lg"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = '/placeholder-product.jpg';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-20 h-20 bg-[#202123] rounded-lg flex items-center justify-center">
+                              <svg
+                                width="24"
+                                height="24"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="text-gray-500"
+                              >
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                <polyline points="21 15 16 10 5 21"></polyline>
+                              </svg>
+                            </div>
                           );
                         })()}
                       </div>
@@ -3297,11 +3400,11 @@ export default function EnquiriesPage() {
                           <div className="flex-1">
                             {/* Category */}
                             {product.category && (
-                            <span className="inline-block px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full mb-1">
-                              {product.category.toUpperCase()}
-                            </span>
+                              <span className="inline-block px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full mb-1">
+                                {product.category.toUpperCase()}
+                              </span>
                             )}
-                            
+
                             {/* Product Name */}
                             <h3 className="text-base font-semibold text-gray-900 dark:text-white mt-1 mb-2">
                               {product.displayName || 'Unnamed Product'}
@@ -3322,21 +3425,21 @@ export default function EnquiriesPage() {
                                 });
                               }
                               return specifications.length > 0 ? (
-                              <div className="flex flex-wrap gap-2 mt-2">
+                                <div className="flex flex-wrap gap-2 mt-2">
                                   {specifications.slice(0, 3).map((spec, index) => (
-                                  <span
-                                    key={index}
-                                    className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded"
-                                  >
-                                    {spec}
-                                  </span>
-                                ))}
+                                    <span
+                                      key={index}
+                                      className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded"
+                                    >
+                                      {spec}
+                                    </span>
+                                  ))}
                                   {specifications.length > 3 && (
-                                  <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
+                                    <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
                                       +{specifications.length - 3} more
-                                  </span>
-                                )}
-                              </div>
+                                    </span>
+                                  )}
+                                </div>
                               ) : null;
                             })()}
                           </div>
@@ -3391,45 +3494,44 @@ export default function EnquiriesPage() {
                       <div className="flex flex-col items-end gap-3 flex-shrink-0">
 
                         {/* Toggle Selection Button */}
-                          <button
+                        <button
                           onClick={() => handleToggleProductSelection(product._id || '')}
-                          className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium ${
-                            isProductAddedToEnquiry(product._id || '')
+                          className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium ${isProductAddedToEnquiry(product._id || '')
                               ? 'bg-green-600/20 text-green-400'
                               : 'bg-blue-600 hover:bg-blue-700 text-white'
-                          }`}
+                            }`}
                         >
                           {isProductAddedToEnquiry(product._id || '') ? (
                             <>
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <polyline points="20 6 9 17 4 12"></polyline>
-                            </svg>
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                              </svg>
                               Selected
                             </>
-                        ) : (
+                          ) : (
                             <>
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <line x1="12" y1="5" x2="12" y2="19"></line>
-                              <line x1="5" y1="12" x2="19" y2="12"></line>
-                            </svg>
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                              </svg>
                               Select
                             </>
                           )}
@@ -3487,11 +3589,11 @@ export default function EnquiriesPage() {
 
       {/* Specifications Modal */}
       {specModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50"
           onClick={() => setSpecModalOpen(false)}
         >
-          <div 
+          <div
             className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[70vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -3541,44 +3643,44 @@ export default function EnquiriesPage() {
       {isNewEnquiryModalOpen && (
         <>
           {/* Overlay */}
-        <div 
+          <div
             className="fixed inset-0 bg-black/50 z-40"
-          onClick={handleCloseNewEnquiryModal}
+            onClick={handleCloseNewEnquiryModal}
           />
-          
+
           {/* Sidebar */}
           <div className="fixed inset-y-0 right-0 z-50 w-full max-w-4xl bg-white dark:bg-gray-800 shadow-xl transform transition-transform duration-300 ease-in-out">
             <div className="flex h-full flex-col">
               {/* Sidebar Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                 <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                     {isSubmitMode ? 'Submit Enquiry' : 'Create new enquiry'}
-              </h2>
+                  </h2>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                     {isSubmitMode ? 'Review and update the details before submitting' : 'Fill in the details to create a new enquiry'}
                   </p>
                 </div>
-              <button
-                onClick={handleCloseNewEnquiryModal}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                <button
+                  onClick={handleCloseNewEnquiryModal}
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                   aria-label="Close sidebar"
-              >
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
                 >
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
-            </div>
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
 
               {/* Sidebar Body */}
               <div className="flex-1 overflow-y-auto">
@@ -3595,8 +3697,8 @@ export default function EnquiriesPage() {
                           type="text"
                           value={enquiryName}
                           onChange={(e) => setEnquiryName(e.target.value)}
-                              placeholder="e.g., Office Furniture Order Q1"
-                              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                          placeholder="e.g., Office Furniture Order Q1"
+                          className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                           autoFocus
                           required
                         />
@@ -3668,33 +3770,33 @@ export default function EnquiriesPage() {
                             Add
                           </button>
                         </div>
-                          <input
-                            type="text"
+                        <input
+                          type="text"
                           value={useNewShippingAddress ? getShippingAddressString() : ''}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              setShippingAddress({
-                                addressLine1: value,
-                                addressLine2: '',
-                                city: '',
-                                state: '',
-                                zipCode: '',
-                                country: '',
-                              });
-                              setUseNewShippingAddress(true);
-                              setSelectedShippingAddressIndex(null);
-                            }}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setShippingAddress({
+                              addressLine1: value,
+                              addressLine2: '',
+                              city: '',
+                              state: '',
+                              zipCode: '',
+                              country: '',
+                            });
+                            setUseNewShippingAddress(true);
+                            setSelectedShippingAddressIndex(null);
+                          }}
                           placeholder={
                             selectedShippingAddressIndex !== null && buyerProfile?.shippingAddress?.[selectedShippingAddressIndex] && !useNewShippingAddress
                               ? formatAddressAsString(buyerProfile.shippingAddress[selectedShippingAddressIndex])
                               : "Enter full shipping address"
                           }
                           disabled={selectedShippingAddressIndex !== null && buyerProfile?.shippingAddress?.[selectedShippingAddressIndex] && !useNewShippingAddress}
-                            required
+                          required
                           className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
-                          />
+                        />
                       </div>
-                      
+
                       {/* Billing Address Input */}
                       <div>
                         <div className='flex justify-between'>
@@ -3722,31 +3824,31 @@ export default function EnquiriesPage() {
                             Add
                           </button>
                         </div>
-                          <input
-                            type="text"
+                        <input
+                          type="text"
                           value={useNewBillingAddress ? getBillingAddressString() : ''}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              setBillingAddress({
-                                addressLine1: value,
-                                addressLine2: '',
-                                city: '',
-                                state: '',
-                                zipCode: '',
-                                country: '',
-                              });
-                              setUseNewBillingAddress(true);
-                              setSelectedBillingAddressIndex(null);
-                            }}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setBillingAddress({
+                              addressLine1: value,
+                              addressLine2: '',
+                              city: '',
+                              state: '',
+                              zipCode: '',
+                              country: '',
+                            });
+                            setUseNewBillingAddress(true);
+                            setSelectedBillingAddressIndex(null);
+                          }}
                           placeholder={
                             selectedBillingAddressIndex !== null && buyerProfile?.billingAddress?.[selectedBillingAddressIndex] && !useNewBillingAddress
                               ? formatAddressAsString(buyerProfile.billingAddress[selectedBillingAddressIndex])
                               : "Enter full billing address"
                           }
                           disabled={selectedBillingAddressIndex !== null && buyerProfile?.billingAddress?.[selectedBillingAddressIndex] && !useNewBillingAddress}
-                            required
+                          required
                           className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
-                          />
+                        />
                       </div>
                     </div>
                   </div>
@@ -3792,14 +3894,11 @@ export default function EnquiriesPage() {
                             strokeLinecap="round"
                             strokeLinejoin="round"
                           >
-                            <line x1="8" y1="6" x2="21" y2="6"></line>
-                            <line x1="8" y1="12" x2="21" y2="12"></line>
-                            <line x1="8" y1="18" x2="21" y2="18"></line>
-                            <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                            <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                            <circle cx="9" cy="21" r="1"></circle>
+                            <circle cx="20" cy="21" r="1"></circle>
+                            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
                           </svg>
-                          Select
+                          Pull from cart
                         </button>
                         <button
                           type="button"
@@ -3845,356 +3944,471 @@ export default function EnquiriesPage() {
                       </div>
                     </div>
 
-                    {/* Products List or Empty State */}
-                    {newEnquirySelectedProductIds.length === 0 && customProductRows.length === 0 ? (
-                      <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-12 flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800/50">
-                        <svg
-                          width="64"
-                          height="64"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="text-gray-500 mb-4"
-                        >
-                          <circle cx="9" cy="21" r="1"></circle>
-                          <circle cx="20" cy="21" r="1"></circle>
-                          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
-                        </svg>
-                        <p className="text-gray-400 font-medium mb-1">No products added yet</p>
-                        <p className="text-gray-500 text-sm text-center">
-                          Use Select or Generate buttons above
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden flex flex-col" style={{ maxHeight: '400px' }}>
-                        <div className="overflow-y-auto overflow-x-auto flex-1">
-                          <table className="w-full border-collapse bg-white dark:bg-gray-800">
-                          {/* Table Header */}
-                          <thead className="sticky top-0 z-10">
-                            <tr className="bg-gray-100 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600">
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
-                                Name
-                              </th>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
-                                Quantity
-                              </th>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
-                                Unit
-                              </th>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
-                                Target Price
-                              </th>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Action
-                              </th>
-                            </tr>
-                          </thead>
-                          {/* Table Body */}
-                          <tbody>
-                            {/* Selected Products from Product Sheet */}
-                            {newEnquirySelectedProductIds.map((productId, index) => {
+                    {/* Added Products Ribbons */}
+                    {(() => {
+                      const addedProducts = newEnquirySelectedProductIds.filter((productId) => {
+                        const details = productDetails[productId];
+                        return details?.isAdded === true; // Only show products explicitly added via "Add" button
+                      });
+                      const addedCustomProducts = customProductRows.filter((row) => {
+                        return row.isAdded === true; // Only show custom products explicitly added via "Add" button
+                      });
+                      const hasAddedProducts = addedProducts.length > 0 || addedCustomProducts.length > 0;
+                      if (!hasAddedProducts) return null;
+                      return (
+                        <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-600 mb-4">
+                          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Added Products</h3>
+                          <div className="space-y-2">
+                            {addedProducts.map((productId) => {
                               const product = productSheetItems.find((p) => p._id === productId);
                               if (!product) return null;
+                              const quantity = productDetails[productId]?.quantity || '';
+                              const unit = productDetails[productId]?.unit || '';
+                              const targetPrice = productDetails[productId]?.targetPrice || '';
                               return (
-                                <tr
+                                <div
                                   key={productId}
-                                  className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                                    index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
-                                  }`}
+                                  className="w-full bg-teal-50 dark:bg-teal-900/20 border-l-4 border-teal-600 dark:border-teal-400 rounded-r-lg p-3 flex items-center justify-between"
                                 >
-                                  {/* Name Column */}
-                                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-600">
-                                    <div className="flex items-center gap-2">
-                                      <div className="flex-1">
-                                      <p className="font-medium">
-                                        {product.displayName || product.category || 'Unnamed Product'}
-                                      </p>
-                                      {product.category && (
-                                        <p className="text-xs text-gray-400 mt-0.5">{product.category}</p>
-                                      )}
-                                      </div>
-                                      <div className="flex items-center gap-1">
-                                        {/* Detail Icon */}
-                                        <button
-                                          type="button"
-                                          onClick={() => handleToggleProductDetails(productId)}
-                                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-400/10 rounded transition-colors"
-                                          aria-label="View details"
-                                          title="View details"
-                                        >
-                                          <svg
-                                            width="16"
-                                            height="16"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                          >
-                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                            <polyline points="14 2 14 8 20 8"></polyline>
-                                            <line x1="16" y1="13" x2="8" y2="13"></line>
-                                            <line x1="16" y1="17" x2="8" y2="17"></line>
-                                            <line x1="10" y1="9" x2="8" y2="9"></line>
-                                          </svg>
-                                        </button>
-                                        {/* Remove Icon */}
-                                        <button
-                                          type="button"
-                                          onClick={() => handleRemoveSelectedProduct(productId)}
-                                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors"
-                                          aria-label="Remove product"
-                                          title="Remove product"
-                                        >
-                                          <svg
-                                            width="16"
-                                            height="16"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                          >
-                                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                                          </svg>
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </td>
-                                  {/* Quantity Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={productDetails[productId]?.quantity || ''}
-                                      onChange={(e) => handleProductDetailChange(productId, 'quantity', parseFloat(e.target.value) || 0)}
-                                      placeholder="0"
-                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                    />
-                                  </td>
-                                  {/* Unit Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                    <select
-                                      value={productDetails[productId]?.unit || ''}
-                                      onChange={(e) => handleProductDetailChange(productId, 'unit', e.target.value)}
-                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                    >
-                                      <option value="">Select unit</option>
-                                      {STANDARD_UNITS.map((unit) => (
-                                        <option key={unit} value={unit}>
-                                          {unit}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </td>
-                                  {/* Target Price Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={productDetails[productId]?.targetPrice || ''}
-                                      onChange={(e) => handleProductDetailChange(productId, 'targetPrice', parseFloat(e.target.value) || 0)}
-                                      placeholder="0.00"
-                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                    />
-                                  </td>
-                                  {/* Action Column - Added Button (disabled) */}
-                                  <td className="px-4 py-3">
-                                    <button
-                                      type="button"
-                                      disabled
-                                      className="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg cursor-not-allowed flex items-center gap-1"
-                                      title="Product already added"
-                                    >
-                                      <svg
-                                        width="14"
-                                        height="14"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                      >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-teal-600 dark:text-teal-400 flex-shrink-0">
                                         <polyline points="20 6 9 17 4 12"></polyline>
                                       </svg>
-                                      Added
-                                    </button>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                            {/* Custom Product Rows */}
-                            {customProductRows.map((row, index) => {
-                              const totalIndex = newEnquirySelectedProductIds.length + index;
-                              return (
-                                <tr
-                                  key={row.id}
-                                  className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                                    totalIndex % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
-                                  }`}
-                                >
-                                  {/* Name Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                    <div className="flex items-center gap-2">
-                                      <input
-                                        type="text"
-                                        value={row.name}
-                                        onChange={(e) => handleCustomProductChange(row.id, 'name', e.target.value)}
-                                        placeholder="Enter product name"
-                                        className="flex-1 px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                      />
-                                      <div className="flex items-center gap-1">
-                                        {/* AI Icon */}
-                                        <button
-                                          type="button"
-                                          onClick={() => handleOpenAIForCustomProduct(row.id)}
-                                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-teal-500 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-400/10 rounded transition-colors"
-                                          aria-label="Generate with AI"
-                                          title="Generate with AI"
-                                        >
-                                          <svg
-                                            width="16"
-                                            height="16"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                          >
-                                            <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                                          </svg>
-                                        </button>
-                                        {/* Detail Icon */}
-                                        <button
-                                          type="button"
-                                          onClick={() => handleViewProductSpecifications(undefined, row.id)}
-                                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-400/10 rounded transition-colors"
-                                          aria-label="View details"
-                                          title="View details"
-                                        >
-                                          <svg
-                                            width="16"
-                                            height="16"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                          >
-                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                            <polyline points="14 2 14 8 20 8"></polyline>
-                                            <line x1="16" y1="13" x2="8" y2="13"></line>
-                                            <line x1="16" y1="17" x2="8" y2="17"></line>
-                                            <line x1="10" y1="9" x2="8" y2="9"></line>
-                                          </svg>
-                                        </button>
-                                        {/* Remove Icon */}
-                                      <button
-                                        type="button"
-                                        onClick={() => handleRemoveCustomRow(row.id)}
-                                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors"
-                                        aria-label="Remove row"
-                                          title="Remove row"
-                                      >
-                                        <svg
-                                            width="16"
-                                            height="16"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="2"
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                        >
-                                          <line x1="18" y1="6" x2="6" y2="18"></line>
-                                          <line x1="6" y1="6" x2="18" y2="18"></line>
-                                        </svg>
-                                      </button>
-                                      </div>
+                                      <span className="font-medium text-teal-900 dark:text-teal-100 text-sm">
+                                        {product.displayName || product.category || 'Unnamed Product'}
+                                      </span>
                                     </div>
-                                  </td>
-                                  {/* Quantity Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={row.quantity || ''}
-                                      onChange={(e) => handleCustomProductChange(row.id, 'quantity', parseFloat(e.target.value) || 0)}
-                                      placeholder="0"
-                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                    />
-                                  </td>
-                                  {/* Unit Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                    <select
-                                      value={row.unit}
-                                      onChange={(e) => handleCustomProductChange(row.id, 'unit', e.target.value)}
-                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                    >
-                                      <option value="">Select unit</option>
-                                      {STANDARD_UNITS.map((unit) => (
-                                        <option key={unit} value={unit}>
-                                          {unit}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </td>
-                                  {/* Target Price Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={row.targetPrice || ''}
-                                      onChange={(e) => handleCustomProductChange(row.id, 'targetPrice', parseFloat(e.target.value) || 0)}
-                                      placeholder="0.00"
-                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                    />
-                                  </td>
-                                  {/* Action Column - Add Button */}
-                                  <td className="px-4 py-3">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleCreateProductFromRow(row.id)}
-                                      className="px-3 py-1.5 text-xs font-medium text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-400/10 hover:bg-teal-100 dark:hover:bg-teal-400/20 border border-teal-200 dark:border-teal-700 rounded-lg transition-colors flex items-center gap-1"
-                                      title="Create product and add to enquiry"
-                                    >
-                                      <svg
-                                        width="14"
-                                        height="14"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                      >
-                                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                                      </svg>
-                                      Add
-                                    </button>
-                                  </td>
-                                </tr>
+                                    <div className="flex items-center gap-3 text-xs text-teal-700 dark:text-teal-300 ml-6">
+                                      {quantity && <span>Qty: {quantity}</span>}
+                                      {unit && <span>Unit: {unit}</span>}
+                                      {targetPrice && <span>Price: {targetPrice}</span>}
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveSelectedProduct(productId)}
+                                    className="p-1.5 text-teal-600 dark:text-teal-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors ml-2"
+                                    aria-label="Remove product"
+                                    title="Remove product"
+                                  >
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                  </button>
+                                </div>
                               );
                             })}
-                          </tbody>
-                        </table>
+                            {addedCustomProducts.map((row) => {
+                              const quantity = row.quantity || '';
+                              const unit = row.unit || '';
+                              const targetPrice = row.targetPrice || '';
+                              return (
+                                <div
+                                  key={row.id}
+                                  className="w-full bg-teal-50 dark:bg-teal-900/20 border-l-4 border-teal-600 dark:border-teal-400 rounded-r-lg p-3 flex items-center justify-between"
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-teal-600 dark:text-teal-400 flex-shrink-0">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                      </svg>
+                                      <span className="font-medium text-teal-900 dark:text-teal-100 text-sm">
+                                        {row.name || 'Custom Product'}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-xs text-teal-700 dark:text-teal-300 ml-6">
+                                      {quantity && <span>Qty: {quantity}</span>}
+                                      {unit && <span>Unit: {unit}</span>}
+                                      {targetPrice && <span>Price: {targetPrice}</span>}
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveCustomRow(row.id)}
+                                    className="p-1.5 text-teal-600 dark:text-teal-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors ml-2"
+                                    aria-label="Remove product"
+                                    title="Remove product"
+                                  >
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
+
+                    {/* Products List or Empty State */}
+                    {(() => {
+                      // Filter out added products from the list (only show products not in ribbon)
+                      const incompleteProducts = newEnquirySelectedProductIds.filter((productId) => {
+                        const details = productDetails[productId];
+                        return details?.isAdded !== true; // Show products that are not added to ribbon
+                      });
+                      const incompleteCustomProducts = customProductRows.filter((row) => {
+                        return row.isAdded !== true; // Show custom products that are not added to ribbon
+                      });
+                      const hasIncompleteProducts = incompleteProducts.length > 0 || incompleteCustomProducts.length > 0;
+
+                      if (!hasIncompleteProducts) {
+                        return (
+                          <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-12 flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800/50">
+                            <svg
+                              width="64"
+                              height="64"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="text-gray-500 mb-4"
+                            >
+                              <circle cx="9" cy="21" r="1"></circle>
+                              <circle cx="20" cy="21" r="1"></circle>
+                              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                            </svg>
+                            <p className="text-gray-400 font-medium mb-1">No products to add</p>
+                            <p className="text-gray-500 text-sm text-center">
+                              All products have been added
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden flex flex-col" style={{ maxHeight: '400px' }}>
+                          <div className="overflow-y-auto overflow-x-auto flex-1">
+                            <table className="w-full border-collapse bg-white dark:bg-gray-800">
+                              {/* Table Header */}
+                              <thead className="sticky top-0 z-10">
+                                <tr className="bg-gray-100 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600">
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
+                                    Name
+                                  </th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
+                                    Quantity
+                                  </th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
+                                    Unit
+                                  </th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
+                                    Target Price
+                                  </th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                    Action
+                                  </th>
+                                </tr>
+                              </thead>
+                              {/* Table Body */}
+                              <tbody>
+                                {/* Selected Products from Product Sheet - Only incomplete products */}
+                                {incompleteProducts.map((productId, index) => {
+                                  const product = productSheetItems.find((p) => p._id === productId);
+                                  if (!product) return null;
+                                  return (
+                                    <tr
+                                      key={productId}
+                                      className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
+                                        }`}
+                                    >
+                                      {/* Name Column */}
+                                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-600">
+                                        <div className="flex items-center gap-2">
+                                          <div className="flex-1">
+                                            <p className="font-medium">
+                                              {product.displayName || product.category || 'Unnamed Product'}
+                                            </p>
+                                            {product.category && (
+                                              <p className="text-xs text-gray-400 mt-0.5">{product.category}</p>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center gap-1">
+                                            {/* Detail Icon */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleToggleProductDetails(productId)}
+                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-400/10 rounded transition-colors"
+                                              aria-label="View details"
+                                              title="View details"
+                                            >
+                                              <svg
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              >
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                <polyline points="14 2 14 8 20 8"></polyline>
+                                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                                <line x1="10" y1="9" x2="8" y2="9"></line>
+                                              </svg>
+                                            </button>
+                                            {/* Remove Icon */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleRemoveSelectedProduct(productId)}
+                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors"
+                                              aria-label="Remove product"
+                                              title="Remove product"
+                                            >
+                                              <svg
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              >
+                                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                                              </svg>
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </td>
+                                      {/* Quantity Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={productDetails[productId]?.quantity || ''}
+                                          onChange={(e) => handleProductDetailChange(productId, 'quantity', parseFloat(e.target.value) || 0)}
+                                          placeholder="0"
+                                          className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                        />
+                                      </td>
+                                      {/* Unit Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <select
+                                          value={productDetails[productId]?.unit || ''}
+                                          onChange={(e) => handleProductDetailChange(productId, 'unit', e.target.value)}
+                                          className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                        >
+                                          <option value="">Select unit</option>
+                                          {STANDARD_UNITS.map((unit) => (
+                                            <option key={unit} value={unit}>
+                                              {unit}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </td>
+                                      {/* Target Price Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={productDetails[productId]?.targetPrice || ''}
+                                          onChange={(e) => handleProductDetailChange(productId, 'targetPrice', parseFloat(e.target.value) || 0)}
+                                          placeholder="0.00"
+                                          className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                        />
+                                      </td>
+                                      {/* Action Column - Add Button */}
+                                      <td className="px-4 py-3">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleAddProductToRibbon(productId)}
+                                          className="px-3 py-1.5 text-xs font-medium text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-400/10 hover:bg-teal-100 dark:hover:bg-teal-400/20 border border-teal-200 dark:border-teal-700 rounded-lg transition-colors flex items-center gap-1"
+                                          title="Add to ribbon"
+                                        >
+                                          <svg
+                                            width="14"
+                                            height="14"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                          >
+                                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                                          </svg>
+                                          Add
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                                {/* Custom Product Rows - Only incomplete products */}
+                                {incompleteCustomProducts.map((row, index) => {
+                                  const totalIndex = incompleteProducts.length + index;
+                                  return (
+                                    <tr
+                                      key={row.id}
+                                      className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${totalIndex % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
+                                        }`}
+                                    >
+                                      {/* Name Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <div className="flex items-center gap-2">
+                                          <input
+                                            type="text"
+                                            value={row.name}
+                                            onChange={(e) => handleCustomProductChange(row.id, 'name', e.target.value)}
+                                            placeholder="Enter product name"
+                                            className="flex-1 px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                          />
+                                          <div className="flex items-center gap-1">
+                                            {/* AI Icon */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenAIForCustomProduct(row.id)}
+                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-teal-500 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-400/10 rounded transition-colors"
+                                              aria-label="Generate with AI"
+                                              title="Generate with AI"
+                                            >
+                                              <svg
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              >
+                                                <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                              </svg>
+                                            </button>
+                                            {/* Detail Icon */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleViewProductSpecifications(undefined, row.id)}
+                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-400/10 rounded transition-colors"
+                                              aria-label="View details"
+                                              title="View details"
+                                            >
+                                              <svg
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              >
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                <polyline points="14 2 14 8 20 8"></polyline>
+                                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                                <line x1="10" y1="9" x2="8" y2="9"></line>
+                                              </svg>
+                                            </button>
+                                            {/* Remove Icon */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleRemoveCustomRow(row.id)}
+                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors"
+                                              aria-label="Remove row"
+                                              title="Remove row"
+                                            >
+                                              <svg
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              >
+                                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                                              </svg>
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </td>
+                                      {/* Quantity Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={row.quantity || ''}
+                                          onChange={(e) => handleCustomProductChange(row.id, 'quantity', parseFloat(e.target.value) || 0)}
+                                          placeholder="0"
+                                          className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                        />
+                                      </td>
+                                      {/* Unit Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <select
+                                          value={row.unit}
+                                          onChange={(e) => handleCustomProductChange(row.id, 'unit', e.target.value)}
+                                          className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                        >
+                                          <option value="">Select unit</option>
+                                          {STANDARD_UNITS.map((unit) => (
+                                            <option key={unit} value={unit}>
+                                              {unit}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </td>
+                                      {/* Target Price Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={row.targetPrice || ''}
+                                          onChange={(e) => handleCustomProductChange(row.id, 'targetPrice', parseFloat(e.target.value) || 0)}
+                                          placeholder="0.00"
+                                          className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                        />
+                                      </td>
+                                      {/* Action Column - Add Button */}
+                                      <td className="px-4 py-3">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleAddCustomProductToRibbon(row.id)}
+                                          className="px-3 py-1.5 text-xs font-medium text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-400/10 hover:bg-teal-100 dark:hover:bg-teal-400/20 border border-teal-200 dark:border-teal-700 rounded-lg transition-colors flex items-center gap-1"
+                                          title="Add to ribbon"
+                                        >
+                                          <svg
+                                            width="14"
+                                            height="14"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                          >
+                                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                                          </svg>
+                                          Add
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Enquiry Notes Section */}
@@ -4275,24 +4489,24 @@ export default function EnquiriesPage() {
                   {/* Footer */}
                   <div className="pt-4 border-t border-gray-200 dark:border-gray-600">
                     <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={handleCloseNewEnquiryModal}
+                      <button
+                        type="button"
+                        onClick={handleCloseNewEnquiryModal}
                         className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
                         disabled={isSubmitting}
                         className="px-4 py-2 text-sm font-medium text-white bg-teal-600 dark:bg-teal-600 hover:bg-teal-700 dark:hover:bg-teal-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg transition-colors"
-                >
-                        {isSubmitting 
-                          ? (isSubmitMode ? 'Submitting...' : 'Creating...') 
+                      >
+                        {isSubmitting
+                          ? (isSubmitMode ? 'Submitting...' : 'Creating...')
                           : (isSubmitMode ? 'Submit Enquiry' : 'Create Enquiry')}
-                </button>
+                      </button>
                     </div>
-              </div>
+                  </div>
                 </form>
               </div>
             </div>
@@ -4308,11 +4522,11 @@ export default function EnquiriesPage() {
         return (
           <>
             {/* Overlay */}
-            <div 
+            <div
               className="fixed inset-0 bg-black/50 z-40"
               onClick={handleCloseDetailModal}
             />
-            
+
             {/* Sidebar */}
             <div className="fixed inset-y-0 right-0 z-50 w-full max-w-4xl bg-white dark:bg-gray-800 shadow-xl transform transition-transform duration-300 ease-in-out">
               <div className="flex h-full flex-col">
@@ -4353,26 +4567,26 @@ export default function EnquiriesPage() {
                     {/* Enquiry Details Section */}
                     <div className="space-y-4">
 
-                    <div className='flex items-center gap-5'>
-                      <div className='w-1/2'>
-                        <label className="block font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Enquiry Name <span className="text-red-500 dark:text-red-400">*</span>
+                      <div className='flex items-center gap-5'>
+                        <div className='w-1/2'>
+                          <label className="block font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Enquiry Name <span className="text-red-500 dark:text-red-400">*</span>
                           </label>
                           <input
                             type="text"
                             value={editEnquiryName}
                             onChange={(e) => setEditEnquiryName(e.target.value)}
                             placeholder="e.g., Office Furniture Order Q1"
-                              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                          autoFocus
+                            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                            autoFocus
                             required
                           />
                         </div>
-                      {/* Expected Delivery Date Section */}
+                        {/* Expected Delivery Date Section */}
                         <div className="w-1/2">
                           <div className="flex items-center gap-2 mb-1">
-                          <label className="block font-medium text-gray-700 dark:text-gray-300">
-                            Expected Delivery Date <span className="text-red-500 dark:text-red-400">*</span>
+                            <label className="block font-medium text-gray-700 dark:text-gray-300">
+                              Expected Delivery Date <span className="text-red-500 dark:text-red-400">*</span>
                             </label>
                           </div>
                           <div className="relative">
@@ -4380,8 +4594,8 @@ export default function EnquiriesPage() {
                               type="date"
                               value={editExpectedDeliveryDate}
                               onChange={(e) => setEditExpectedDeliveryDate(e.target.value)}
-                            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                            placeholder="dd-mm-yyyy"
+                              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                              placeholder="dd-mm-yyyy"
                               required
                             />
                           </div>
@@ -4406,19 +4620,19 @@ export default function EnquiriesPage() {
                               <svg
                                 width="16"
                                 height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
                                 <line x1="12" y1="5" x2="12" y2="19"></line>
                                 <line x1="5" y1="12" x2="19" y2="12"></line>
-                        </svg>
+                              </svg>
                               Add
                             </button>
-                      </div>
+                          </div>
                           <input
                             type="text"
                             value={editUseNewShippingAddress ? getEditShippingAddressString() : ''}
@@ -4444,14 +4658,14 @@ export default function EnquiriesPage() {
                             required
                             className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
                           />
-                      </div>
+                        </div>
 
                         {/* Billing Address Input */}
                         <div>
                           <div className='flex justify-between'>
                             <label className="block font-medium text-gray-700 dark:text-gray-300 mb-2 self-end">
                               Billing Address <span className="text-red-400">*</span>
-                          </label>
+                            </label>
                             <button
                               type="button"
                               onClick={() => setIsEditBillingAddressModalOpen(true)}
@@ -4460,19 +4674,19 @@ export default function EnquiriesPage() {
                               <svg
                                 width="16"
                                 height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
                                 <line x1="12" y1="5" x2="12" y2="19"></line>
                                 <line x1="5" y1="12" x2="19" y2="12"></line>
-                        </svg>
+                              </svg>
                               Add
                             </button>
-                      </div>
+                          </div>
                           <input
                             type="text"
                             value={editUseNewBillingAddress ? getEditBillingAddressString() : ''}
@@ -4498,11 +4712,11 @@ export default function EnquiriesPage() {
                             required
                             className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
                           />
-                      </div>
+                        </div>
                       </div>
                     </div>
 
-                    
+
 
                     {/* Products Section */}
                     <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-600">
@@ -4545,14 +4759,11 @@ export default function EnquiriesPage() {
                               strokeLinecap="round"
                               strokeLinejoin="round"
                             >
-                              <line x1="8" y1="6" x2="21" y2="6"></line>
-                              <line x1="8" y1="12" x2="21" y2="12"></line>
-                              <line x1="8" y1="18" x2="21" y2="18"></line>
-                              <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                              <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                              <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                              <circle cx="9" cy="21" r="1"></circle>
+                              <circle cx="20" cy="21" r="1"></circle>
+                              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
                             </svg>
-                            Select
+                            Pull from cart
                           </button>
                           <button
                             type="button"
@@ -4571,51 +4782,191 @@ export default function EnquiriesPage() {
                             >
                               <line x1="12" y1="5" x2="12" y2="19"></line>
                               <line x1="5" y1="12" x2="19" y2="12"></line>
-                          </svg>
+                            </svg>
                             Add
-                        </button>
+                          </button>
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Inline Product Generation Field */}
-                    <div className="space-y-3 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Generate Product with AI
-                      </label>
-                      {!inlineGeneratedFields ? (
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={inlineProductKeyword}
-                            onChange={(e) => setInlineProductKeyword(e.target.value)}
-                            placeholder="e.g., laptop, office chair, printer"
-                            className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter' && !isGeneratingInline) {
-                                handleInlineGenerateProduct();
-                              }
-                            }}
-                            disabled={isGeneratingInline}
-                          />
-                          <button
-                            type="button"
-                            onClick={handleInlineGenerateProduct}
-                            disabled={isGeneratingInline || !inlineProductKeyword.trim()}
-                            className="px-4 py-2 bg-teal-600 dark:bg-teal-600 hover:bg-teal-700 dark:hover:bg-teal-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center"
-                          >
-                            {isGeneratingInline ? (
-                              <svg
-                                className="animate-spin"
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
+                      {/* Inline Product Generation Field */}
+                      <div className="space-y-3 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Generate Product with AI
+                        </label>
+                        {!inlineGeneratedFields ? (
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={inlineProductKeyword}
+                              onChange={(e) => setInlineProductKeyword(e.target.value)}
+                              placeholder="e.g., laptop, office chair, printer"
+                              className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter' && !isGeneratingInline) {
+                                  handleInlineGenerateProduct();
+                                }
+                              }}
+                              disabled={isGeneratingInline}
+                            />
+                            <button
+                              type="button"
+                              onClick={handleInlineGenerateProduct}
+                              disabled={isGeneratingInline || !inlineProductKeyword.trim()}
+                              className="px-4 py-2 bg-teal-600 dark:bg-teal-600 hover:bg-teal-700 dark:hover:bg-teal-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center"
+                            >
+                              {isGeneratingInline ? (
+                                <svg
+                                  className="animate-spin"
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                >
+                                  <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+                                </svg>
+                              ) : (
+                                <svg
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                </svg>
+                              )}
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                                  {inlineGeneratedFields.item}
+                                </h4>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">AI Generated</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setInlineGeneratedFields(null);
+                                  setInlineSpecFormData({});
+                                  setInlineProductKeyword('');
+                                }}
+                                className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300"
                               >
-                                <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
-                              </svg>
-                            ) : (
+                                Cancel
+                              </button>
+                            </div>
+
+                            {/* Generated Fields */}
+                            <div className="space-y-3 max-h-64 overflow-y-auto">
+                              {inlineGeneratedFields.fields.map((field, index) => (
+                                <div key={index} className="space-y-1">
+                                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                                    {field.label}
+                                    {field.type !== 'textarea' && <span className="text-red-500 dark:text-red-400 ml-1">*</span>}
+                                  </label>
+                                  {field.type === 'dropdown' && field.options ? (
+                                    <CreatableSelect
+                                      value={(inlineSpecFormData[field.label] as string[]) || []}
+                                      onChange={(value) => handleInlineSpecInputChange(field.label, value)}
+                                      options={field.options}
+                                      placeholder={`Select ${field.label.toLowerCase()}`}
+                                      required
+                                      className="w-full"
+                                    />
+                                  ) : field.type === 'textarea' ? (
+                                    <textarea
+                                      value={(inlineSpecFormData[field.label] as string) || ''}
+                                      onChange={(e) => handleInlineSpecInputChange(field.label, e.target.value)}
+                                      placeholder={field.placeholder || `e.g., Specific requirements...`}
+                                      rows={3}
+                                      className="w-full px-3 py-2 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
+                                    />
+                                  ) : field.type === 'number' ? (
+                                    <input
+                                      type="number"
+                                      value={(inlineSpecFormData[field.label] as number) || ''}
+                                      onChange={(e) => handleInlineSpecInputChange(field.label, parseFloat(e.target.value) || 0)}
+                                      placeholder={field.placeholder || `e.g., 50`}
+                                      className="w-full px-3 py-2 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                      required
+                                    />
+                                  ) : (
+                                    <CreatableSelect
+                                      value={
+                                        Array.isArray(inlineSpecFormData[field.label])
+                                          ? (inlineSpecFormData[field.label] as string[])
+                                          : inlineSpecFormData[field.label]
+                                            ? String(inlineSpecFormData[field.label])
+                                              .split(',')
+                                              .map((v) => v.trim())
+                                              .filter((v) => v.length > 0)
+                                            : []
+                                      }
+                                      onChange={(value) => handleInlineSpecInputChange(field.label, value)}
+                                      options={[]}
+                                      placeholder={field.placeholder || `Type and press Enter to add ${field.label.toLowerCase()}`}
+                                      required
+                                      className="w-full"
+                                    />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!inlineGeneratedFields) return;
+                                const token = getAuthToken();
+                                if (!token) {
+                                  requireAuth();
+                                  return;
+                                }
+
+                                try {
+                                  const userAttributes: Record<string, any> = {};
+                                  Object.entries(inlineSpecFormData).forEach(([label, value]) => {
+                                    if (value !== '' && value !== 0 && value !== null && value !== undefined) {
+                                      if (Array.isArray(value) && value.length === 0) {
+                                        return;
+                                      }
+                                      userAttributes[label] = value;
+                                    }
+                                  });
+
+                                  const newProduct = await addProductItem(token, {
+                                    productSource: 'ai_generated',
+                                    displayName: inlineGeneratedFields.item || inlineProductKeyword,
+                                    category: inlineGeneratedFields.item || 'General',
+                                    userAttributes: userAttributes,
+                                    adminProductId: null,
+                                    externalRef: null,
+                                  });
+
+                                  await loadProducts();
+                                  if (newProduct._id) {
+                                    setEditEnquirySelectedProductIds((prev) => [...prev, newProduct._id]);
+                                  }
+
+                                  setInlineProductKeyword('');
+                                  setInlineGeneratedFields(null);
+                                  setInlineSpecFormData({});
+                                  alert('Product generated and added to enquiry successfully!');
+                                } catch (error: any) {
+                                  console.error('Error adding product:', error);
+                                  alert(error.message || 'Failed to add product. Please try again.');
+                                }
+                              }}
+                              className="w-full px-4 py-2 bg-teal-600 dark:bg-teal-600 hover:bg-teal-700 dark:hover:bg-teal-700 text-white rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                            >
                               <svg
                                 width="16"
                                 height="16"
@@ -4626,396 +4977,207 @@ export default function EnquiriesPage() {
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
                               >
-                                <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
                               </svg>
-                            )}
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                                {inlineGeneratedFields.item}
-                              </h4>
-                              <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">AI Generated</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setInlineGeneratedFields(null);
-                                setInlineSpecFormData({});
-                                setInlineProductKeyword('');
-                              }}
-                              className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300"
-                            >
-                              Cancel
+                              Add Product
                             </button>
                           </div>
-
-                          {/* Generated Fields */}
-                          <div className="space-y-3 max-h-64 overflow-y-auto">
-                            {inlineGeneratedFields.fields.map((field, index) => (
-                              <div key={index} className="space-y-1">
-                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-                                  {field.label}
-                                  {field.type !== 'textarea' && <span className="text-red-500 dark:text-red-400 ml-1">*</span>}
-                                </label>
-                                {field.type === 'dropdown' && field.options ? (
-                                  <CreatableSelect
-                                    value={(inlineSpecFormData[field.label] as string[]) || []}
-                                    onChange={(value) => handleInlineSpecInputChange(field.label, value)}
-                                    options={field.options}
-                                    placeholder={`Select ${field.label.toLowerCase()}`}
-                                    required
-                                    className="w-full"
-                                  />
-                                ) : field.type === 'textarea' ? (
-                                  <textarea
-                                    value={(inlineSpecFormData[field.label] as string) || ''}
-                                    onChange={(e) => handleInlineSpecInputChange(field.label, e.target.value)}
-                                    placeholder={field.placeholder || `e.g., Specific requirements...`}
-                                    rows={3}
-                                    className="w-full px-3 py-2 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
-                                  />
-                                ) : field.type === 'number' ? (
-                                  <input
-                                    type="number"
-                                    value={(inlineSpecFormData[field.label] as number) || ''}
-                                    onChange={(e) => handleInlineSpecInputChange(field.label, parseFloat(e.target.value) || 0)}
-                                    placeholder={field.placeholder || `e.g., 50`}
-                                    className="w-full px-3 py-2 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                                    required
-                                  />
-                                ) : (
-                                  <CreatableSelect
-                                    value={
-                                      Array.isArray(inlineSpecFormData[field.label])
-                                        ? (inlineSpecFormData[field.label] as string[])
-                                        : inlineSpecFormData[field.label]
-                                        ? String(inlineSpecFormData[field.label])
-                                            .split(',')
-                                            .map((v) => v.trim())
-                                            .filter((v) => v.length > 0)
-                                        : []
-                                    }
-                                    onChange={(value) => handleInlineSpecInputChange(field.label, value)}
-                                    options={[]}
-                                    placeholder={field.placeholder || `Type and press Enter to add ${field.label.toLowerCase()}`}
-                                    required
-                                    className="w-full"
-                                  />
-                                )}
-                              </div>
-                            ))}
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (!inlineGeneratedFields) return;
-                              const token = getAuthToken();
-                              if (!token) {
-                                requireAuth();
-                                return;
-                              }
-
-                              try {
-                                const userAttributes: Record<string, any> = {};
-                                Object.entries(inlineSpecFormData).forEach(([label, value]) => {
-                                  if (value !== '' && value !== 0 && value !== null && value !== undefined) {
-                                    if (Array.isArray(value) && value.length === 0) {
-                                      return;
-                                    }
-                                    userAttributes[label] = value;
-                                  }
-                                });
-
-                                const newProduct = await addProductItem(token, {
-                                  productSource: 'ai_generated',
-                                  displayName: inlineGeneratedFields.item || inlineProductKeyword,
-                                  category: inlineGeneratedFields.item || 'General',
-                                  userAttributes: userAttributes,
-                                  adminProductId: null,
-                                  externalRef: null,
-                                });
-
-                                await loadProducts();
-                                if (newProduct._id) {
-                                  setEditEnquirySelectedProductIds((prev) => [...prev, newProduct._id]);
-                                }
-
-                                setInlineProductKeyword('');
-                                setInlineGeneratedFields(null);
-                                setInlineSpecFormData({});
-                                alert('Product generated and added to enquiry successfully!');
-                              } catch (error: any) {
-                                console.error('Error adding product:', error);
-                                alert(error.message || 'Failed to add product. Please try again.');
-                              }
-                            }}
-                            className="w-full px-4 py-2 bg-teal-600 dark:bg-teal-600 hover:bg-teal-700 dark:hover:bg-teal-700 text-white rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
-                          >
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <line x1="12" y1="5" x2="12" y2="19"></line>
-                              <line x1="5" y1="12" x2="19" y2="12"></line>
-                            </svg>
-                            Add Product
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Products List or Empty State */}
-                    {editEnquirySelectedProductIds.length === 0 && editCustomProductRows.length === 0 ? (
-                      <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-12 flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800/50">
-                        <svg
-                          width="64"
-                          height="64"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="text-gray-500 mb-4"
-                        >
-                          <circle cx="9" cy="21" r="1"></circle>
-                          <circle cx="20" cy="21" r="1"></circle>
-                          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
-                        </svg>
-                        <p className="text-gray-400 font-medium mb-1">No products added yet</p>
-                        <p className="text-gray-500 text-sm text-center">
-                          Use Select or Generate buttons above
-                        </p>
+                        )}
                       </div>
-                    ) : (
-                      <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden flex flex-col" style={{ maxHeight: '400px' }}>
-                        <div className="overflow-y-auto overflow-x-auto flex-1">
-                          <table className="w-full border-collapse bg-white dark:bg-gray-800">
-                          {/* Table Header */}
-                          <thead className="sticky top-0 z-10">
-                            <tr className="bg-gray-100 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600">
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
-                                Name
-                              </th>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
-                                Quantity
-                              </th>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
-                                Unit
-                              </th>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
-                                Target Price
-                              </th>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Action
-                              </th>
-                            </tr>
-                          </thead>
-                          {/* Table Body */}
-                          <tbody>
-                            {/* Selected Products from Product Sheet */}
-                            {editEnquirySelectedProductIds.map((productId, index) => {
-                          const product = productSheetItems.find((p) => p._id === productId);
-                          if (!product) return null;
-                          return (
-                                <tr
-                              key={productId}
-                                  className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                                    index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
-                                  }`}
-                                >
-                                  {/* Name Column */}
-                                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-600">
-                                    <div className="flex items-center gap-2">
-                                      <div className="flex-1">
-                                        <p className="font-medium">
-                                    {product.displayName || product.category || 'Unnamed Product'}
-                                  </p>
-                                  {product.category && (
-                                    <p className="text-xs text-gray-400 mt-0.5">{product.category}</p>
-                                  )}
-                                      </div>
-                                      <div className="flex items-center gap-1">
-                                        {/* AI Icon */}
-                                          <button
-                                            type="button"
-                                          onClick={() => handleOpenAIForProduct(productId)}
-                                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-teal-500 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-400/10 rounded transition-colors"
-                                          aria-label="Generate with AI"
-                                          title="Generate with AI"
-                                        >
-                                          <svg
-                                            width="16"
-                                            height="16"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                          >
-                                            <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                                          </svg>
-                                          </button>
-                                        {/* Detail Icon */}
-                                  <button
-                                    type="button"
-                                          onClick={() => handleToggleProductDetails(productId)}
-                                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-400/10 rounded transition-colors"
-                                          aria-label="View details"
-                                          title="View details"
-                                        >
-                                          <svg
-                                            width="16"
-                                            height="16"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                          >
-                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                            <polyline points="14 2 14 8 20 8"></polyline>
-                                            <line x1="16" y1="13" x2="8" y2="13"></line>
-                                            <line x1="16" y1="17" x2="8" y2="17"></line>
-                                            <line x1="10" y1="9" x2="8" y2="9"></line>
-                                        </svg>
-                                  </button>
-                                        {/* Remove Icon */}
-                                  <button
-                                    type="button"
-                                          onClick={() => handleEditRemoveSelectedProduct(productId)}
-                                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors"
-                                    aria-label="Remove product"
-                                          title="Remove product"
-                                  >
-                                    <svg
-                                      width="16"
-                                      height="16"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <line x1="18" y1="6" x2="6" y2="18"></line>
-                                      <line x1="6" y1="6" x2="18" y2="18"></line>
-                                    </svg>
-                                  </button>
-                                </div>
-                              </div>
-                                  </td>
-                                  {/* Quantity Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={productDetails[productId]?.quantity || ''}
-                                    onChange={(e) => handleProductDetailChange(productId, 'quantity', parseFloat(e.target.value) || 0)}
-                                    placeholder="0"
-                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                    />
-                                  </td>
-                                  {/* Unit Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                    <select
-                                      value={productDetails[productId]?.unit || ''}
-                                      onChange={(e) => handleProductDetailChange(productId, 'unit', e.target.value)}
-                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                    >
-                                      <option value="">Select unit</option>
-                                      {STANDARD_UNITS.map((unit) => (
-                                        <option key={unit} value={unit}>
-                                          {unit}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </td>
-                                  {/* Target Price Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={productDetails[productId]?.targetPrice || ''}
-                                    onChange={(e) => handleProductDetailChange(productId, 'targetPrice', parseFloat(e.target.value) || 0)}
-                                    placeholder="0.00"
-                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                    />
-                                  </td>
-                                  {/* Action Column - Add Button (for selected products, opens modal) */}
-                                  <td className="px-4 py-3">
-                                    <button
-                                      type="button"
-                                      onClick={() => setIsEditEnquiryProductModalOpen(true)}
-                                      className="px-3 py-1.5 text-xs font-medium text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-400/10 hover:bg-teal-100 dark:hover:bg-teal-400/20 border border-teal-200 dark:border-teal-700 rounded-lg transition-colors flex items-center gap-1"
-                                      title="Add product"
-                                    >
-                                      <svg
-                                        width="14"
-                                        height="14"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                      >
-                                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                                      </svg>
-                                      Add
-                                    </button>
-                                  </td>
+
+                      {/* Products List or Empty State */}
+                      {editEnquirySelectedProductIds.length === 0 && editCustomProductRows.length === 0 ? (
+                        <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-12 flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800/50">
+                          <svg
+                            width="64"
+                            height="64"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="text-gray-500 mb-4"
+                          >
+                            <circle cx="9" cy="21" r="1"></circle>
+                            <circle cx="20" cy="21" r="1"></circle>
+                            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                          </svg>
+                          <p className="text-gray-400 font-medium mb-1">No products added yet</p>
+                          <p className="text-gray-500 text-sm text-center">
+                            Use Select or Generate buttons above
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden flex flex-col" style={{ maxHeight: '400px' }}>
+                          <div className="overflow-y-auto overflow-x-auto flex-1">
+                            <table className="w-full border-collapse bg-white dark:bg-gray-800">
+                              {/* Table Header */}
+                              <thead className="sticky top-0 z-10">
+                                <tr className="bg-gray-100 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600">
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
+                                    Name
+                                  </th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
+                                    Quantity
+                                  </th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
+                                    Unit
+                                  </th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
+                                    Target Price
+                                  </th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                    Action
+                                  </th>
                                 </tr>
-                              );
-                            })}
-                            {/* Custom Product Rows */}
-                            {editCustomProductRows.map((row, index) => {
-                              const totalIndex = editEnquirySelectedProductIds.length + index;
-                              return (
-                                <tr
-                                  key={row.id}
-                                  className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                                    totalIndex % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
-                                  }`}
-                                >
-                                  {/* Name Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                <div className="flex items-center gap-2">
-                                      <input
-                                        type="text"
-                                        value={row.name}
-                                        onChange={(e) => handleEditCustomProductChange(row.id, 'name', e.target.value)}
-                                        placeholder="Enter product name"
-                                        className="flex-1 px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                      />
-                                      <div className="flex items-center gap-1">
-                                        {/* AI Icon */}
+                              </thead>
+                              {/* Table Body */}
+                              <tbody>
+                                {/* Selected Products from Product Sheet */}
+                                {editEnquirySelectedProductIds.map((productId, index) => {
+                                  const product = productSheetItems.find((p) => p._id === productId);
+                                  if (!product) return null;
+                                  return (
+                                    <tr
+                                      key={productId}
+                                      className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
+                                        }`}
+                                    >
+                                      {/* Name Column */}
+                                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-600">
+                                        <div className="flex items-center gap-2">
+                                          <div className="flex-1">
+                                            <p className="font-medium">
+                                              {product.displayName || product.category || 'Unnamed Product'}
+                                            </p>
+                                            {product.category && (
+                                              <p className="text-xs text-gray-400 mt-0.5">{product.category}</p>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center gap-1">
+                                            {/* AI Icon */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenAIForProduct(productId)}
+                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-teal-500 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-400/10 rounded transition-colors"
+                                              aria-label="Generate with AI"
+                                              title="Generate with AI"
+                                            >
+                                              <svg
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              >
+                                                <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                              </svg>
+                                            </button>
+                                            {/* Detail Icon */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleToggleProductDetails(productId)}
+                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-400/10 rounded transition-colors"
+                                              aria-label="View details"
+                                              title="View details"
+                                            >
+                                              <svg
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              >
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                <polyline points="14 2 14 8 20 8"></polyline>
+                                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                                <line x1="10" y1="9" x2="8" y2="9"></line>
+                                              </svg>
+                                            </button>
+                                            {/* Remove Icon */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleEditRemoveSelectedProduct(productId)}
+                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors"
+                                              aria-label="Remove product"
+                                              title="Remove product"
+                                            >
+                                              <svg
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              >
+                                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                                              </svg>
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </td>
+                                      {/* Quantity Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={productDetails[productId]?.quantity || ''}
+                                          onChange={(e) => handleProductDetailChange(productId, 'quantity', parseFloat(e.target.value) || 0)}
+                                          placeholder="0"
+                                          className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                        />
+                                      </td>
+                                      {/* Unit Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <select
+                                          value={productDetails[productId]?.unit || ''}
+                                          onChange={(e) => handleProductDetailChange(productId, 'unit', e.target.value)}
+                                          className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                        >
+                                          <option value="">Select unit</option>
+                                          {STANDARD_UNITS.map((unit) => (
+                                            <option key={unit} value={unit}>
+                                              {unit}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </td>
+                                      {/* Target Price Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={productDetails[productId]?.targetPrice || ''}
+                                          onChange={(e) => handleProductDetailChange(productId, 'targetPrice', parseFloat(e.target.value) || 0)}
+                                          placeholder="0.00"
+                                          className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                        />
+                                      </td>
+                                      {/* Action Column - Add Button (for selected products, opens modal) */}
+                                      <td className="px-4 py-3">
                                         <button
                                           type="button"
-                                          onClick={() => handleOpenAIForCustomProduct(row.id)}
-                                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-teal-500 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-400/10 rounded transition-colors"
-                                          aria-label="Generate with AI"
-                                          title="Generate with AI"
+                                          onClick={() => setIsEditEnquiryProductModalOpen(true)}
+                                          className="px-3 py-1.5 text-xs font-medium text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-400/10 hover:bg-teal-100 dark:hover:bg-teal-400/20 border border-teal-200 dark:border-teal-700 rounded-lg transition-colors flex items-center gap-1"
+                                          title="Add product"
                                         >
                                           <svg
-                                            width="16"
-                                            height="16"
+                                            width="14"
+                                            height="14"
                                             viewBox="0 0 24 24"
                                             fill="none"
                                             stroke="currentColor"
@@ -5023,20 +5185,156 @@ export default function EnquiriesPage() {
                                             strokeLinecap="round"
                                             strokeLinejoin="round"
                                           >
-                                            <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
                                           </svg>
+                                          Add
                                         </button>
-                                        {/* Detail Icon */}
-                                  <button
-                                    type="button"
-                                          onClick={() => handleViewProductSpecifications(undefined, row.id)}
-                                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-400/10 rounded transition-colors"
-                                          aria-label="View details"
-                                          title="View details"
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                                {/* Custom Product Rows */}
+                                {editCustomProductRows.map((row, index) => {
+                                  const totalIndex = editEnquirySelectedProductIds.length + index;
+                                  return (
+                                    <tr
+                                      key={row.id}
+                                      className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${totalIndex % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
+                                        }`}
+                                    >
+                                      {/* Name Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <div className="flex items-center gap-2">
+                                          <input
+                                            type="text"
+                                            value={row.name}
+                                            onChange={(e) => handleEditCustomProductChange(row.id, 'name', e.target.value)}
+                                            placeholder="Enter product name"
+                                            className="flex-1 px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                          />
+                                          <div className="flex items-center gap-1">
+                                            {/* AI Icon */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenAIForCustomProduct(row.id)}
+                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-teal-500 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-400/10 rounded transition-colors"
+                                              aria-label="Generate with AI"
+                                              title="Generate with AI"
+                                            >
+                                              <svg
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              >
+                                                <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                              </svg>
+                                            </button>
+                                            {/* Detail Icon */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleViewProductSpecifications(undefined, row.id)}
+                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-400/10 rounded transition-colors"
+                                              aria-label="View details"
+                                              title="View details"
+                                            >
+                                              <svg
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              >
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                <polyline points="14 2 14 8 20 8"></polyline>
+                                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                                <line x1="10" y1="9" x2="8" y2="9"></line>
+                                              </svg>
+                                            </button>
+                                            {/* Remove Icon */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleEditRemoveCustomRow(row.id)}
+                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors"
+                                              aria-label="Remove row"
+                                              title="Remove row"
+                                            >
+                                              <svg
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                              >
+                                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                                              </svg>
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </td>
+                                      {/* Quantity Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={row.quantity || ''}
+                                          onChange={(e) => handleEditCustomProductChange(row.id, 'quantity', parseFloat(e.target.value) || 0)}
+                                          placeholder="0"
+                                          className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                        />
+                                      </td>
+                                      {/* Unit Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <select
+                                          value={row.unit}
+                                          onChange={(e) => handleEditCustomProductChange(row.id, 'unit', e.target.value)}
+                                          className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                        >
+                                          <option value="">Select unit</option>
+                                          {STANDARD_UNITS.map((unit) => (
+                                            <option key={unit} value={unit}>
+                                              {unit}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </td>
+                                      {/* Target Price Column */}
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={row.targetPrice || ''}
+                                          onChange={(e) => handleEditCustomProductChange(row.id, 'targetPrice', parseFloat(e.target.value) || 0)}
+                                          placeholder="0.00"
+                                          className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                        />
+                                      </td>
+                                      {/* Action Column - Add Button (for custom products, creates product) */}
+                                      <td className="px-4 py-3">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleEditCreateProductFromRow(row.id)}
+                                          className="px-3 py-1.5 text-xs font-medium text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-400/10 hover:bg-teal-100 dark:hover:bg-teal-400/20 border border-teal-200 dark:border-teal-700 rounded-lg transition-colors flex items-center gap-1"
+                                          title="Create product and add to enquiry"
                                         >
                                           <svg
-                                            width="16"
-                                            height="16"
+                                            width="14"
+                                            height="14"
                                             viewBox="0 0 24 24"
                                             fill="none"
                                             stroke="currentColor"
@@ -5044,109 +5342,20 @@ export default function EnquiriesPage() {
                                             strokeLinecap="round"
                                             strokeLinejoin="round"
                                           >
-                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                            <polyline points="14 2 14 8 20 8"></polyline>
-                                            <line x1="16" y1="13" x2="8" y2="13"></line>
-                                            <line x1="16" y1="17" x2="8" y2="17"></line>
-                                            <line x1="10" y1="9" x2="8" y2="9"></line>
+                                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
                                           </svg>
-                                  </button>
-                                        {/* Remove Icon */}
-                                  <button
-                                    type="button"
-                                          onClick={() => handleEditRemoveCustomRow(row.id)}
-                                          className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors"
-                                    aria-label="Remove row"
-                                          title="Remove row"
-                                  >
-                                    <svg
-                                      width="16"
-                                      height="16"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <line x1="18" y1="6" x2="6" y2="18"></line>
-                                      <line x1="6" y1="6" x2="18" y2="18"></line>
-                                    </svg>
-                                  </button>
-                                </div>
-                              </div>
-                                  </td>
-                                  {/* Quantity Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                      value={row.quantity || ''}
-                                      onChange={(e) => handleEditCustomProductChange(row.id, 'quantity', parseFloat(e.target.value) || 0)}
-                                    placeholder="0"
-                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                    />
-                                  </td>
-                                  {/* Unit Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                  <select
-                                      value={row.unit}
-                                      onChange={(e) => handleEditCustomProductChange(row.id, 'unit', e.target.value)}
-                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                  >
-                                    <option value="">Select unit</option>
-                                    {STANDARD_UNITS.map((unit) => (
-                                      <option key={unit} value={unit}>
-                                        {unit}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  </td>
-                                  {/* Target Price Column */}
-                                  <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={row.targetPrice || ''}
-                                      onChange={(e) => handleEditCustomProductChange(row.id, 'targetPrice', parseFloat(e.target.value) || 0)}
-                                      placeholder="0.00"
-                                      className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
-                                    />
-                                  </td>
-                                  {/* Action Column - Add Button (for custom products, creates product) */}
-                                  <td className="px-4 py-3">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleEditCreateProductFromRow(row.id)}
-                                      className="px-3 py-1.5 text-xs font-medium text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-400/10 hover:bg-teal-100 dark:hover:bg-teal-400/20 border border-teal-200 dark:border-teal-700 rounded-lg transition-colors flex items-center gap-1"
-                                      title="Create product and add to enquiry"
-                                    >
-                                      <svg
-                                        width="14"
-                                        height="14"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                      >
-                                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                                      </svg>
-                                      Add
-                                    </button>
-                                  </td>
-                                </tr>
-                          );
-                          })}
-                          </tbody>
-                        </table>
+                                          Add
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
                     </div>
 
                     {/* Enquiry Notes Section */}
@@ -5227,21 +5436,21 @@ export default function EnquiriesPage() {
                     {/* Footer */}
                     <div className="pt-4 border-t border-gray-200 dark:border-gray-600">
                       <div className="flex justify-end gap-3">
-                      <button
-                        type="button"
-                        onClick={handleCloseDetailModal}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isUpdatingEnquiry}
-                        className="px-4 py-2 text-sm font-medium text-white bg-teal-600 dark:bg-teal-600 hover:bg-teal-700 dark:hover:bg-teal-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg transition-colors"
-                >
-                        {isUpdatingEnquiry ? 'Updating...' : 'Update Enquiry'}
-                      </button>
-                    </div>
+                        <button
+                          type="button"
+                          onClick={handleCloseDetailModal}
+                          className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={isUpdatingEnquiry}
+                          className="px-4 py-2 text-sm font-medium text-white bg-teal-600 dark:bg-teal-600 hover:bg-teal-700 dark:hover:bg-teal-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg transition-colors"
+                        >
+                          {isUpdatingEnquiry ? 'Updating...' : 'Update Enquiry'}
+                        </button>
+                      </div>
                     </div>
                   </form>
                 </div>
@@ -5253,11 +5462,11 @@ export default function EnquiriesPage() {
 
       {/* Edit Enquiry Product Selection Modal */}
       {isEditEnquiryProductModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={() => setIsEditEnquiryProductModalOpen(false)}
         >
-          <div 
+          <div
             className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -5324,7 +5533,7 @@ export default function EnquiriesPage() {
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => handleToggleEditEnquiryProductSelection(product._id || '')}
-                            className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500"
+                            className="custom-checkbox w-4 h-4 rounded focus:ring-2 focus:ring-teal-500 focus:ring-offset-1"
                           />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 truncate">
@@ -5357,11 +5566,11 @@ export default function EnquiriesPage() {
 
       {/* New Enquiry Product Selection Modal */}
       {isNewEnquiryProductModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={handleCloseNewEnquiryProductModal}
         >
-          <div 
+          <div
             className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -5433,11 +5642,10 @@ export default function EnquiriesPage() {
                           <button
                             type="button"
                             onClick={() => handleToggleNewEnquiryProductSelection(product._id || '')}
-                            className={`ml-3 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                              isSelected
+                            className={`ml-3 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${isSelected
                                 ? 'bg-gray-100 text-gray-700 border-gray-300'
                                 : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                            }`}
+                              }`}
                           >
                             {isSelected ? 'Added' : '+ Add'}
                           </button>
@@ -5465,11 +5673,11 @@ export default function EnquiriesPage() {
 
       {/* Generate Product with AI Modal */}
       {isGenerateProductModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={handleCloseGenerateProductModal}
         >
-          <div 
+          <div
             className="bg-white rounded-lg shadow-xl max-w-md w-full h-[80vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -5620,11 +5828,11 @@ export default function EnquiriesPage() {
                               Array.isArray(specFormData[field.label])
                                 ? (specFormData[field.label] as string[])
                                 : specFormData[field.label]
-                                ? String(specFormData[field.label])
+                                  ? String(specFormData[field.label])
                                     .split(',')
                                     .map((v) => v.trim())
                                     .filter((v) => v.length > 0)
-                                : []
+                                  : []
                             }
                             onChange={(value) => handleSpecInputChange(field.label, value)}
                             options={[]}
@@ -5692,18 +5900,18 @@ export default function EnquiriesPage() {
         const enquiry = enquiries.find((e) => e._id === selectedEnquiryForProductView);
         if (!enquiry) return null;
 
-        const enquiryProducts = Array.isArray(enquiry.enquiryProducts) 
-          ? enquiry.enquiryProducts 
+        const enquiryProducts = Array.isArray(enquiry.enquiryProducts)
+          ? enquiry.enquiryProducts
           : [];
 
         return (
           <>
             {/* Overlay */}
-            <div 
+            <div
               className="fixed inset-0 bg-black/50 z-50 transition-opacity"
               onClick={handleCloseProductViewModal}
             />
-            
+
             {/* Sidebar */}
             <div className="fixed inset-y-0 right-0 z-50 w-full max-w-4xl bg-white dark:bg-gray-800 shadow-xl transform transition-transform duration-300 ease-in-out flex flex-col">
               {/* Sidebar Header */}
@@ -5762,10 +5970,10 @@ export default function EnquiriesPage() {
                   <div className="space-y-4">
                     {enquiryProducts.map((product: any, index: number) => {
                       const productId = typeof product === 'string' ? product : (product._id || product.id);
-                      const productData = typeof product === 'string' 
+                      const productData = typeof product === 'string'
                         ? getProductById(productId)
                         : product;
-                      
+
                       if (!productData) {
                         return (
                           <div
@@ -5791,8 +5999,8 @@ export default function EnquiriesPage() {
                         });
                       }
 
-                      const imageLink = productData.userAttributes?.image_link || 
-                                        productData.userAttributes?.Image_Attachment || '';
+                      const imageLink = productData.userAttributes?.image_link ||
+                        productData.userAttributes?.Image_Attachment || '';
 
                       const quantity = productData.quantity || product.quantity || 1;
 
@@ -5897,11 +6105,11 @@ export default function EnquiriesPage() {
       {/* Loading Overlay */}
       {/* Shipping Address Selection Modal */}
       {isShippingAddressModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={() => setIsShippingAddressModalOpen(false)}
         >
-          <div 
+          <div
             className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
@@ -5982,7 +6190,7 @@ export default function EnquiriesPage() {
                   No saved shipping addresses found.
                 </p>
               )}
-              
+
               <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                 <label className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition-colors">
                   <input
@@ -6014,11 +6222,11 @@ export default function EnquiriesPage() {
 
       {/* Billing Address Selection Modal */}
       {isBillingAddressModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={() => setIsBillingAddressModalOpen(false)}
         >
-          <div 
+          <div
             className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
@@ -6099,7 +6307,7 @@ export default function EnquiriesPage() {
                   No saved billing addresses found.
                 </p>
               )}
-              
+
               <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                 <label className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition-colors">
                   <input
@@ -6131,11 +6339,11 @@ export default function EnquiriesPage() {
 
       {/* Edit Shipping Address Selection Modal */}
       {isEditShippingAddressModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={() => setIsEditShippingAddressModalOpen(false)}
         >
-          <div 
+          <div
             className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
@@ -6216,7 +6424,7 @@ export default function EnquiriesPage() {
                   No saved shipping addresses found.
                 </p>
               )}
-              
+
               <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                 <label className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition-colors">
                   <input
@@ -6248,11 +6456,11 @@ export default function EnquiriesPage() {
 
       {/* Edit Billing Address Selection Modal */}
       {isEditBillingAddressModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={() => setIsEditBillingAddressModalOpen(false)}
         >
-          <div 
+          <div
             className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
@@ -6333,7 +6541,7 @@ export default function EnquiriesPage() {
                   No saved billing addresses found.
                 </p>
               )}
-              
+
               <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                 <label className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition-colors">
                   <input
@@ -6373,11 +6581,11 @@ export default function EnquiriesPage() {
 
       {/* Product List AI Generation Modal */}
       {isProductListAIModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={handleCloseProductListAIModal}
         >
-          <div 
+          <div
             className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -6480,11 +6688,11 @@ export default function EnquiriesPage() {
                               Array.isArray(productListAISpecFormData[field.label])
                                 ? (productListAISpecFormData[field.label] as string[])
                                 : productListAISpecFormData[field.label]
-                                ? String(productListAISpecFormData[field.label])
+                                  ? String(productListAISpecFormData[field.label])
                                     .split(',')
                                     .map((v) => v.trim())
                                     .filter((v) => v.length > 0)
-                                : []
+                                  : []
                             }
                             onChange={(value) => handleProductListAISpecInputChange(field.label, value)}
                             options={[]}
@@ -6525,11 +6733,11 @@ export default function EnquiriesPage() {
 
       {/* View Product Specifications Modal */}
       {isViewSpecModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={() => setIsViewSpecModalOpen(false)}
         >
-          <div 
+          <div
             className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -6558,11 +6766,11 @@ export default function EnquiriesPage() {
                     Product Specifications
                   </h2>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
-                    {viewSpecProductId 
+                    {viewSpecProductId
                       ? (productSheetItems.find(p => p._id === viewSpecProductId)?.displayName || 'Product')
-                      : (viewSpecRowId 
-                          ? (customProductRows.find(r => r.id === viewSpecRowId)?.name || 'Custom Product')
-                          : 'Product')}
+                      : (viewSpecRowId
+                        ? (customProductRows.find(r => r.id === viewSpecRowId)?.name || 'Custom Product')
+                        : 'Product')}
                   </p>
                 </div>
               </div>
@@ -6591,11 +6799,11 @@ export default function EnquiriesPage() {
             <div className="flex-1 overflow-y-auto px-6 py-4">
               {(() => {
                 // Get specifications from local state first
-                let specs = viewSpecProductId 
+                let specs = viewSpecProductId
                   ? productSpecifications[viewSpecProductId]
                   : viewSpecRowId
-                  ? customProductSpecifications[viewSpecRowId]
-                  : null;
+                    ? customProductSpecifications[viewSpecRowId]
+                    : null;
 
                 // If no local specs and it's a product, try to get from product's userAttributes
                 if (!specs && viewSpecProductId) {
@@ -6689,7 +6897,7 @@ export default function EnquiriesPage() {
           </div>
         </div>
       )}
-    );
-      </>
+      );
+    </>
   );
 }
