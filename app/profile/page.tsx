@@ -72,6 +72,46 @@ export default function BuyerProfilePage() {
     loadProfile();
   }, [router]);
 
+  // Handle hash navigation to scroll to address sections
+  useEffect(() => {
+    if (isLoading) return;
+
+    const scrollToHash = () => {
+      const hash = window.location.hash;
+      if (!hash) return;
+
+      const id = hash.substring(1);
+      if (id !== 'billing-address' && id !== 'shipping-address') return;
+
+      const tryScroll = (attempt = 0) => {
+        const element = document.getElementById(id);
+
+        if (element) {
+          // Use scrollIntoView which handles containers automatically
+          element.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+            inline: 'nearest'
+          });
+        } else if (attempt < 20) {
+          // Retry up to 20 times with increasing delays
+          setTimeout(() => tryScroll(attempt + 1), 100 + (attempt * 50));
+        }
+      };
+
+      // Start scrolling after DOM is ready
+      setTimeout(() => tryScroll(0), 300);
+    };
+
+    // Scroll on mount and hash changes
+    scrollToHash();
+    window.addEventListener('hashchange', scrollToHash);
+
+    return () => {
+      window.removeEventListener('hashchange', scrollToHash);
+    };
+  }, [isLoading]);
+
   const handleContactDetailChange = (index: number, field: keyof ContactDetail, value: string) => {
     const updated = [...contactDetails];
     updated[index] = { ...updated[index], [field]: value };
@@ -201,7 +241,7 @@ export default function BuyerProfilePage() {
     try {
       setIsUploadingDocument(true);
       const { url } = await uploadFile(token, selectedDocumentFile, 'buyer-business-documents');
-      
+
       const newDocument = {
         documentType: documentType.trim() || undefined,
         documentNumber: documentNumber.trim() || undefined,
@@ -262,7 +302,7 @@ export default function BuyerProfilePage() {
       );
 
       // Check if businessInformation has any data to save
-      const hasBusinessInfo = 
+      const hasBusinessInfo =
         businessInformation.businessName?.trim() ||
         businessInformation.legalEntityType?.trim() ||
         businessInformation.gstNumber?.trim() ||
@@ -299,7 +339,7 @@ export default function BuyerProfilePage() {
   };
 
   return (
-      <>
+    <>
       {/* Main Content Area */}
       <div className="w-[80%] mx-auto px-6 py-6">
         {isLoading ? (
@@ -487,460 +527,460 @@ export default function BuyerProfilePage() {
               </div>
             </div>
 
-        {/* Billing Address */}
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Billing Address</h2>
-            <button
-              type="button"
-              onClick={addBillingAddress}
-              className="px-3 py-1.5 text-sm bg-teal-500 hover:bg-teal-600 rounded-lg text-white transition-colors"
-            >
-              + Add Address
-            </button>
-          </div>
-          <div className="space-y-4">
-            {billingAddress.map((address, index) => (
-              <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Billing Address {index + 1}</h3>
-                  {billingAddress.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeBillingAddress(index)}
-                      className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 text-sm"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Address Line 1</label>
-                    <input
-                      type="text"
-                      value={address.addressLine1}
-                      onChange={(e) => handleBillingAddressChange(index, 'addressLine1', e.target.value)}
-                      placeholder="Street address"
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Address Line 2</label>
-                    <input
-                      type="text"
-                      value={address.addressLine2 || ''}
-                      onChange={(e) => handleBillingAddressChange(index, 'addressLine2', e.target.value)}
-                      placeholder="Apartment, suite, etc."
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">City</label>
-                      <input
-                        type="text"
-                        value={address.city}
-                        onChange={(e) => handleBillingAddressChange(index, 'city', e.target.value)}
-                        placeholder="City"
-                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">State</label>
-                      <input
-                        type="text"
-                        value={address.state}
-                        onChange={(e) => handleBillingAddressChange(index, 'state', e.target.value)}
-                        placeholder="State"
-                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">ZIP Code</label>
-                      <input
-                        type="text"
-                        value={address.zipCode}
-                        onChange={(e) => handleBillingAddressChange(index, 'zipCode', e.target.value)}
-                        placeholder="ZIP code"
-                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Country</label>
-                      <input
-                        type="text"
-                        value={address.country}
-                        onChange={(e) => handleBillingAddressChange(index, 'country', e.target.value)}
-                        placeholder="Country"
-                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Shipping Address */}
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Shipping Address</h2>
-            <button
-              type="button"
-              onClick={addShippingAddress}
-              className="px-3 py-1.5 text-sm bg-teal-500 hover:bg-teal-600 rounded-lg text-white transition-colors"
-            >
-              + Add Address
-            </button>
-          </div>
-          <div className="space-y-4">
-            {shippingAddress.map((address, index) => (
-              <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Shipping Address {index + 1}</h3>
-                  {shippingAddress.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeShippingAddress(index)}
-                      className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 text-sm"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Address Line 1</label>
-                    <input
-                      type="text"
-                      value={address.addressLine1}
-                      onChange={(e) => handleShippingAddressChange(index, 'addressLine1', e.target.value)}
-                      placeholder="Street address"
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Address Line 2</label>
-                    <input
-                      type="text"
-                      value={address.addressLine2 || ''}
-                      onChange={(e) => handleShippingAddressChange(index, 'addressLine2', e.target.value)}
-                      placeholder="Apartment, suite, etc."
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">City</label>
-                      <input
-                        type="text"
-                        value={address.city}
-                        onChange={(e) => handleShippingAddressChange(index, 'city', e.target.value)}
-                        placeholder="City"
-                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">State</label>
-                      <input
-                        type="text"
-                        value={address.state}
-                        onChange={(e) => handleShippingAddressChange(index, 'state', e.target.value)}
-                        placeholder="State"
-                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">ZIP Code</label>
-                      <input
-                        type="text"
-                        value={address.zipCode}
-                        onChange={(e) => handleShippingAddressChange(index, 'zipCode', e.target.value)}
-                        placeholder="ZIP code"
-                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Country</label>
-                      <input
-                        type="text"
-                        value={address.country}
-                        onChange={(e) => handleShippingAddressChange(index, 'country', e.target.value)}
-                        placeholder="Country"
-                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Business Information */}
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 shadow-sm">
-          <div className="flex items-start gap-4 mb-6">
-            <div className="flex-shrink-0 w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="text-blue-600 dark:text-blue-400"
-              >
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                <polyline points="9 22 9 12 15 12 15 22"></polyline>
-              </svg>
-            </div>
-            <div className="flex-1">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Business Information</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Your registered business details.</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Business Name
-              </label>
-              <input
-                type="text"
-                value={businessInformation.businessName || ''}
-                onChange={(e) => handleBusinessInformationChange('businessName', e.target.value)}
-                placeholder="Enter business name"
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Legal Entity Type
-              </label>
-              <input
-                type="text"
-                value={businessInformation.legalEntityType || ''}
-                onChange={(e) => handleBusinessInformationChange('legalEntityType', e.target.value)}
-                placeholder="e.g., Private Limited"
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                GST Number
-              </label>
-              <input
-                type="text"
-                value={businessInformation.gstNumber || ''}
-                onChange={(e) => handleBusinessInformationChange('gstNumber', e.target.value)}
-                placeholder="Enter GST number"
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                PAN Number
-              </label>
-              <input
-                type="text"
-                value={businessInformation.panNumber || ''}
-                onChange={(e) => handleBusinessInformationChange('panNumber', e.target.value)}
-                placeholder="Enter PAN number"
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-
-          {/* Business Documents */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Business Documents</h3>
-              {!showDocumentForm && (
+            {/* Billing Address */}
+            <div id="billing-address" className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Billing Address</h2>
                 <button
                   type="button"
-                  onClick={handleAddDocumentClick}
-                  className="inline-flex items-center px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium rounded-lg cursor-pointer transition-colors"
+                  onClick={addBillingAddress}
+                  className="px-3 py-1.5 text-sm bg-teal-500 hover:bg-teal-600 rounded-lg text-white transition-colors"
                 >
-                  + Add Document
+                  + Add Address
                 </button>
-              )}
-            </div>
-            
-            {showDocumentForm && (
-              <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
-                <div className="space-y-4">
-                  {/* Document Type and Number */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Type of Document
-                      </label>
-                      <select
-                        value={documentType}
-                        onChange={(e) => setDocumentType(e.target.value)}
-                        className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                      >
-                        <option value="">Select document type</option>
-                        <option value="GST Certificate">GST Certificate</option>
-                        <option value="PAN Card">PAN Card</option>
-                        <option value="Company Registration">Company Registration</option>
-                        <option value="Trade License">Trade License</option>
-                        <option value="Bank Statement">Bank Statement</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Document Number
-                      </label>
-                      <input
-                        type="text"
-                        value={documentNumber}
-                        onChange={(e) => setDocumentNumber(e.target.value)}
-                        placeholder="Enter document number"
-                        className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Document Upload Area */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Document Upload
-                    </label>
-                    <div
-                      onDrop={handleDocumentDrop}
-                      onDragOver={handleDocumentDragOver}
-                      className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center hover:border-teal-500 dark:hover:border-teal-500 transition-colors cursor-pointer"
-                    >
-                      <input
-                        type="file"
-                        onChange={handleDocumentFileSelect}
-                        className="hidden"
-                        id="document-upload"
-                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                      />
-                      <label htmlFor="document-upload" className="cursor-pointer">
-                        <div className="flex flex-col items-center">
-                          <svg
-                            width="48"
-                            height="48"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            className="text-gray-400 dark:text-gray-500 mb-3"
-                          >
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                            <polyline points="17 8 12 3 7 8"></polyline>
-                            <line x1="12" y1="3" x2="12" y2="15"></line>
-                          </svg>
-                          <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Click to upload or drag and drop
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Any file type (MAX. 10MB)
-                          </p>
-                          {selectedDocumentFile && (
-                            <p className="text-sm text-teal-600 dark:text-teal-400 mt-2">
-                              Selected: {selectedDocumentFile.name}
-                            </p>
-                          )}
-                        </div>
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Form Actions */}
-                  <div className="flex justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={handleCancelDocumentForm}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSaveDocument}
-                      disabled={!selectedDocumentFile || isUploadingDocument}
-                      className="px-4 py-2 text-sm font-medium text-white bg-teal-500 hover:bg-teal-600 rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {isUploadingDocument ? 'Uploading...' : 'Upload Document'}
-                    </button>
-                  </div>
-                </div>
               </div>
-            )}
-
-            {businessInformation.businessDocuments && businessInformation.businessDocuments.length > 0 ? (
-              <div className="space-y-2">
-                {businessInformation.businessDocuments.map((doc, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    <div className="flex-1 mr-2">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        {doc.documentType || `Document ${index + 1}`}
-                      </div>
-                      {doc.documentNumber && (
-                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                          Number: {doc.documentNumber}
-                        </div>
-                      )}
-                      {doc.documentUrl && (
-                        <a
-                          href={doc.documentUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-teal-600 dark:text-teal-400 hover:underline mt-1 block"
+              <div className="space-y-4">
+                {billingAddress.map((address, index) => (
+                  <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Billing Address {index + 1}</h3>
+                      {billingAddress.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeBillingAddress(index)}
+                          className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 text-sm"
                         >
-                          View Document
-                        </a>
+                          Remove
+                        </button>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveDocument(index)}
-                      className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 text-sm"
-                    >
-                      Remove
-                    </button>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Address Line 1</label>
+                        <input
+                          type="text"
+                          value={address.addressLine1}
+                          onChange={(e) => handleBillingAddressChange(index, 'addressLine1', e.target.value)}
+                          placeholder="Street address"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Address Line 2</label>
+                        <input
+                          type="text"
+                          value={address.addressLine2 || ''}
+                          onChange={(e) => handleBillingAddressChange(index, 'addressLine2', e.target.value)}
+                          placeholder="Apartment, suite, etc."
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">City</label>
+                          <input
+                            type="text"
+                            value={address.city}
+                            onChange={(e) => handleBillingAddressChange(index, 'city', e.target.value)}
+                            placeholder="City"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">State</label>
+                          <input
+                            type="text"
+                            value={address.state}
+                            onChange={(e) => handleBillingAddressChange(index, 'state', e.target.value)}
+                            placeholder="State"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">ZIP Code</label>
+                          <input
+                            type="text"
+                            value={address.zipCode}
+                            onChange={(e) => handleBillingAddressChange(index, 'zipCode', e.target.value)}
+                            placeholder="ZIP code"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Country</label>
+                          <input
+                            type="text"
+                            value={address.country}
+                            onChange={(e) => handleBillingAddressChange(index, 'country', e.target.value)}
+                            placeholder="Country"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
-            ) : (
-              !showDocumentForm && (
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  No documents added yet. Click &quot;Add Document&quot; to upload business documents.
-                </p>
-              )
-            )}
-          </div>
-        </div>
+            </div>
 
-        {/* Form Actions */}
-        <div className="flex justify-end gap-3 pt-4">
-          <button
-            type="button"
-            onClick={() => router.push('/')}
-            className="px-4 py-2.5 rounded-lg border border-gray-700 text-sm font-medium text-gray-300 hover:bg-gray-800 transition-colors"
-          >
-            Back to Dashboard
-          </button>
-          <button
-            type="submit"
-            disabled={isSaving}
-            className="px-4 py-2.5 rounded-lg bg-teal-500 hover:bg-teal-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium text-white transition-colors"
-          >
-            {isSaving ? 'Saving...' : 'Save Changes'}
-          </button>
-        </div>
+            {/* Shipping Address */}
+            <div id="shipping-address" className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Shipping Address</h2>
+                <button
+                  type="button"
+                  onClick={addShippingAddress}
+                  className="px-3 py-1.5 text-sm bg-teal-500 hover:bg-teal-600 rounded-lg text-white transition-colors"
+                >
+                  + Add Address
+                </button>
+              </div>
+              <div className="space-y-4">
+                {shippingAddress.map((address, index) => (
+                  <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Shipping Address {index + 1}</h3>
+                      {shippingAddress.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeShippingAddress(index)}
+                          className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 text-sm"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Address Line 1</label>
+                        <input
+                          type="text"
+                          value={address.addressLine1}
+                          onChange={(e) => handleShippingAddressChange(index, 'addressLine1', e.target.value)}
+                          placeholder="Street address"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Address Line 2</label>
+                        <input
+                          type="text"
+                          value={address.addressLine2 || ''}
+                          onChange={(e) => handleShippingAddressChange(index, 'addressLine2', e.target.value)}
+                          placeholder="Apartment, suite, etc."
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">City</label>
+                          <input
+                            type="text"
+                            value={address.city}
+                            onChange={(e) => handleShippingAddressChange(index, 'city', e.target.value)}
+                            placeholder="City"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">State</label>
+                          <input
+                            type="text"
+                            value={address.state}
+                            onChange={(e) => handleShippingAddressChange(index, 'state', e.target.value)}
+                            placeholder="State"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">ZIP Code</label>
+                          <input
+                            type="text"
+                            value={address.zipCode}
+                            onChange={(e) => handleShippingAddressChange(index, 'zipCode', e.target.value)}
+                            placeholder="ZIP code"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Country</label>
+                          <input
+                            type="text"
+                            value={address.country}
+                            onChange={(e) => handleShippingAddressChange(index, 'country', e.target.value)}
+                            placeholder="Country"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Business Information */}
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 shadow-sm">
+              <div className="flex items-start gap-4 mb-6">
+                <div className="flex-shrink-0 w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="text-blue-600 dark:text-blue-400"
+                  >
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Business Information</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Your registered business details.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Business Name
+                  </label>
+                  <input
+                    type="text"
+                    value={businessInformation.businessName || ''}
+                    onChange={(e) => handleBusinessInformationChange('businessName', e.target.value)}
+                    placeholder="Enter business name"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Legal Entity Type
+                  </label>
+                  <input
+                    type="text"
+                    value={businessInformation.legalEntityType || ''}
+                    onChange={(e) => handleBusinessInformationChange('legalEntityType', e.target.value)}
+                    placeholder="e.g., Private Limited"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    GST Number
+                  </label>
+                  <input
+                    type="text"
+                    value={businessInformation.gstNumber || ''}
+                    onChange={(e) => handleBusinessInformationChange('gstNumber', e.target.value)}
+                    placeholder="Enter GST number"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    PAN Number
+                  </label>
+                  <input
+                    type="text"
+                    value={businessInformation.panNumber || ''}
+                    onChange={(e) => handleBusinessInformationChange('panNumber', e.target.value)}
+                    placeholder="Enter PAN number"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {/* Business Documents */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Business Documents</h3>
+                  {!showDocumentForm && (
+                    <button
+                      type="button"
+                      onClick={handleAddDocumentClick}
+                      className="inline-flex items-center px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium rounded-lg cursor-pointer transition-colors"
+                    >
+                      + Add Document
+                    </button>
+                  )}
+                </div>
+
+                {showDocumentForm && (
+                  <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                    <div className="space-y-4">
+                      {/* Document Type and Number */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Type of Document
+                          </label>
+                          <select
+                            value={documentType}
+                            onChange={(e) => setDocumentType(e.target.value)}
+                            className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                          >
+                            <option value="">Select document type</option>
+                            <option value="GST Certificate">GST Certificate</option>
+                            <option value="PAN Card">PAN Card</option>
+                            <option value="Company Registration">Company Registration</option>
+                            <option value="Trade License">Trade License</option>
+                            <option value="Bank Statement">Bank Statement</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Document Number
+                          </label>
+                          <input
+                            type="text"
+                            value={documentNumber}
+                            onChange={(e) => setDocumentNumber(e.target.value)}
+                            placeholder="Enter document number"
+                            className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Document Upload Area */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Document Upload
+                        </label>
+                        <div
+                          onDrop={handleDocumentDrop}
+                          onDragOver={handleDocumentDragOver}
+                          className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center hover:border-teal-500 dark:hover:border-teal-500 transition-colors cursor-pointer"
+                        >
+                          <input
+                            type="file"
+                            onChange={handleDocumentFileSelect}
+                            className="hidden"
+                            id="document-upload"
+                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                          />
+                          <label htmlFor="document-upload" className="cursor-pointer">
+                            <div className="flex flex-col items-center">
+                              <svg
+                                width="48"
+                                height="48"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                className="text-gray-400 dark:text-gray-500 mb-3"
+                              >
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="17 8 12 3 7 8"></polyline>
+                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                              </svg>
+                              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Click to upload or drag and drop
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                Any file type (MAX. 10MB)
+                              </p>
+                              {selectedDocumentFile && (
+                                <p className="text-sm text-teal-600 dark:text-teal-400 mt-2">
+                                  Selected: {selectedDocumentFile.name}
+                                </p>
+                              )}
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Form Actions */}
+                      <div className="flex justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={handleCancelDocumentForm}
+                          className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveDocument}
+                          disabled={!selectedDocumentFile || isUploadingDocument}
+                          className="px-4 py-2 text-sm font-medium text-white bg-teal-500 hover:bg-teal-600 rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {isUploadingDocument ? 'Uploading...' : 'Upload Document'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {businessInformation.businessDocuments && businessInformation.businessDocuments.length > 0 ? (
+                  <div className="space-y-2">
+                    {businessInformation.businessDocuments.map((doc, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div className="flex-1 mr-2">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            {doc.documentType || `Document ${index + 1}`}
+                          </div>
+                          {doc.documentNumber && (
+                            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                              Number: {doc.documentNumber}
+                            </div>
+                          )}
+                          {doc.documentUrl && (
+                            <a
+                              href={doc.documentUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-teal-600 dark:text-teal-400 hover:underline mt-1 block"
+                            >
+                              View Document
+                            </a>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDocument(index)}
+                          className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 text-sm"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  !showDocumentForm && (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      No documents added yet. Click &quot;Add Document&quot; to upload business documents.
+                    </p>
+                  )
+                )}
+              </div>
+            </div>
+
+            {/* Form Actions */}
+            <div className="flex justify-end gap-3 pt-4">
+              <button
+                type="button"
+                onClick={() => router.push('/')}
+                className="px-4 py-2.5 rounded-lg border border-gray-700 text-sm font-medium text-gray-300 hover:bg-gray-800 transition-colors"
+              >
+                Back to Dashboard
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="px-4 py-2.5 rounded-lg bg-teal-500 hover:bg-teal-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-sm font-medium text-white transition-colors"
+              >
+                {isSaving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
           </form>
         )}
       </div>
-      </>
+    </>
   );
 }

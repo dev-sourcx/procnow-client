@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { requireAuth } from '@/lib/auth';
 import { getProductSheet, ProductSheetItem, generateFieldsFromKeyword, type GeneratedFieldsResponse, addProductItem, deleteProductItem, getEnquiries, createEnquiry, getBuyerProfile, type BuyerProfile, uploadFile } from '@/lib/api';
@@ -42,12 +42,12 @@ export default function ProductSheetPage() {
   const [specModalItems, setSpecModalItems] = useState<string[]>([]);
   const [specModalTitle, setSpecModalTitle] = useState<string>('Description');
   const [enquiryCount, setEnquiryCount] = useState<number>(0);
-  
+
   // State for description modal
   const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
   const [descriptionModalContent, setDescriptionModalContent] = useState<string>('');
   const [descriptionModalProductName, setDescriptionModalProductName] = useState<string>('');
-  
+
   // Enquiry sidebar state
   const [isNewEnquiryModalOpen, setIsNewEnquiryModalOpen] = useState(false);
   const [enquiryName, setEnquiryName] = useState('');
@@ -83,6 +83,9 @@ export default function ProductSheetPage() {
   const [selectedBillingAddressIndex, setSelectedBillingAddressIndex] = useState<number | null>(null);
   const [useNewShippingAddress, setUseNewShippingAddress] = useState(false);
   const [useNewBillingAddress, setUseNewBillingAddress] = useState(false);
+  // Refs for address inputs
+  const shippingAddressInputRef = useRef<HTMLInputElement>(null);
+  const billingAddressInputRef = useRef<HTMLInputElement>(null);
   const [isShippingAddressModalOpen, setIsShippingAddressModalOpen] = useState(false);
   const [isBillingAddressModalOpen, setIsBillingAddressModalOpen] = useState(false);
   // Inline product generation for sidebar
@@ -114,7 +117,7 @@ export default function ProductSheetPage() {
   const [productCount, setProductCount] = useState<number>(0);
   const [isNewEnquiryProductModalOpen, setIsNewEnquiryProductModalOpen] = useState(false);
   const [newEnquirySelectedProductIds, setNewEnquirySelectedProductIds] = useState<string[]>([]);
-  
+
   // Generate product modal state
   const [isGenerateProductModalOpen, setIsGenerateProductModalOpen] = useState(false);
   const [productKeyword, setProductKeyword] = useState('');
@@ -164,7 +167,7 @@ export default function ProductSheetPage() {
     };
 
     let addedDate = formatDate(new Date());
-    
+
     if (item.createdAt) {
       try {
         addedDate = formatDate(new Date(item.createdAt));
@@ -321,11 +324,11 @@ export default function ProductSheetPage() {
       const details = productDetails[productId];
       return details?.isAdded === true;
     });
-    
-    const selectedProducts = ribbonProducts.length > 0 
-      ? mapProductIdsToEnquiryProducts(ribbonProducts) 
+
+    const selectedProducts = ribbonProducts.length > 0
+      ? mapProductIdsToEnquiryProducts(ribbonProducts)
       : [];
-    
+
     // Filter custom products that are in ribbon (isAdded === true)
     const customProducts = customProductRows
       .filter((row) => row.isAdded === true) // Only include rows explicitly added to ribbon
@@ -437,7 +440,7 @@ export default function ProductSheetPage() {
       }
 
       const productSheet = await getProductSheet(token);
-      const mappedProducts = productSheet.productSheetItems.map((item, index) => 
+      const mappedProducts = productSheet.productSheetItems.map((item, index) =>
         mapProductSheetItemToBriefProduct(item, index)
       );
       setProducts(mappedProducts);
@@ -483,10 +486,10 @@ export default function ProductSheetPage() {
       }
 
       await deleteProductItem(token, productId);
-      
+
       // Remove from selected products if selected
       setSelectedProductIds(prev => prev.filter(id => id !== productId));
-      
+
       // Reload products
       await loadProducts();
     } catch (error: any) {
@@ -510,7 +513,7 @@ export default function ProductSheetPage() {
     try {
       // Call backend to generate fields from keyword
       const fields = await generateFieldsFromKeyword(aiKeyword.trim());
-      
+
       // Initialize form data with empty values
       const initialData: Record<string, string | number | string[]> = {};
       fields.fields.forEach((field) => {
@@ -522,7 +525,7 @@ export default function ProductSheetPage() {
           initialData[field.label] = '';
         }
       });
-      
+
       setSpecFormData(initialData);
       setGeneratedFields(fields);
       setIsSpecModalOpen(true);
@@ -581,21 +584,21 @@ export default function ProductSheetPage() {
 
       // Save to backend
       await addProductItem(token, productItemPayload);
-      
+
       // Dispatch custom event to notify other components
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('productAdded'));
       }
-      
+
       // Reload products to show the new one
       await loadProducts();
-      
+
       // Close modal and reset
       handleCloseSpecModal();
-      
+
       // Show success message
       alert('Product added successfully!');
-      
+
       // Clear AI keyword input
       setAiKeyword('');
     } catch (error: any) {
@@ -637,7 +640,7 @@ export default function ProductSheetPage() {
       loadProducts();
       loadEnquiryCount(); // Reload enquiry count as well
     };
-    
+
     window.addEventListener('productAdded', handleCustomStorageChange);
     window.addEventListener('enquiryUpdated', loadEnquiryCount);
 
@@ -836,17 +839,17 @@ export default function ProductSheetPage() {
         alert('Product name is required to generate description');
         return;
       }
-      
+
       setCurrentProductIdForSpec(productId);
       setCurrentRowIdForSpec(null);
       setIsGeneratingProductListAI(true);
       setProductListAIProductName(productName);
       setIsProductListAIModalOpen(true);
-      
+
       try {
         const fields = await generateFieldsFromKeyword(productName.trim());
         setProductListAIGeneratedFields(fields);
-        
+
         // Initialize form data with existing specifications or empty values
         const existingSpecs = productSpecifications[productId] || {};
         const initialData: Record<string, string | number | string[]> = {};
@@ -879,17 +882,17 @@ export default function ProductSheetPage() {
       alert('Please enter a product name first');
       return;
     }
-    
+
     setCurrentProductIdForSpec(null);
     setCurrentRowIdForSpec(rowId);
     setIsGeneratingProductListAI(true);
     setProductListAIProductName(row.name);
     setIsProductListAIModalOpen(true);
-    
+
     try {
       const fields = await generateFieldsFromKeyword(row.name.trim());
       setProductListAIGeneratedFields(fields);
-      
+
       // Initialize form data with existing specifications or empty values
       const existingSpecs = customProductSpecifications[rowId] || {};
       const initialData: Record<string, string | number | string[]> = {};
@@ -995,7 +998,7 @@ export default function ProductSheetPage() {
       // Add the created product to the enquiry's product list
       if (newProduct._id) {
         setNewEnquirySelectedProductIds((prev) => [...prev, newProduct._id]);
-        
+
         // Also set product details (quantity, unit, targetPrice) from the row
         // Always set product details to ensure it appears in ribbon
         // Use row values if available, otherwise use defaults (quantity: 1, unit: 'pcs')
@@ -1019,7 +1022,7 @@ export default function ProductSheetPage() {
 
         // Remove the custom product row
         setCustomProductRows((prev) => prev.filter((r) => r.id !== rowId));
-        
+
         // Remove saved specifications for this row
         setCustomProductSpecifications((prev) => {
           const newSpecs = { ...prev };
@@ -1147,11 +1150,11 @@ export default function ProductSheetPage() {
 
   const handleSaveNewEnquiry = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!requireAuth()) {
       return;
     }
-    
+
     if (!enquiryName.trim()) {
       alert('Please enter an enquiry name');
       return;
@@ -1260,7 +1263,7 @@ export default function ProductSheetPage() {
   });
 
   return (
-      <>
+    <>
       {/* Main Content Area */}
       <div className="w-full mx-auto px-6 py-6">
         {/* AI Generation Section - Separate on Top */}
@@ -1349,9 +1352,9 @@ export default function ProductSheetPage() {
                     strokeLinejoin="round"
                     className="text-gray-700 dark:text-gray-300"
                   >
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                    <line x1="3" y1="9" x2="21" y2="9"></line>
-                    <line x1="9" y1="21" x2="9" y2="9"></line>
+                    <circle cx="9" cy="21" r="1"></circle>
+                    <circle cx="20" cy="21" r="1"></circle>
+                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
                   </svg>
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">My Cart</h3>
@@ -1363,49 +1366,49 @@ export default function ProductSheetPage() {
             </div>
             <div className="relative flex items-center gap-3">
               <div className="relative">
-              <svg
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                <svg
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search products..."
+                  className="pl-10 pr-4 py-2 w-64 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500"
                 />
-              </svg>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search products..."
-                className="pl-10 pr-4 py-2 w-64 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500"
-              />
               </div>
               <button
-              onClick={handleCreateEnquiry}
-              disabled={selectedProductIds.length === 0}
-              className="flex items-center gap-2 px-4 py-2.5 bg-teal-500 hover:bg-teal-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+                onClick={handleCreateEnquiry}
+                disabled={selectedProductIds.length === 0}
+                className="flex items-center gap-2 px-4 py-2.5 bg-teal-500 hover:bg-teal-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
               >
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-                <line x1="16" y1="13" x2="8" y2="13"></line>
-                <line x1="16" y1="17" x2="8" y2="17"></line>
-              </svg>
-              Create Enquiry {selectedProductIds.length > 0 && `(${selectedProductIds.length} selected)`}
-            </button>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                </svg>
+                Create Enquiry {selectedProductIds.length > 0 && `(${selectedProductIds.length} selected)`}
+              </button>
             </div>
           </div>
 
@@ -1457,10 +1460,10 @@ export default function ProductSheetPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full table-fixed">
                 <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4">
+                  <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                    <th className="text-left py-3 px-4 w-12">
                       <label className="inline-flex items-center cursor-pointer">
                         <input
                           type="checkbox"
@@ -1476,22 +1479,22 @@ export default function ProductSheetPage() {
                         />
                       </label>
                     </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Product Name</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300" style={{ width: '400px', minWidth: '400px', maxWidth: '600px' }}>Description</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Action</th>
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300 w-48">Product Name</th>
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Description</th>
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300 w-20">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredProducts.map((product) => {
                     const isSelected = selectedProductIds.includes(product.id);
-                    
+
                     // Parse specifications to show as comma-separated text (exclude description and price)
                     const specText = product.specifications
                       .filter(spec => {
                         const lowerSpec = spec.toLowerCase();
-                        return !lowerSpec.includes('description') && 
-                                !lowerSpec.includes('price') && 
-                                !lowerSpec.includes('cost');
+                        return !lowerSpec.includes('description') &&
+                          !lowerSpec.includes('price') &&
+                          !lowerSpec.includes('cost');
                       })
                       .map(spec => {
                         // Handle "key: value" format
@@ -1505,12 +1508,11 @@ export default function ProductSheetPage() {
                     return (
                       <tr
                         key={product.id}
-                        className={`border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
-                          isSelected ? 'bg-teal-50 dark:bg-teal-900/20' : ''
-                        }`}
+                        className={`border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${isSelected ? 'bg-teal-50 dark:bg-teal-900/20' : ''
+                          }`}
                       >
                         {/* Checkbox */}
-                        <td className="py-4 px-4">
+                        <td className="py-4 px-4 w-12">
                           <label className="inline-flex items-center cursor-pointer">
                             <input
                               type="checkbox"
@@ -1528,16 +1530,16 @@ export default function ProductSheetPage() {
                         </td>
 
                         {/* Product Name */}
-                        <td className="py-4 px-4">
-                          <div className="font-medium text-gray-900 dark:text-white">{product.name}</div>
+                        <td className="py-4 px-4 w-48">
+                          <div className="font-medium text-gray-900 dark:text-white break-words" title={product.name}>{product.name}</div>
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{product.addedDate}</div>
                         </td>
 
                         {/* Description */}
-                        <td className="py-4 px-4" style={{ width: '400px', minWidth: '400px', maxWidth: '600px' }}>
-                          <div 
-                            className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 cursor-pointer hover:text-teal-600 dark:hover:text-teal-400 transition-colors" 
-                            style={{ 
+                        <td className="py-4 px-4">
+                          <div
+                            className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 cursor-pointer hover:text-teal-600 dark:hover:text-teal-400 transition-colors break-words"
+                            style={{
                               display: '-webkit-box',
                               WebkitLineClamp: 3,
                               WebkitBoxOrient: 'vertical',
@@ -1558,10 +1560,10 @@ export default function ProductSheetPage() {
                         </td>
 
                         {/* Action */}
-                        <td className="py-4 px-4">
+                        <td className="py-4 px-4 w-20">
                           <button
                             onClick={() => handleDeleteProduct(product.id)}
-                            className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                             aria-label="Delete product"
                           >
                             <svg
@@ -1620,12 +1622,12 @@ export default function ProductSheetPage() {
                         requireAuth();
                         return;
                       }
-                      
+
                       // Delete all selected products
                       await Promise.all(
                         selectedProductIds.map(id => deleteProductItem(token, id))
                       );
-                      
+
                       setSelectedProductIds([]);
                       await loadProducts();
                     } catch (error: any) {
@@ -1716,10 +1718,10 @@ export default function ProductSheetPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {generatedFields.fields.map((field, index) => {
                     // Most fields are required except textarea fields that are optional
-                    const isRequired = !field.label.toLowerCase().includes('additional') && 
-                                      !field.label.toLowerCase().includes('optional') &&
-                                      !field.label.toLowerCase().includes('delivery timeline');
-                    
+                    const isRequired = !field.label.toLowerCase().includes('additional') &&
+                      !field.label.toLowerCase().includes('optional') &&
+                      !field.label.toLowerCase().includes('delivery timeline');
+
                     // Textarea fields should span full width
                     if (field.type === 'textarea') {
                       return (
@@ -1739,7 +1741,7 @@ export default function ProductSheetPage() {
                         </div>
                       );
                     }
-                    
+
                     return (
                       <div key={index} className="space-y-2">
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1818,11 +1820,11 @@ export default function ProductSheetPage() {
 
       {/* Specifications View Modal */}
       {isSpecModalOpen && !generatedFields && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={() => setIsSpecModalOpen(false)}
         >
-          <div 
+          <div
             className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[70vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -1872,11 +1874,11 @@ export default function ProductSheetPage() {
       {isNewEnquiryModalOpen && (
         <>
           {/* Overlay */}
-          <div 
+          <div
             className="fixed inset-0 bg-black/50 z-40"
             onClick={handleCloseNewEnquiryModal}
           />
-          
+
           {/* Sidebar */}
           <div className="fixed inset-y-0 right-0 z-50 w-full max-w-4xl bg-white dark:bg-gray-800 shadow-xl transform transition-transform duration-300 ease-in-out">
             <div className="flex h-full flex-col">
@@ -1970,47 +1972,65 @@ export default function ProductSheetPage() {
                             <svg
                               width="16"
                               height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
                               <line x1="12" y1="5" x2="12" y2="19"></line>
                               <line x1="5" y1="12" x2="19" y2="12"></line>
-                        </svg>
+                            </svg>
                             Add
                           </button>
                         </div>
-                        <input
-                          type="text"
-                          value={useNewShippingAddress ? getShippingAddressString() : ''}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setShippingAddress({
-                              addressLine1: value,
-                              addressLine2: '',
-                              city: '',
-                              state: '',
-                              zipCode: '',
-                              country: '',
-                              phone: '',
-                              email: '',
-                            });
-                            setUseNewShippingAddress(true);
-                            setSelectedShippingAddressIndex(null);
+                        <div
+                          onClick={() => {
+                            if (!useNewShippingAddress && selectedShippingAddressIndex === null) {
+                              setUseNewShippingAddress(true);
+                              setTimeout(() => {
+                                shippingAddressInputRef.current?.focus();
+                              }, 0);
+                            }
                           }}
-                          placeholder={
-                            selectedShippingAddressIndex !== null && buyerProfile?.shippingAddress?.[selectedShippingAddressIndex] && !useNewShippingAddress
-                              ? formatAddressAsString(buyerProfile.shippingAddress[selectedShippingAddressIndex])
-                              : "Enter full shipping address"
-                          }
-                          disabled={selectedShippingAddressIndex !== null && buyerProfile?.shippingAddress?.[selectedShippingAddressIndex] && !useNewShippingAddress}
-                          required
-                          className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
-                        />
-                  </div>
+                          className="relative"
+                        >
+                          <input
+                            ref={shippingAddressInputRef}
+                            type="text"
+                            value={useNewShippingAddress ? getShippingAddressString() : ''}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setShippingAddress({
+                                addressLine1: value,
+                                addressLine2: '',
+                                city: '',
+                                state: '',
+                                zipCode: '',
+                                country: '',
+                                phone: '',
+                                email: '',
+                              });
+                              setUseNewShippingAddress(true);
+                              setSelectedShippingAddressIndex(null);
+                            }}
+                            onFocus={() => {
+                              if (!useNewShippingAddress && selectedShippingAddressIndex === null) {
+                                setUseNewShippingAddress(true);
+                              }
+                            }}
+                            placeholder={
+                              selectedShippingAddressIndex !== null && buyerProfile?.shippingAddress?.[selectedShippingAddressIndex] && !useNewShippingAddress
+                                ? formatAddressAsString(buyerProfile.shippingAddress[selectedShippingAddressIndex])
+                                : "Enter full shipping address"
+                            }
+                            disabled={!useNewShippingAddress}
+                            required
+                            className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
+                          />
+                        </div>
+                      </div>
 
                       {/* Billing Address Input */}
                       <div>
@@ -2026,46 +2046,64 @@ export default function ProductSheetPage() {
                             <svg
                               width="16"
                               height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
                               <line x1="12" y1="5" x2="12" y2="19"></line>
                               <line x1="5" y1="12" x2="19" y2="12"></line>
-                        </svg>
+                            </svg>
                             Add
                           </button>
                         </div>
-                        <input
-                          type="text"
-                          value={useNewBillingAddress ? getBillingAddressString() : ''}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setBillingAddress({
-                              addressLine1: value,
-                              addressLine2: '',
-                              city: '',
-                              state: '',
-                              zipCode: '',
-                              country: '',
-                              phone: '',
-                              email: '',
-                            });
-                            setUseNewBillingAddress(true);
-                            setSelectedBillingAddressIndex(null);
+                        <div
+                          onClick={() => {
+                            if (!useNewBillingAddress && selectedBillingAddressIndex === null) {
+                              setUseNewBillingAddress(true);
+                              setTimeout(() => {
+                                billingAddressInputRef.current?.focus();
+                              }, 0);
+                            }
                           }}
-                          placeholder={
-                            selectedBillingAddressIndex !== null && buyerProfile?.billingAddress?.[selectedBillingAddressIndex] && !useNewBillingAddress
-                              ? formatAddressAsString(buyerProfile.billingAddress[selectedBillingAddressIndex])
-                              : "Enter full billing address"
-                          }
-                          disabled={selectedBillingAddressIndex !== null && buyerProfile?.billingAddress?.[selectedBillingAddressIndex] && !useNewBillingAddress}
-                          required
-                          className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
-                        />
+                          className="relative"
+                        >
+                          <input
+                            ref={billingAddressInputRef}
+                            type="text"
+                            value={useNewBillingAddress ? getBillingAddressString() : ''}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setBillingAddress({
+                                addressLine1: value,
+                                addressLine2: '',
+                                city: '',
+                                state: '',
+                                zipCode: '',
+                                country: '',
+                                phone: '',
+                                email: '',
+                              });
+                              setUseNewBillingAddress(true);
+                              setSelectedBillingAddressIndex(null);
+                            }}
+                            onFocus={() => {
+                              if (!useNewBillingAddress && selectedBillingAddressIndex === null) {
+                                setUseNewBillingAddress(true);
+                              }
+                            }}
+                            placeholder={
+                              selectedBillingAddressIndex !== null && buyerProfile?.billingAddress?.[selectedBillingAddressIndex] && !useNewBillingAddress
+                                ? formatAddressAsString(buyerProfile.billingAddress[selectedBillingAddressIndex])
+                                : "Enter full billing address"
+                            }
+                            disabled={!useNewBillingAddress}
+                            required
+                            className="w-full px-4 py-2.5 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400 disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2117,27 +2155,27 @@ export default function ProductSheetPage() {
                           </svg>
                           Pull from cart
                         </button>
-                          <button
-                            type="button"
+                        <button
+                          type="button"
                           onClick={handleAddCustomRows}
                           className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
                         >
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <line x1="12" y1="5" x2="12" y2="19"></line>
-                              <line x1="5" y1="12" x2="19" y2="12"></line>
-                            </svg>
-                          Add
-                          </button>
-                        </div>
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                          </svg>
+                          Add Rows
+                        </button>
+                      </div>
                     </div>
 
                     {/* Added Products Ribbons */}
@@ -2163,35 +2201,33 @@ export default function ProductSheetPage() {
                               return (
                                 <div
                                   key={productId}
-                                  className="w-full bg-teal-50 dark:bg-teal-900/20 border-l-4 border-teal-600 dark:border-teal-400 rounded-r-lg p-3"
+                                  className="w-full bg-teal-50 dark:bg-teal-900/20 border-l-4 border-teal-600 dark:border-teal-400 rounded-r-lg p-3 flex items-center justify-between"
                                 >
-                                  <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2">
-                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-teal-600 dark:text-teal-400 flex-shrink-0">
-                                        <polyline points="20 6 9 17 4 12"></polyline>
-                                      </svg>
-                                      <span className="font-medium text-teal-900 dark:text-teal-100 text-sm">
-                                        {product.displayName || product.category || 'Unnamed Product'}
-                                      </span>
+                                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-teal-600 dark:text-teal-400 flex-shrink-0">
+                                      <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                    <span className="font-medium text-teal-900 dark:text-teal-100 text-sm">
+                                      {product.displayName || product.category || 'Unnamed Product'}
+                                    </span>
+                                    <div className="flex items-center gap-3 text-xs text-teal-700 dark:text-teal-300">
+                                      {details.quantity && <span>Qty: {details.quantity}</span>}
+                                      {details.unit && <span>Unit: {details.unit}</span>}
+                                      {details.targetPrice && <span>Price: {details.targetPrice}</span>}
                                     </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemoveSelectedProduct(productId)}
-                                      className="p-1.5 text-teal-600 dark:text-teal-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors"
-                                      aria-label="Remove product"
-                                      title="Remove product"
-                                    >
-                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                                      </svg>
-                                    </button>
                                   </div>
-                                  <div className="flex items-center gap-3 text-xs text-teal-700 dark:text-teal-300 ml-6">
-                                    {details.quantity && <span>Qty: {details.quantity}</span>}
-                                    {details.unit && <span>Unit: {details.unit}</span>}
-                                    {details.targetPrice && <span>Price: {details.targetPrice}</span>}
-                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveSelectedProduct(productId)}
+                                    className="p-1.5 text-teal-600 dark:text-teal-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors ml-2 flex-shrink-0"
+                                    aria-label="Remove product"
+                                    title="Remove product"
+                                  >
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                  </button>
                                 </div>
                               );
                             })}
@@ -2201,16 +2237,14 @@ export default function ProductSheetPage() {
                                   key={row.id}
                                   className="w-full bg-teal-50 dark:bg-teal-900/20 border-l-4 border-teal-600 dark:border-teal-400 rounded-r-lg p-3 flex items-center justify-between"
                                 >
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-teal-600 dark:text-teal-400 flex-shrink-0">
-                                        <polyline points="20 6 9 17 4 12"></polyline>
-                                      </svg>
-                                      <span className="font-medium text-teal-900 dark:text-teal-100 text-sm">
-                                        {row.name || 'Custom Product'}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center gap-3 text-xs text-teal-700 dark:text-teal-300 ml-6">
+                                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-teal-600 dark:text-teal-400 flex-shrink-0">
+                                      <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                    <span className="font-medium text-teal-900 dark:text-teal-100 text-sm">
+                                      {row.name || 'Custom Product'}
+                                    </span>
+                                    <div className="flex items-center gap-3 text-xs text-teal-700 dark:text-teal-300">
                                       {row.quantity && <span>Qty: {row.quantity}</span>}
                                       {row.unit && <span>Unit: {row.unit}</span>}
                                       {row.targetPrice && <span>Price: {row.targetPrice}</span>}
@@ -2219,7 +2253,7 @@ export default function ProductSheetPage() {
                                   <button
                                     type="button"
                                     onClick={() => handleRemoveCustomRow(row.id)}
-                                    className="p-1.5 text-teal-600 dark:text-teal-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors ml-2"
+                                    className="p-1.5 text-teal-600 dark:text-teal-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors ml-2 flex-shrink-0"
                                     aria-label="Remove product"
                                     title="Remove product"
                                   >
@@ -2247,7 +2281,7 @@ export default function ProductSheetPage() {
                         return row.isAdded !== true; // Show custom products that are not added to ribbon
                       });
                       const hasIncompleteProducts = incompleteProducts.length > 0 || incompleteCustomProducts.length > 0;
-                      
+
                       if (!hasIncompleteProducts) {
                         if (newEnquirySelectedProductIds.length === 0 && customProductRows.length === 0) {
                           return (
@@ -2276,7 +2310,7 @@ export default function ProductSheetPage() {
                         }
                         return null;
                       }
-                      
+
                       return (
                         <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden flex flex-col" style={{ maxHeight: '400px' }}>
                           <div className="overflow-y-auto overflow-x-auto flex-1">
@@ -2287,14 +2321,14 @@ export default function ProductSheetPage() {
                                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
                                     Name
                                   </th>
-                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600" style={{ width: '100px', minWidth: '100px', maxWidth: '120px' }}>
                                     Quantity
                                   </th>
                                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
                                     Unit
                                   </th>
-                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600">
-                                    Target Unit Price
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600" style={{ width: '120px', minWidth: '120px', maxWidth: '140px' }}>
+                                    Target Price
                                   </th>
                                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                                     Action
@@ -2310,9 +2344,8 @@ export default function ProductSheetPage() {
                                   return (
                                     <tr
                                       key={productId}
-                                      className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                                        index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
-                                      }`}
+                                      className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
+                                        }`}
                                     >
                                       {/* Name Column */}
                                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-600">
@@ -2321,9 +2354,9 @@ export default function ProductSheetPage() {
                                             <p className="font-medium">
                                               {product.displayName || product.category || 'Unnamed Product'}
                                             </p>
-                                            {product.category && (
+                                            {/* {product.category && (
                                               <p className="text-xs text-gray-400 mt-0.5">{product.category}</p>
-                                            )}
+                                            )} */}
                                           </div>
                                           <div className="flex items-center gap-1">
                                             {/* Detail Icon */}
@@ -2377,7 +2410,7 @@ export default function ProductSheetPage() {
                                         </div>
                                       </td>
                                       {/* Quantity Column */}
-                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600" style={{ width: '100px', minWidth: '100px', maxWidth: '120px' }}>
                                         <input
                                           type="number"
                                           min="0"
@@ -2404,7 +2437,7 @@ export default function ProductSheetPage() {
                                         </select>
                                       </td>
                                       {/* Target Price Column */}
-                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600" style={{ width: '120px', minWidth: '120px', maxWidth: '140px' }}>
                                         <input
                                           type="number"
                                           min="0"
@@ -2448,93 +2481,69 @@ export default function ProductSheetPage() {
                                   return (
                                     <tr
                                       key={row.id}
-                                      className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                                        totalIndex % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
-                                      }`}
+                                      className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${totalIndex % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'
+                                        }`}
                                     >
                                       {/* Name Column */}
                                       <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex-1 relative">
                                           <input
                                             type="text"
                                             value={row.name}
                                             onChange={(e) => handleCustomProductChange(row.id, 'name', e.target.value)}
                                             placeholder="Enter product name"
-                                            className="flex-1 px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
+                                            className="w-full px-2 py-1.5 pr-16 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
                                           />
-                                          <div className="flex items-center gap-1">
-                                            {/* AI Icon */}
-                                            <button
-                                              type="button"
-                                              onClick={() => handleOpenAIForCustomProduct(row.id)}
-                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-teal-500 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-400/10 rounded transition-colors"
-                                              aria-label="Generate with AI"
-                                              title="Generate with AI"
+                                          {/* AI Icon inside input */}
+                                          <button
+                                            type="button"
+                                            onClick={() => handleOpenAIForCustomProduct(row.id)}
+                                            className="absolute right-9 top-1/2 -translate-y-1/2 p-1 text-gray-400 dark:text-gray-500 hover:text-teal-500 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-400/10 rounded transition-colors"
+                                            aria-label="Generate with AI"
+                                            title="Generate with AI"
+                                          >
+                                            <svg
+                                              width="16"
+                                              height="16"
+                                              viewBox="0 0 24 24"
+                                              fill="none"
+                                              stroke="currentColor"
+                                              strokeWidth="2"
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
                                             >
-                                              <svg
-                                                width="16"
-                                                height="16"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                              >
-                                                <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                                              </svg>
-                                            </button>
-                                            {/* Detail Icon */}
-                                            <button
-                                              type="button"
-                                              onClick={() => handleViewProductSpecifications(undefined, row.id)}
-                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-400/10 rounded transition-colors"
-                                              aria-label="View details"
-                                              title="View details"
+                                              <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                            </svg>
+                                          </button>
+                                          {/* View Icon inside input */}
+                                          <button
+                                            type="button"
+                                            onClick={() => handleViewProductSpecifications(undefined, row.id)}
+                                            className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-400/10 rounded transition-colors"
+                                            aria-label="View details"
+                                            title="View details"
+                                          >
+                                            <svg
+                                              width="16"
+                                              height="16"
+                                              viewBox="0 0 24 24"
+                                              fill="none"
+                                              stroke="currentColor"
+                                              strokeWidth="2"
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
                                             >
-                                              <svg
-                                                width="16"
-                                                height="16"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                              >
-                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                                <polyline points="14 2 14 8 20 8"></polyline>
-                                                <line x1="16" y1="13" x2="8" y2="13"></line>
-                                                <line x1="16" y1="17" x2="8" y2="17"></line>
-                                              </svg>
-                                            </button>
-                                            {/* Remove Icon */}
-                                            <button
-                                              type="button"
-                                              onClick={() => handleRemoveCustomRow(row.id)}
-                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-400/10 rounded transition-colors"
-                                              aria-label="Remove row"
-                                              title="Remove row"
-                                            >
-                                              <svg
-                                                width="16"
-                                                height="16"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                              >
-                                                <line x1="18" y1="6" x2="6" y2="18"></line>
-                                                <line x1="6" y1="6" x2="18" y2="18"></line>
-                                              </svg>
-                                            </button>
-                                          </div>
+                                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                              <polyline points="14 2 14 8 20 8"></polyline>
+                                              <line x1="16" y1="13" x2="8" y2="13"></line>
+                                              <line x1="16" y1="17" x2="8" y2="17"></line>
+                                              <line x1="10" y1="9" x2="8" y2="9"></line>
+                                            </svg>
+                                          </button>
                                         </div>
                                       </td>
                                       {/* Quantity Column */}
-                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600" style={{ width: '100px', minWidth: '100px', maxWidth: '120px' }}>
                                         <input
                                           type="number"
                                           min="0"
@@ -2561,7 +2570,7 @@ export default function ProductSheetPage() {
                                         </select>
                                       </td>
                                       {/* Target Price Column */}
-                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600">
+                                      <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-600" style={{ width: '120px', minWidth: '120px', maxWidth: '140px' }}>
                                         <input
                                           type="number"
                                           min="0"
@@ -2572,29 +2581,54 @@ export default function ProductSheetPage() {
                                           className="w-full px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-teal-500"
                                         />
                                       </td>
-                                      {/* Action Column - Add Button */}
+                                      {/* Action Column - Add and Delete Buttons */}
                                       <td className="px-4 py-3">
-                                        <button
-                                          type="button"
-                                          onClick={() => handleAddCustomProductToRibbon(row.id)}
-                                          className="px-3 py-1.5 text-xs font-medium text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-400/10 hover:bg-teal-100 dark:hover:bg-teal-400/20 border border-teal-200 dark:border-teal-700 rounded-lg transition-colors flex items-center gap-1"
-                                          title="Add to ribbon"
-                                        >
-                                          <svg
-                                            width="14"
-                                            height="14"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleAddCustomProductToRibbon(row.id)}
+                                            className="px-3 py-1.5 text-xs font-medium text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-400/10 hover:bg-teal-100 dark:hover:bg-teal-400/20 border border-teal-200 dark:border-teal-700 rounded-lg transition-colors flex items-center gap-1"
+                                            title="Add to ribbon"
                                           >
-                                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                                          </svg>
-                                          Add
-                                        </button>
+                                            <svg
+                                              width="14"
+                                              height="14"
+                                              viewBox="0 0 24 24"
+                                              fill="none"
+                                              stroke="currentColor"
+                                              strokeWidth="2"
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                            >
+                                              <line x1="12" y1="5" x2="12" y2="19"></line>
+                                              <line x1="5" y1="12" x2="19" y2="12"></line>
+                                            </svg>
+                                            Add
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRemoveCustomRow(row.id)}
+                                            className="p-1.5 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-400/10 hover:bg-red-100 dark:hover:bg-red-400/20 border border-red-200 dark:border-red-700 rounded-lg transition-colors"
+                                            title="Delete"
+                                            aria-label="Delete"
+                                          >
+                                            <svg
+                                              width="16"
+                                              height="16"
+                                              viewBox="0 0 24 24"
+                                              fill="none"
+                                              stroke="currentColor"
+                                              strokeWidth="2"
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                            >
+                                              <polyline points="3 6 5 6 21 6"></polyline>
+                                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                              <line x1="10" y1="11" x2="10" y2="17"></line>
+                                              <line x1="14" y1="11" x2="14" y2="17"></line>
+                                            </svg>
+                                          </button>
+                                        </div>
                                       </td>
                                     </tr>
                                   );
@@ -2710,16 +2744,16 @@ export default function ProductSheetPage() {
 
       {/* New Enquiry Product Selection Modal */}
       {isNewEnquiryProductModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={handleCloseNewEnquiryProductModal}
         >
-          <div 
-            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col"
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-2">
                 <svg
                   width="20"
@@ -2743,7 +2777,7 @@ export default function ProductSheetPage() {
               </div>
               <button
                 onClick={handleCloseNewEnquiryProductModal}
-                className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
                 <svg
                   width="20"
@@ -2762,38 +2796,131 @@ export default function ProductSheetPage() {
             </div>
 
             {/* Modal Body - Product List */}
-            <div className="flex-1 overflow-y-auto px-4 py-3">
+            <div className="flex-1 overflow-y-auto px-6 py-4">
               {productSheetItems.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                  <p>No products available in your product sheet.</p>
+                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                  <svg
+                    width="64"
+                    height="64"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="mx-auto mb-4 text-gray-400"
+                  >
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <polyline points="21 15 16 10 5 21"></polyline>
+                  </svg>
+                  <p className="text-lg font-medium mb-1">No products available</p>
+                  <p className="text-sm">Add products to your product sheet first</p>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-4">
                   {productSheetItems.map((product) => {
                     const isSelected = newEnquirySelectedProductIds.includes(product._id || '');
+                    const imageLink = product.userAttributes?.image_link || product.userAttributes?.Image_Attachment || '';
+                    const specifications: string[] = [];
+                    if (product.userAttributes) {
+                      Object.entries(product.userAttributes).forEach(([key, value]) => {
+                        if (value !== '' && value !== 0 && value !== null) {
+                          if (Array.isArray(value)) {
+                            specifications.push(`${key}: ${value.join(', ')}`);
+                          } else {
+                            specifications.push(`${key}: ${value}`);
+                          }
+                        }
+                      });
+                    }
                     return (
                       <div
                         key={product._id}
-                        className="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-3 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                        className="flex items-start gap-4 p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                              {product.displayName || product.category || 'Unnamed Product'}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">AI Generated</p>
+                        {/* Product Image */}
+                        <div className="flex-shrink-0">
+                          {imageLink ? (
+                            <img
+                              src={imageLink}
+                              alt={product.displayName || 'Product'}
+                              className="w-24 h-24 object-cover rounded-lg"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = '/placeholder-product.jpg';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-24 h-24 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                              <svg
+                                width="32"
+                                height="32"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="text-gray-400 dark:text-gray-500"
+                              >
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                <polyline points="21 15 16 10 5 21"></polyline>
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Product Details */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              {/* Category */}
+                              {product.category && (
+                                <span className="inline-block px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full mb-2">
+                                  {product.category.toUpperCase()}
+                                </span>
+                              )}
+
+                              {/* Product Name */}
+                              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
+                                {product.displayName || 'Unnamed Product'}
+                              </h3>
+
+                              {/* Specifications */}
+                              {specifications.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                  {specifications.slice(0, 5).map((spec, index) => (
+                                    <span
+                                      key={index}
+                                      className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded"
+                                    >
+                                      {spec}
+                                    </span>
+                                  ))}
+                                  {specifications.length > 5 && (
+                                    <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
+                                      +{specifications.length - 5} more
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Add Button */}
+                            <div className="flex-shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleNewEnquiryProductSelection(product._id || '')}
+                                className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${isSelected
+                                  ? 'bg-teal-700 dark:bg-teal-800 text-teal-400 dark:text-teal-300 border-teal-400 dark:border-teal-500 hover:bg-teal-600 dark:hover:bg-teal-700'
+                                  : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
+                                  }`}
+                              >
+                                {isSelected ? 'Added' : '+ Add'}
+                              </button>
+                            </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleNewEnquiryProductSelection(product._id || '')}
-                            className={`ml-3 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                              isSelected
-                                ? 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-500'
-                                : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
-                            }`}
-                          >
-                            {isSelected ? 'Added' : '+ Add'}
-                          </button>
                         </div>
                       </div>
                     );
@@ -2803,11 +2930,11 @@ export default function ProductSheetPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
               <button
                 type="button"
                 onClick={handleDoneNewEnquiryProductSelection}
-                className="w-full px-4 py-2 text-sm font-medium text-gray-900 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                className="px-6 py-2 text-sm font-medium bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors"
               >
                 Done
               </button>
@@ -2818,11 +2945,11 @@ export default function ProductSheetPage() {
 
       {/* Generate Product with AI Modal */}
       {isGenerateProductModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={handleCloseGenerateProductModal}
         >
-          <div 
+          <div
             className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full h-[80vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -3032,11 +3159,11 @@ export default function ProductSheetPage() {
 
       {/* Shipping Address Selection Modal */}
       {isShippingAddressModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={() => setIsShippingAddressModalOpen(false)}
         >
-          <div 
+          <div
             className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
@@ -3117,7 +3244,7 @@ export default function ProductSheetPage() {
                   No saved shipping addresses found.
                 </p>
               )}
-              
+
               <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                 <label className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition-colors">
                   <input
@@ -3125,19 +3252,8 @@ export default function ProductSheetPage() {
                     name="shippingAddressModal"
                     checked={useNewShippingAddress}
                     onChange={() => {
-                      setUseNewShippingAddress(true);
-                      setSelectedShippingAddressIndex(null);
-                      setShippingAddress({
-                        addressLine1: '',
-                        addressLine2: '',
-                        city: '',
-                        state: '',
-                        zipCode: '',
-                        country: '',
-                        phone: '',
-                        email: '',
-                      });
                       setIsShippingAddressModalOpen(false);
+                      router.push('/profile#shipping-address');
                     }}
                     className="w-4 h-4 text-teal-500 border-gray-300 dark:border-gray-600 focus:ring-teal-500"
                   />
@@ -3151,11 +3267,11 @@ export default function ProductSheetPage() {
 
       {/* Billing Address Selection Modal */}
       {isBillingAddressModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={() => setIsBillingAddressModalOpen(false)}
         >
-          <div 
+          <div
             className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
@@ -3236,7 +3352,7 @@ export default function ProductSheetPage() {
                   No saved billing addresses found.
                 </p>
               )}
-              
+
               <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                 <label className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition-colors">
                   <input
@@ -3244,19 +3360,8 @@ export default function ProductSheetPage() {
                     name="billingAddressModal"
                     checked={useNewBillingAddress}
                     onChange={() => {
-                      setUseNewBillingAddress(true);
-                      setSelectedBillingAddressIndex(null);
-                      setBillingAddress({
-                        addressLine1: '',
-                        addressLine2: '',
-                        city: '',
-                        state: '',
-                        zipCode: '',
-                        country: '',
-                        phone: '',
-                        email: '',
-                      });
                       setIsBillingAddressModalOpen(false);
+                      router.push('/profile#billing-address');
                     }}
                     className="w-4 h-4 text-teal-500 border-gray-300 dark:border-gray-600 focus:ring-teal-500"
                   />
@@ -3270,11 +3375,11 @@ export default function ProductSheetPage() {
 
       {/* Product List AI Generation Modal */}
       {isProductListAIModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={handleCloseProductListAIModal}
         >
-          <div 
+          <div
             className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -3377,11 +3482,11 @@ export default function ProductSheetPage() {
                               Array.isArray(productListAISpecFormData[field.label])
                                 ? (productListAISpecFormData[field.label] as string[])
                                 : productListAISpecFormData[field.label]
-                                ? String(productListAISpecFormData[field.label])
+                                  ? String(productListAISpecFormData[field.label])
                                     .split(',')
                                     .map((v) => v.trim())
                                     .filter((v) => v.length > 0)
-                                : []
+                                  : []
                             }
                             onChange={(value) => handleProductListAISpecInputChange(field.label, value)}
                             options={[]}
@@ -3422,12 +3527,12 @@ export default function ProductSheetPage() {
 
       {/* View Product Specifications Modal */}
       {isViewSpecModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={() => setIsViewSpecModalOpen(false)}
         >
-          <div 
-            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -3455,11 +3560,11 @@ export default function ProductSheetPage() {
                     Product Description
                   </h2>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
-                    {viewSpecProductId 
+                    {viewSpecProductId
                       ? (productSheetItems.find(p => p._id === viewSpecProductId)?.displayName || 'Product')
-                      : (viewSpecRowId 
-                          ? (customProductRows.find(r => r.id === viewSpecRowId)?.name || 'Custom Product')
-                          : 'Product')}
+                      : (viewSpecRowId
+                        ? (customProductRows.find(r => r.id === viewSpecRowId)?.name || 'Custom Product')
+                        : 'Product')}
                   </p>
                 </div>
               </div>
@@ -3488,11 +3593,11 @@ export default function ProductSheetPage() {
             <div className="flex-1 overflow-y-auto px-6 py-4">
               {(() => {
                 // Get specifications from local state first
-                let specs = viewSpecProductId 
+                let specs = viewSpecProductId
                   ? productSpecifications[viewSpecProductId]
                   : viewSpecRowId
-                  ? customProductSpecifications[viewSpecRowId]
-                  : null;
+                    ? customProductSpecifications[viewSpecRowId]
+                    : null;
 
                 // If no local specs and it's a product, try to get from product's userAttributes
                 if (!specs && viewSpecProductId) {
@@ -3539,13 +3644,13 @@ export default function ProductSheetPage() {
                 }
 
                 return (
-                  <div className="space-y-4">
+                  <div className="grid grid-cols-4 gap-4">
                     {Object.entries(specs).map(([key, value]) => (
-                      <div key={key} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <div key={key} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-200 dark:border-gray-600 h-32">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 truncate">
                           {key}
                         </label>
-                        <div className="text-sm text-gray-900 dark:text-gray-100">
+                        <div className="text-sm text-gray-900 dark:text-gray-100 overflow-y-auto h-20">
                           {Array.isArray(value) ? (
                             value.length > 0 ? (
                               <div className="flex flex-wrap gap-2">
@@ -3562,7 +3667,7 @@ export default function ProductSheetPage() {
                               <span className="text-gray-400 dark:text-gray-500 italic">Not specified</span>
                             )
                           ) : value !== '' && value !== 0 && value !== null && value !== undefined ? (
-                            <span>{String(value)}</span>
+                            <span className="break-words">{String(value)}</span>
                           ) : (
                             <span className="text-gray-400 dark:text-gray-500 italic">Not specified</span>
                           )}
@@ -3589,11 +3694,11 @@ export default function ProductSheetPage() {
 
       {/* Description Modal */}
       {isDescriptionModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           onClick={() => setIsDescriptionModalOpen(false)}
         >
-          <div 
+          <div
             className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -3647,6 +3752,6 @@ export default function ProductSheetPage() {
           </div>
         </div>
       )}
-      </>
+    </>
   );
 }

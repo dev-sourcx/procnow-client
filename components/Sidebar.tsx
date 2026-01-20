@@ -164,8 +164,7 @@ export default function Sidebar({
         }`}
       >
         <div className="flex h-full flex-col">
-          {/* New Chat Button - only show when user is logged in */}
-          {currentUser && (
+          {/* New Chat Button - show in both login and logout state */}
             <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
               <button
                 onClick={onNewChat}
@@ -187,11 +186,12 @@ export default function Sidebar({
                 New Chat
               </button>
             </div>
-          )}
 
           <div className="flex-1 flex flex-col gap-1 overflow-y-auto px-3 py-4">
             {/* Navigation Links */}
             <div className="flex flex-col gap-1">
+              {/* Discover Products - only show when logged in */}
+              {currentUser && (
               <div>
                 <button
                   onClick={handleChatClick}
@@ -216,7 +216,7 @@ export default function Sidebar({
                     </svg>
                     Discover Products
                   </div>
-                  {currentUser && sessions.length > 0 && (
+                    {sessions.length > 0 && (
                     <svg
                       width="16"
                       height="16"
@@ -233,7 +233,7 @@ export default function Sidebar({
                   )}
                 </button>
                 {/* Chat Sessions Dropdown */}
-                {isChatDropdownOpen && currentUser && sessions.length > 0 && (
+                  {isChatDropdownOpen && sessions.length > 0 && (
                   <div className="mt-1 ml-3 pl-3 border-l-2 border-gray-200 dark:border-gray-700 flex flex-col gap-1 max-h-64 overflow-y-auto">
                     {sessions.map((session) => (
                       <div
@@ -290,6 +290,7 @@ export default function Sidebar({
                   </div>
                 )}
               </div>
+              )}
               {currentUser && (
                 <div>
                   <button
@@ -311,11 +312,9 @@ export default function Sidebar({
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       >
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                        <line x1="16" y1="17" x2="8" y2="17"></line>
-                        <polyline points="10 9 9 9 8 9"></polyline>
+                        <circle cx="9" cy="21" r="1"></circle>
+                        <circle cx="20" cy="21" r="1"></circle>
+                        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
                       </svg>
                       My Cart
                     </div>

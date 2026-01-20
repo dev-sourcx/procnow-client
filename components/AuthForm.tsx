@@ -130,7 +130,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
       // Get Google OAuth URL with phone in state parameter
       setGoogleLoading(true);
       const authUrl = await getGoogleAuthUrl('/auth/google/success', fullPhoneNumber);
-      
+
       if (authUrl) {
         // Close modal and redirect to Google OAuth in the same tab
         setShowPhoneModal(false);
@@ -172,7 +172,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
         setIsSubmitting(false);
         return;
       }
-      
+
       // For login success, proceed as before
       if (isLogin) {
         // Mark that user came from login to prevent beforeunload from clearing guest session
@@ -216,7 +216,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
             <div className="flex-1"></div>
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-white flex-1">{title}</h1>
             <div className="flex-1 flex justify-end">
-              <button 
+              <button
                 onClick={toggleTheme}
                 className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                 aria-label="Toggle theme"
@@ -264,67 +264,67 @@ export default function AuthForm({ mode }: AuthFormProps) {
 
         {!isOtpStep ? (
           <form onSubmit={handleSubmit} className="space-y-4">
-          {!isLogin && (
+            {!isLogin && (
+              <div>
+                <label className="mb-1 block text-sm text-gray-700 dark:text-gray-300" htmlFor="name">
+                  Name
+                </label>
+                <input
+                  id="name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Your full name"
+                  required
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-[rgb(19,25,33)] px-3 py-2 text-gray-900 dark:text-white outline-none transition focus:border-gray-500 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                />
+              </div>
+            )}
+
             <div>
-              <label className="mb-1 block text-sm text-gray-700 dark:text-gray-300" htmlFor="name">
-                Name
+              <label className="mb-1 block text-sm text-gray-700 dark:text-gray-300" htmlFor="email">
+                Email
               </label>
               <input
-                id="name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Your full name"
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
                 required
                 className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-[rgb(19,25,33)] px-3 py-2 text-gray-900 dark:text-white outline-none transition focus:border-gray-500 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
               />
             </div>
-          )}
 
-          <div>
-            <label className="mb-1 block text-sm text-gray-700 dark:text-gray-300" htmlFor="email">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-[rgb(19,25,33)] px-3 py-2 text-gray-900 dark:text-white outline-none transition focus:border-gray-500 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
-            />
-          </div>
+            <div>
+              <label className="mb-1 block text-sm text-gray-700 dark:text-gray-300" htmlFor="password">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-[rgb(19,25,33)] px-3 py-2 text-gray-900 dark:text-white outline-none transition focus:border-gray-500 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+              />
+            </div>
 
-          <div>
-            <label className="mb-1 block text-sm text-gray-700 dark:text-gray-300" htmlFor="password">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-[rgb(19,25,33)] px-3 py-2 text-gray-900 dark:text-white outline-none transition focus:border-gray-500 dark:focus:border-gray-500 placeholder:text-gray-400 dark:placeholder:text-gray-500"
-            />
-          </div>
+            {error && (
+              <p className="text-sm text-red-400" role="alert">
+                {error}
+              </p>
+            )}
 
-          {error && (
-            <p className="text-sm text-red-400" role="alert">
-              {error}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="flex w-full items-center justify-center rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? (isLogin ? 'Logging in...' : 'Creating account...') : isLogin ? 'Log in' : 'Create account'}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex w-full items-center justify-center rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? (isLogin ? 'Logging in...' : 'Creating account...') : isLogin ? 'Log in' : 'Create account'}
+            </button>
+          </form>
         ) : (
           <form
             onSubmit={async (e) => {
@@ -424,7 +424,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
           disabled={googleLoading || isSubmitting}
           className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-[rgb(19,25,33)] px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-white transition hover:bg-gray-50 dark:hover:bg-[rgb(25,31,41)] disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <div className="w-5 h-5 flex-shrink-0 bg-white rounded flex items-center justify-center p-0.5">
+          <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
             <svg className="w-full h-full" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
@@ -542,9 +542,9 @@ export default function AuthForm({ mode }: AuthFormProps) {
                 <button
                   type="submit"
                   disabled={googleLoading}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-indigo-500 px-3 py-2 text-xs font-medium text-white transition hover:bg-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap min-w-0"
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-indigo-800 px-3 py-2 text-xs font-medium text-white transition hover:bg-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap min-w-0"
                 >
-                  <div className="w-4 h-4 flex-shrink-0 bg-white rounded flex items-center justify-center p-0.5">
+                  <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
                     <svg className="w-full h-full" viewBox="0 0 24 24">
                       <path
                         fill="#4285F4"

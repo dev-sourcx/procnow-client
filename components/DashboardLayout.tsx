@@ -14,15 +14,15 @@ interface DashboardLayoutProps {
   navbarContent?: React.ReactNode;
 }
 
-export default function DashboardLayout({ 
-  children, 
+export default function DashboardLayout({
+  children,
   showNavbar = true,
-  navbarContent 
+  navbarContent
 }: DashboardLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
-  
+
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -61,7 +61,7 @@ export default function DashboardLayout({
       const token = getAuthToken();
       // Check if user came from login (stored in localStorage)
       const cameFromLogin = localStorage.getItem('came_from_login') === 'true';
-      
+
       // Only clear guest session if:
       // 1. User is not authenticated
       // 2. User did not come from login
@@ -98,10 +98,10 @@ export default function DashboardLayout({
       try {
         const user = await getCurrentUser(token);
         setCurrentUser(user);
-        
+
         // Clear the came_from_login flag since user is now authenticated
         localStorage.removeItem('came_from_login');
-        
+
         // If successful, load sessions from backend
         try {
           const backendSessions = await getChatSessions(token);
@@ -113,7 +113,7 @@ export default function DashboardLayout({
             updatedAt: new Date(s.updatedAt).getTime(),
           }));
           setSessions(convertedSessions);
-          
+
           // If there is a guest session from before login, prefer showing that first
           const guestSession = getGuestSession();
           if (guestSession) {
@@ -159,7 +159,7 @@ export default function DashboardLayout({
       // If authenticated, just clear current session
       setCurrentSessionId(null);
     }
-    
+
     // Clear sessionStorage
     if (typeof window !== 'undefined') {
       try {
@@ -172,7 +172,7 @@ export default function DashboardLayout({
       } catch {
       }
     }
-    
+
     router.push('/');
   };
 
@@ -193,7 +193,7 @@ export default function DashboardLayout({
   const handleSessionDelete = async (sessionId: string) => {
     // Remove from local state
     setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-    
+
     // If deleted session was current, clear it
     if (currentSessionId === sessionId) {
       setCurrentSessionId(null);
@@ -235,7 +235,7 @@ export default function DashboardLayout({
         <div className="flex flex-col items-center justify-center relative">
           {/* Rotating Ring */}
           <div className="absolute w-24 h-24 border-4 border-transparent border-t-teal-600 dark:border-t-teal-400 rounded-full animate-ring"></div>
-          
+
           {/* Letter P with Animation */}
           <div className="relative z-10">
             <span className="text-6xl font-bold text-teal-600 dark:text-teal-400 animate-letter-p inline-block">P</span>
@@ -320,7 +320,7 @@ export default function DashboardLayout({
                 </div>
                 <div className="flex items-center gap-3">
                   {/* Filters Toggle Button - Only show when filters are available */}
-                  {hasFilters && (
+                  {/* {hasFilters && (
                     <button
                       type="button"
                       onClick={() => {
@@ -334,8 +334,8 @@ export default function DashboardLayout({
                       <img src={filterLogo.src} alt="Filters" className="w-4 h-4 brightness-0 invert" />
                       <span>Filters</span>
                     </button>
-                  )}
-                  <button 
+                  )} */}
+                  <button
                     onClick={toggleTheme}
                     className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                     aria-label="Toggle theme"
@@ -384,7 +384,7 @@ export default function DashboardLayout({
                 <div className="text-gray-700 dark:text-gray-300 font-medium">
                   {navbarContent || `Welcome, ${currentUser?.name || 'Client'}`}
                 </div>
-                <button 
+                <button
                   onClick={toggleTheme}
                   className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                   aria-label="Toggle theme"
