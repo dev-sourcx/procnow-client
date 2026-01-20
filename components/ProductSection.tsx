@@ -10,8 +10,8 @@ interface ProductSectionProps {
 
 export default function ProductSection({ products }: ProductSectionProps) {
   const [showAll, setShowAll] = useState(false);
-  const INITIAL_DISPLAY_COUNT = 4;
-  
+  const INITIAL_DISPLAY_COUNT = 5;
+
   // Show all products if showAll is true, otherwise show first INITIAL_DISPLAY_COUNT
   const displayProducts = showAll ? products : products.slice(0, INITIAL_DISPLAY_COUNT);
   const hasMoreProducts = products.length > INITIAL_DISPLAY_COUNT;
@@ -27,7 +27,7 @@ export default function ProductSection({ products }: ProductSectionProps) {
     ];
 
     const mock = mockPrices[index % mockPrices.length];
-    
+
     // Try to extract price from dynamic_attributes if available
     const priceFromAttrs = product.dynamic_attributes?.['Price'];
     if (priceFromAttrs) {
@@ -47,7 +47,7 @@ export default function ProductSection({ products }: ProductSectionProps) {
   return (
     <div className="w-full px-4 py-6">
       <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           {displayProducts.map((product, index) => {
             const pricing = getProductPricing(product, index);
             return (
@@ -61,7 +61,7 @@ export default function ProductSection({ products }: ProductSectionProps) {
             );
           })}
         </div>
-        
+
         {/* View More / View Less Button */}
         {hasMoreProducts && (
           <div className="flex justify-center mt-6">

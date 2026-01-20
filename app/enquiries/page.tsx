@@ -104,6 +104,7 @@ export default function EnquiriesPage() {
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [isNewEnquiryProductModalOpen, setIsNewEnquiryProductModalOpen] = useState(false);
   const [newEnquirySelectedProductIds, setNewEnquirySelectedProductIds] = useState<string[]>([]);
+  const [newEnquiryProductSearchQuery, setNewEnquiryProductSearchQuery] = useState('');
   const [enquiryProductsUpdate, setEnquiryProductsUpdate] = useState(0);
   const [isGenerateProductModalOpen, setIsGenerateProductModalOpen] = useState(false);
   const [productKeyword, setProductKeyword] = useState('');
@@ -162,6 +163,7 @@ export default function EnquiriesPage() {
   const [isUpdatingEnquiry, setIsUpdatingEnquiry] = useState(false);
   const [editEnquirySelectedProductIds, setEditEnquirySelectedProductIds] = useState<string[]>([]);
   const [isEditEnquiryProductModalOpen, setIsEditEnquiryProductModalOpen] = useState(false);
+  const [editEnquiryProductSearchQuery, setEditEnquiryProductSearchQuery] = useState('');
   // Edit enquiry address selection state
   const [editSelectedShippingAddressIndex, setEditSelectedShippingAddressIndex] = useState<number | null>(null);
   const [editSelectedBillingAddressIndex, setEditSelectedBillingAddressIndex] = useState<number | null>(null);
@@ -875,6 +877,7 @@ export default function EnquiriesPage() {
 
   const handleCloseNewEnquiryProductModal = () => {
     setIsNewEnquiryProductModalOpen(false);
+    setNewEnquiryProductSearchQuery('');
   };
 
   const handleToggleNewEnquiryProductSelection = (productId: string) => {
@@ -889,6 +892,7 @@ export default function EnquiriesPage() {
 
   const handleDoneNewEnquiryProductSelection = () => {
     setIsNewEnquiryProductModalOpen(false);
+    setNewEnquiryProductSearchQuery('');
   };
 
   const handleCloseGenerateProductModal = () => {
@@ -2055,6 +2059,7 @@ export default function EnquiriesPage() {
 
   const handleDoneEditEnquiryProductSelection = () => {
     setIsEditEnquiryProductModalOpen(false);
+    setEditEnquiryProductSearchQuery('');
   };
 
   const handleSendEnquiry = async (e: React.FormEvent) => {
@@ -4306,7 +4311,7 @@ export default function EnquiriesPage() {
                                           <button
                                             type="button"
                                             onClick={() => handleOpenAIForCustomProduct(row.id)}
-                                            className="absolute right-9 top-1/2 -translate-y-1/2 p-1 text-gray-400 dark:text-gray-500 hover:text-teal-500 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-400/10 rounded transition-colors"
+                                            className="absolute right-9 top-1/2 -translate-y-1/2 p-1 hover:bg-pink-50 dark:hover:bg-pink-400/10 rounded transition-colors"
                                             aria-label="Generate with AI"
                                             title="Generate with AI"
                                           >
@@ -4315,11 +4320,17 @@ export default function EnquiriesPage() {
                                               height="16"
                                               viewBox="0 0 24 24"
                                               fill="none"
-                                              stroke="currentColor"
+                                              stroke="url(#pinkTealGradient)"
                                               strokeWidth="2"
                                               strokeLinecap="round"
                                               strokeLinejoin="round"
                                             >
+                                              <defs>
+                                                <linearGradient id="pinkTealGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                  <stop offset="0%" stopColor="#f472b6" />
+                                                  <stop offset="100%" stopColor="#5eead4" />
+                                                </linearGradient>
+                                              </defs>
                                               <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                                             </svg>
                                           </button>
@@ -5099,7 +5110,7 @@ export default function EnquiriesPage() {
                                             <button
                                               type="button"
                                               onClick={() => handleOpenAIForProduct(productId)}
-                                              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-teal-500 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-400/10 rounded transition-colors"
+                                              className="p-1.5 hover:bg-pink-50 dark:hover:bg-pink-400/10 rounded transition-colors"
                                               aria-label="Generate with AI"
                                               title="Generate with AI"
                                             >
@@ -5108,11 +5119,17 @@ export default function EnquiriesPage() {
                                                 height="16"
                                                 viewBox="0 0 24 24"
                                                 fill="none"
-                                                stroke="currentColor"
+                                                stroke="url(#pinkTealGradientProduct)"
                                                 strokeWidth="2"
                                                 strokeLinecap="round"
                                                 strokeLinejoin="round"
                                               >
+                                                <defs>
+                                                  <linearGradient id="pinkTealGradientProduct" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                    <stop offset="0%" stopColor="#f472b6" />
+                                                    <stop offset="100%" stopColor="#5eead4" />
+                                                  </linearGradient>
+                                                </defs>
                                                 <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                                               </svg>
                                             </button>
@@ -5255,7 +5272,7 @@ export default function EnquiriesPage() {
                                           <button
                                             type="button"
                                             onClick={() => handleOpenAIForCustomProduct(row.id)}
-                                            className="absolute right-9 top-1/2 -translate-y-1/2 p-1 text-gray-400 dark:text-gray-500 hover:text-teal-500 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-400/10 rounded transition-colors"
+                                            className="absolute right-9 top-1/2 -translate-y-1/2 p-1 hover:bg-pink-50 dark:hover:bg-pink-400/10 rounded transition-colors"
                                             aria-label="Generate with AI"
                                             title="Generate with AI"
                                           >
@@ -5264,11 +5281,17 @@ export default function EnquiriesPage() {
                                               height="16"
                                               viewBox="0 0 24 24"
                                               fill="none"
-                                              stroke="currentColor"
+                                              stroke="url(#pinkTealGradient)"
                                               strokeWidth="2"
                                               strokeLinecap="round"
                                               strokeLinejoin="round"
                                             >
+                                              <defs>
+                                                <linearGradient id="pinkTealGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                  <stop offset="0%" stopColor="#f472b6" />
+                                                  <stop offset="100%" stopColor="#5eead4" />
+                                                </linearGradient>
+                                              </defs>
                                               <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                                             </svg>
                                           </button>
@@ -5503,10 +5526,13 @@ export default function EnquiriesPage() {
       {isEditEnquiryProductModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-          onClick={() => setIsEditEnquiryProductModalOpen(false)}
+          onClick={() => {
+            setIsEditEnquiryProductModalOpen(false);
+            setEditEnquiryProductSearchQuery('');
+          }}
         >
           <div
-            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -5533,7 +5559,10 @@ export default function EnquiriesPage() {
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Select from Product Sheet</h3>
               </div>
               <button
-                onClick={() => setIsEditEnquiryProductModalOpen(false)}
+                onClick={() => {
+                  setIsEditEnquiryProductModalOpen(false);
+                  setEditEnquiryProductSearchQuery('');
+                }}
                 className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
                 <svg
@@ -5552,136 +5581,166 @@ export default function EnquiriesPage() {
               </button>
             </div>
 
-            {/* Modal Body - Product List */}
+            {/* Search Bar */}
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search products by name or specifications..."
+                  value={editEnquiryProductSearchQuery}
+                  onChange={(e) => setEditEnquiryProductSearchQuery(e.target.value)}
+                  className="w-full px-4 py-2 pl-10 pr-4 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                />
+                <svg
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Modal Body - Product Table */}
             <div className="flex-1 overflow-y-auto px-6 py-4">
-              {productSheetItems.length === 0 ? (
-                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                  <svg
-                    width="64"
-                    height="64"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="mx-auto mb-4 text-gray-400"
-                  >
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                    <polyline points="21 15 16 10 5 21"></polyline>
-                  </svg>
-                  <p className="text-lg font-medium mb-1">No products available</p>
-                  <p className="text-sm">Add products to your product sheet first</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {productSheetItems.map((product) => {
-                    const isSelected = editEnquirySelectedProductIds.includes(product._id || '');
-                    const imageLink = product.userAttributes?.image_link || product.userAttributes?.Image_Attachment || '';
-                    const specifications: string[] = [];
-                    if (product.userAttributes) {
-                      Object.entries(product.userAttributes).forEach(([key, value]) => {
-                        if (value !== '' && value !== 0 && value !== null) {
-                          if (Array.isArray(value)) {
-                            specifications.push(`${key}: ${value.join(', ')}`);
-                          } else {
-                            specifications.push(`${key}: ${value}`);
-                          }
+              {(() => {
+                // Filter products based on search query
+                const filteredProducts = productSheetItems.filter((product) => {
+                  if (!editEnquiryProductSearchQuery.trim()) return true;
+
+                  const searchLower = editEnquiryProductSearchQuery.toLowerCase();
+                  const productName = (product.displayName || '').toLowerCase();
+
+                  // Check if product name matches
+                  if (productName.includes(searchLower)) return true;
+
+                  // Check if any specification matches
+                  if (product.userAttributes) {
+                    for (const [key, value] of Object.entries(product.userAttributes)) {
+                      if (value !== '' && value !== 0 && value !== null) {
+                        const keyLower = key.toLowerCase();
+                        const valueStr = Array.isArray(value) ? value.join(', ') : String(value);
+                        if (keyLower.includes(searchLower) || valueStr.toLowerCase().includes(searchLower)) {
+                          return true;
                         }
-                      });
+                      }
                     }
-                    return (
-                      <div
-                        key={product._id}
-                        className="flex items-start gap-4 p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        {/* Product Image */}
-                        <div className="flex-shrink-0">
-                          {imageLink ? (
-                            <img
-                              src={imageLink}
-                              alt={product.displayName || 'Product'}
-                              className="w-24 h-24 object-cover rounded-lg"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = '/placeholder-product.jpg';
-                              }}
-                            />
-                          ) : (
-                            <div className="w-24 h-24 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                              <svg
-                                width="32"
-                                height="32"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                className="text-gray-400 dark:text-gray-500"
-                              >
-                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                                <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                                <polyline points="21 15 16 10 5 21"></polyline>
-                              </svg>
-                            </div>
-                          )}
-                        </div>
+                  }
 
-                        {/* Product Details */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1 min-w-0">
-                              {/* Category */}
-                              {product.category && (
-                                <span className="inline-block px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full mb-2">
-                                  {product.category.toUpperCase()}
-                                </span>
-                              )}
+                  return false;
+                });
 
+                return filteredProducts.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                    <svg
+                      width="64"
+                      height="64"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="mx-auto mb-4 text-gray-400"
+                    >
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                      <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                      <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                    <p className="text-lg font-medium mb-1">
+                      {productSheetItems.length === 0 ? 'No products available' : 'No products found'}
+                    </p>
+                    <p className="text-sm">
+                      {productSheetItems.length === 0 ? 'Add products to your product sheet first' : 'Try adjusting your search query'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-gray-200 dark:border-gray-700">
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Product Name</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Specifications</th>
+                          <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Select</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {filteredProducts.map((product) => {
+                          const isSelected = editEnquirySelectedProductIds.includes(product._id || '');
+                          const specifications: string[] = [];
+                          if (product.userAttributes) {
+                            Object.entries(product.userAttributes).forEach(([key, value]) => {
+                              if (value !== '' && value !== 0 && value !== null) {
+                                // Exclude image fields from specifications
+                                const lowerKey = key.toLowerCase();
+                                if (!lowerKey.includes('image') && !lowerKey.includes('attachment')) {
+                                  if (Array.isArray(value)) {
+                                    specifications.push(`${key}: ${value.join(', ')}`);
+                                  } else {
+                                    specifications.push(`${key}: ${value}`);
+                                  }
+                                }
+                              }
+                            });
+                          }
+                          return (
+                            <tr
+                              key={product._id}
+                              className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${isSelected ? 'bg-teal-50 dark:bg-teal-900/20' : ''}`}
+                            >
                               {/* Product Name */}
-                              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
-                                {product.displayName || 'Unnamed Product'}
-                              </h3>
+                              <td className="px-4 py-3">
+                                <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                                  {product.displayName || 'Unnamed Product'}
+                                </div>
+                              </td>
 
                               {/* Specifications */}
-                              {specifications.length > 0 && (
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                  {specifications.slice(0, 5).map((spec, index) => (
-                                    <span
-                                      key={index}
-                                      className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded"
-                                    >
-                                      {spec}
-                                    </span>
-                                  ))}
-                                  {specifications.length > 5 && (
-                                    <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
-                                      +{specifications.length - 5} more
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </div>
+                              <td className="px-4 py-3">
+                                {specifications.length > 0 ? (
+                                  <div className="max-w-md">
+                                    <div className="flex flex-wrap gap-1">
+                                      {specifications.slice(0, 3).map((spec, index) => (
+                                        <span
+                                          key={index}
+                                          className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded truncate max-w-[150px]"
+                                          title={spec}
+                                        >
+                                          {spec}
+                                        </span>
+                                      ))}
+                                      {specifications.length > 3 && (
+                                        <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
+                                          +{specifications.length - 3} more
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
+                                )}
+                              </td>
 
-                            {/* Checkbox */}
-                            <div className="flex-shrink-0">
-                              <label className="flex items-center cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={() => handleToggleEditEnquiryProductSelection(product._id || '')}
-                                  className="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-teal-600 focus:ring-2 focus:ring-teal-500 focus:ring-offset-1"
-                                />
-                              </label>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                              {/* Checkbox */}
+                              <td className="px-4 py-3 text-center">
+                                <label className="flex items-center justify-center cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => handleToggleEditEnquiryProductSelection(product._id || '')}
+                                    className="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-teal-600 focus:ring-2 focus:ring-teal-500 focus:ring-offset-1"
+                                  />
+                                </label>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Modal Footer */}
@@ -5704,7 +5763,7 @@ export default function EnquiriesPage() {
           onClick={handleCloseNewEnquiryProductModal}
         >
           <div
-            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -5750,138 +5809,168 @@ export default function EnquiriesPage() {
               </button>
             </div>
 
-            {/* Modal Body - Product List */}
+            {/* Search Bar */}
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search products by name or specifications..."
+                  value={newEnquiryProductSearchQuery}
+                  onChange={(e) => setNewEnquiryProductSearchQuery(e.target.value)}
+                  className="w-full px-4 py-2 pl-10 pr-4 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                />
+                <svg
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Modal Body - Product Table */}
             <div className="flex-1 overflow-y-auto px-6 py-4">
-              {productSheetItems.length === 0 ? (
-                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                  <svg
-                    width="64"
-                    height="64"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="mx-auto mb-4 text-gray-400"
-                  >
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                    <polyline points="21 15 16 10 5 21"></polyline>
-                  </svg>
-                  <p className="text-lg font-medium mb-1">No products available</p>
-                  <p className="text-sm">Add products to your product sheet first</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {productSheetItems.map((product) => {
-                    const isSelected = newEnquirySelectedProductIds.includes(product._id || '');
-                    const imageLink = product.userAttributes?.image_link || product.userAttributes?.Image_Attachment || '';
-                    const specifications: string[] = [];
-                    if (product.userAttributes) {
-                      Object.entries(product.userAttributes).forEach(([key, value]) => {
-                        if (value !== '' && value !== 0 && value !== null) {
-                          if (Array.isArray(value)) {
-                            specifications.push(`${key}: ${value.join(', ')}`);
-                          } else {
-                            specifications.push(`${key}: ${value}`);
-                          }
+              {(() => {
+                // Filter products based on search query
+                const filteredProducts = productSheetItems.filter((product) => {
+                  if (!newEnquiryProductSearchQuery.trim()) return true;
+
+                  const searchLower = newEnquiryProductSearchQuery.toLowerCase();
+                  const productName = (product.displayName || '').toLowerCase();
+
+                  // Check if product name matches
+                  if (productName.includes(searchLower)) return true;
+
+                  // Check if any specification matches
+                  if (product.userAttributes) {
+                    for (const [key, value] of Object.entries(product.userAttributes)) {
+                      if (value !== '' && value !== 0 && value !== null) {
+                        const keyLower = key.toLowerCase();
+                        const valueStr = Array.isArray(value) ? value.join(', ') : String(value);
+                        if (keyLower.includes(searchLower) || valueStr.toLowerCase().includes(searchLower)) {
+                          return true;
                         }
-                      });
+                      }
                     }
-                    return (
-                      <div
-                        key={product._id}
-                        className="flex items-start gap-4 p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        {/* Product Image */}
-                        <div className="flex-shrink-0">
-                          {imageLink ? (
-                            <img
-                              src={imageLink}
-                              alt={product.displayName || 'Product'}
-                              className="w-24 h-24 object-cover rounded-lg"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = '/placeholder-product.jpg';
-                              }}
-                            />
-                          ) : (
-                            <div className="w-24 h-24 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                              <svg
-                                width="32"
-                                height="32"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                className="text-gray-400 dark:text-gray-500"
-                              >
-                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                                <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                                <polyline points="21 15 16 10 5 21"></polyline>
-                              </svg>
-                            </div>
-                          )}
-                        </div>
+                  }
 
-                        {/* Product Details */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1 min-w-0">
-                              {/* Category */}
-                              {product.category && (
-                                <span className="inline-block px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full mb-2">
-                                  {product.category.toUpperCase()}
-                                </span>
-                              )}
+                  return false;
+                });
 
+                return filteredProducts.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                    <svg
+                      width="64"
+                      height="64"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="mx-auto mb-4 text-gray-400"
+                    >
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                      <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                      <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                    <p className="text-lg font-medium mb-1">
+                      {productSheetItems.length === 0 ? 'No products available' : 'No products found'}
+                    </p>
+                    <p className="text-sm">
+                      {productSheetItems.length === 0 ? 'Add products to your product sheet first' : 'Try adjusting your search query'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-gray-200 dark:border-gray-700">
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Product Name</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Specifications</th>
+                          <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {filteredProducts.map((product) => {
+                          const isSelected = newEnquirySelectedProductIds.includes(product._id || '');
+                          const specifications: string[] = [];
+                          if (product.userAttributes) {
+                            Object.entries(product.userAttributes).forEach(([key, value]) => {
+                              if (value !== '' && value !== 0 && value !== null) {
+                                // Exclude image fields from specifications
+                                const lowerKey = key.toLowerCase();
+                                if (!lowerKey.includes('image') && !lowerKey.includes('attachment')) {
+                                  if (Array.isArray(value)) {
+                                    specifications.push(`${key}: ${value.join(', ')}`);
+                                  } else {
+                                    specifications.push(`${key}: ${value}`);
+                                  }
+                                }
+                              }
+                            });
+                          }
+                          return (
+                            <tr
+                              key={product._id}
+                              className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${isSelected ? 'bg-teal-50 dark:bg-teal-900/20' : ''}`}
+                            >
                               {/* Product Name */}
-                              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
-                                {product.displayName || 'Unnamed Product'}
-                              </h3>
+                              <td className="px-4 py-3">
+                                <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                                  {product.displayName || 'Unnamed Product'}
+                                </div>
+                              </td>
 
                               {/* Specifications */}
-                              {specifications.length > 0 && (
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                  {specifications.slice(0, 5).map((spec, index) => (
-                                    <span
-                                      key={index}
-                                      className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded"
-                                    >
-                                      {spec}
-                                    </span>
-                                  ))}
-                                  {specifications.length > 5 && (
-                                    <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
-                                      +{specifications.length - 5} more
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </div>
+                              <td className="px-4 py-3">
+                                {specifications.length > 0 ? (
+                                  <div className="max-w-md">
+                                    <div className="flex flex-wrap gap-1">
+                                      {specifications.slice(0, 3).map((spec, index) => (
+                                        <span
+                                          key={index}
+                                          className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded truncate max-w-[150px]"
+                                          title={spec}
+                                        >
+                                          {spec}
+                                        </span>
+                                      ))}
+                                      {specifications.length > 3 && (
+                                        <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
+                                          +{specifications.length - 3} more
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
+                                )}
+                              </td>
 
-                            {/* Add Button */}
-                            <div className="flex-shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => handleToggleNewEnquiryProductSelection(product._id || '')}
-                                className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${isSelected
-                                  ? 'bg-teal-700 dark:bg-teal-800 text-teal-400 dark:text-teal-300 border-teal-400 dark:border-teal-500 hover:bg-teal-600 dark:hover:bg-teal-700'
-                                  : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
-                                  }`}
-                              >
-                                {isSelected ? 'Added' : '+ Add'}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                              {/* Add Button */}
+                              <td className="px-4 py-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleNewEnquiryProductSelection(product._id || '')}
+                                  className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${isSelected
+                                    ? 'bg-teal-700 dark:bg-teal-800 text-teal-400 dark:text-teal-300 border-teal-400 dark:border-teal-500 hover:bg-teal-600 dark:hover:bg-teal-700'
+                                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
+                                    }`}
+                                >
+                                  {isSelected ? 'Added' : '+ Add'}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Modal Footer */}

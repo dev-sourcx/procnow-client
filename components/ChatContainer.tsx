@@ -644,7 +644,7 @@ export default function ChatContainer({
               setIsFilterOpen?.(true);
               setIsFilterCollapsed?.(false);
             }}
-            className="absolute top-4 right-4 z-20 flex items-center justify-center w-10 h-10 rounded-lg bg-teal-600 hover:bg-teal-700 text-white shadow-lg transition-colors"
+            className="relative flex items-center justify-center w-10 h-10 rounded-lg bg-teal-600 hover:bg-teal-700 text-white shadow-lg transition-colors mt-4 ml-auto mr-4"
             aria-label="Open filters"
             title="Open filters"
           >

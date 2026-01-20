@@ -39,7 +39,7 @@ export default function ProductCard({
   const [formData, setFormData] = useState<Record<string, string | number | File | null | string[]>>({});
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [customFields, setCustomFields] = useState<Array<{id: string; label: string; type: 'text' | 'number' | 'textarea' | 'dropdown' | 'file'; options?: string[]; value: string | number | File | null | string[]}>>([]);
+  const [customFields, setCustomFields] = useState<Array<{ id: string; label: string; type: 'text' | 'number' | 'textarea' | 'dropdown' | 'file'; options?: string[]; value: string | number | File | null | string[] }>>([]);
   const [isAddFieldModalOpen, setIsAddFieldModalOpen] = useState(false);
   const [newFieldLabel, setNewFieldLabel] = useState('');
   const [customValues, setCustomValues] = useState<Record<string, string[]>>({});
@@ -53,7 +53,7 @@ export default function ProductCard({
     }
 
     if (isLoading) return;
-    
+
     setIsLoading(true);
     setError(null);
     try {
@@ -71,7 +71,7 @@ export default function ProductCard({
 
       // Send product document as keyword to generate fields
       const fields = await generateFieldsFromKeyword(JSON.stringify(product));
-      
+
       // Add default Description and Image Attachment fields
       const defaultFields: GeneratedFieldsResponse['fields'] = [
         {
@@ -85,19 +85,19 @@ export default function ProductCard({
           placeholder: 'Upload product image',
         },
       ];
-      
+
       // Combine default fields with generated fields (defaults at bottom)
       const fieldsWithDefaults: GeneratedFieldsResponse = {
         ...fields,
         fields: [...fields.fields, ...defaultFields],
       };
-      
+
       setGeneratedFields(fieldsWithDefaults);
       setIsModalOpen(true);
       // Initialize form data with empty values
       const initialData: Record<string, string | number | File | null | string[]> = {};
       const excludedFields = ['Description', 'Care Instructions', 'Image Attachment'];
-      
+
       fieldsWithDefaults.fields.forEach((field) => {
         if (field.type === 'file') {
           initialData[field.label] = null;
@@ -137,13 +137,13 @@ export default function ProductCard({
   useEffect(() => {
     if (isDetailsSidebarOpen && !isLoadingDetails) {
       const endpointUrl = product?.['scrapingdog_immersive_product_link'];
-      
+
       if (endpointUrl) {
         // Reset previous data and fetch fresh
         setProductDetails(null);
         setDetailsError(null);
         setIsLoadingDetails(true);
-        
+
         fetchProductDetails(endpointUrl)
           .then((details) => {
             setProductDetails(details);
@@ -182,9 +182,9 @@ export default function ProductCard({
 
   const handleAddCustomValue = (label: string, value: string, options: string[]) => {
     if (!value.trim()) return;
-    
+
     const existsInOptions = options.some(opt => opt.toLowerCase() === value.toLowerCase());
-    
+
     if (!existsInOptions) {
       setCustomValues((prev) => {
         const currentCustom = prev[label] || [];
@@ -194,7 +194,7 @@ export default function ProductCard({
         return prev;
       });
     }
-    
+
     setFormData((prev) => ({ ...prev, [label]: value }));
     setDropdownSearch((prev) => ({ ...prev, [label]: '' }));
     setDropdownOpen((prev) => ({ ...prev, [label]: false }));
@@ -219,7 +219,7 @@ export default function ProductCard({
     };
 
     setCustomFields((prev) => [...prev, newField]);
-    
+
     setFormData((prev) => ({
       ...prev,
       [newField.label]: newField.value,
@@ -256,13 +256,13 @@ export default function ProductCard({
   // Validate if a string is valid base64
   function isValidBase64(str: string): boolean {
     if (!str || typeof str !== 'string') return false;
-    
+
     // Remove data:image/... prefix if present
     const base64Data = str.includes(',') ? str.split(',')[1] : str;
-    
+
     // Base64 regex: only allows A-Z, a-z, 0-9, +, /, and = (with padding)
     const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
-    
+
     // Check if it matches base64 pattern and has reasonable length
     return base64Regex.test(base64Data.trim()) && base64Data.trim().length > 0;
   }
@@ -281,56 +281,56 @@ export default function ProductCard({
     if (imageError) {
       return placeholderDataUri;
     }
-    
+
     // Prioritize thumbnail over image
     const imageSource = product.thumbnail || product.image;
-    
+
     if (!imageSource) {
       return product.product_url || placeholderDataUri;
     }
-    
+
     // Check if it's already a URL
     if (imageSource.startsWith('http://') || imageSource.startsWith('https://') || imageSource.startsWith('/')) {
       return imageSource;
     }
-    
+
     // Validate base64 before attempting to decode
     if (!isValidBase64(imageSource)) {
       console.warn('Invalid base64 string, falling back to product_url');
       return product.product_url || placeholderDataUri;
     }
-    
+
     try {
       let base64Data: string;
       let mime = 'image/webp';
-      
+
       if (imageSource.includes(',')) {
         // Handle data:image/... format
         const [meta, data] = imageSource.split(",");
         if (!data) return product.product_url || placeholderDataUri;
-        
+
         mime = meta.match(/:(.*?);/)?.[1] || "image/webp";
         base64Data = data.trim();
       } else {
         // Raw base64 data
         base64Data = imageSource.trim();
       }
-      
+
       // Clean the base64 data
       const cleanData = base64Data.replace(/\\x3d/g, "=").replace(/\\/g, "").trim();
-      
+
       // Final validation before atob
       if (!/^[A-Za-z0-9+/]*={0,2}$/.test(cleanData)) {
         return product.product_url || placeholderDataUri;
       }
-      
+
       const bytes = atob(cleanData);
       const array = new Uint8Array(bytes.length);
-      
+
       for (let i = 0; i < bytes.length; i++) {
         array[i] = bytes.charCodeAt(i);
       }
-      
+
       const blob = new Blob([array], { type: mime });
       return URL.createObjectURL(blob);
     } catch (error) {
@@ -338,18 +338,18 @@ export default function ProductCard({
       return product.product_url || placeholderDataUri;
     }
   }, [product.thumbnail, product.image, product.product_url, imageError, placeholderDataUri]);
-  
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Require authentication before submitting
     if (!requireAuth()) {
       return;
     }
-    
+
     if (isSubmitting) return;
-    
+
     setIsSubmitting(true);
     try {
       // Convert formData to specifications array format: ["key: value", ...]
@@ -405,18 +405,18 @@ export default function ProductCard({
 
       // Save to backend
       await addProductItem(token, productItemPayload);
-      
+
       // Dispatch custom event to notify other components
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('productAdded'));
       }
-      
+
       // Show success toast
       showToast({ type: 'success', message: 'Product saved successfully!' });
 
       // Close modal
       handleCloseModal();
-      
+
       // Navigate to brief page
       // router.push('/');
     } catch (error: any) {
@@ -454,11 +454,11 @@ export default function ProductCard({
     <>
       {/* Modal */}
       {isModalOpen && generatedFields && (
-        <div 
+        <div
           className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50"
           onClick={handleCloseModal}
         >
-          <div 
+          <div
             className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -495,168 +495,148 @@ export default function ProductCard({
             <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
               <div className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-[rgb(19,25,33)]">
                 <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm p-6 space-y-6">
-                {error && (
-                  <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                    <p className="text-sm text-red-800 dark:text-red-400">{error}</p>
-                  </div>
-                )}
-                {/* Add Custom Field Button */}
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-col">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Specification Form</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Add details or create your own fields</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsAddFieldModalOpen(true)}
-                    className="px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg transition-colors flex items-center gap-2 shadow-sm"
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+                  {error && (
+                    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                      <p className="text-sm text-red-800 dark:text-red-400">{error}</p>
+                    </div>
+                  )}
+                  {/* Add Custom Field Button */}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-col">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">Specification Form</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Add details or create your own fields</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddFieldModalOpen(true)}
+                      className="px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg transition-colors flex items-center gap-2 shadow-sm"
                     >
-                      <line x1="12" y1="5" x2="12" y2="19"></line>
-                      <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
-                    Add Custom Field
-                  </button>
-                </div>
-                {/* Fields in 2x2 Grid (excluding Description and Image Attachment) */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                      </svg>
+                      Add Custom Field
+                    </button>
+                  </div>
+                  {/* Fields in 2x2 Grid (excluding Description and Image Attachment) */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    {generatedFields.fields
+                      .filter((field) => field.label !== 'Description' && field.label !== 'Image Attachment')
+                      .map((field, index) => {
+                        const excludedFields = ['Description', 'Care Instructions', 'Image Attachment'];
+                        const shouldAllowMultiple = !excludedFields.includes(field.label);
+
+                        const inputId = `field-${index}-${field.label}`;
+                        return (
+                          <div key={index} className="space-y-2">
+                            <label
+                              htmlFor={inputId}
+                              className="block text-sm font-semibold text-gray-800 dark:text-gray-200 cursor-pointer"
+                            >
+                              {field.label}
+                            </label>
+                            {shouldAllowMultiple ? (
+                              <div
+                                onClick={(e) => {
+                                  // Find the input inside CreatableSelect and focus it
+                                  const input = (e.currentTarget as HTMLElement).querySelector('input');
+                                  if (input) {
+                                    input.focus();
+                                  }
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <CreatableSelect
+                                  value={(formData[field.label] as string[]) || []}
+                                  onChange={(value) => handleInputChange(field.label, value)}
+                                  options={field.options || []}
+                                  placeholder={`Search or add ${field.label.toLowerCase()}`}
+                                  required
+                                  className="w-full"
+                                />
+                              </div>
+                            ) : (
+                              <input
+                                id={inputId}
+                                type="text"
+                                value={(formData[field.label] as string) || ''}
+                                onChange={(e) => handleInputChange(field.label, e.target.value)}
+                                placeholder={field.placeholder}
+                                className={inputBaseClasses}
+                                required
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+
+                  {/* Render Description field in full width */}
                   {generatedFields.fields
-                    .filter((field) => field.label !== 'Description' && field.label !== 'Image Attachment')
+                    .filter((field) => field.label === 'Description')
                     .map((field, index) => {
-                      const excludedFields = ['Description', 'Care Instructions', 'Image Attachment'];
-                      const shouldAllowMultiple = !excludedFields.includes(field.label);
-                      
                       const inputId = `field-${index}-${field.label}`;
                       return (
-                        <div key={index} className="space-y-2">
-                          <label 
+                        <div key={index} className="space-y-2 w-full">
+                          <label
                             htmlFor={inputId}
                             className="block text-sm font-semibold text-gray-800 dark:text-gray-200 cursor-pointer"
                           >
                             {field.label}
                           </label>
-                          {shouldAllowMultiple ? (
-                            <div 
-                              onClick={(e) => {
-                                // Find the input inside CreatableSelect and focus it
-                                const input = (e.currentTarget as HTMLElement).querySelector('input');
-                                if (input) {
-                                  input.focus();
-                                }
-                              }} 
-                              className="cursor-pointer"
-                            >
-                              <CreatableSelect
-                                value={(formData[field.label] as string[]) || []}
-                                onChange={(value) => handleInputChange(field.label, value)}
-                                options={field.options || []}
-                                placeholder={`Search or add ${field.label.toLowerCase()}`}
-                                required
-                                className="w-full"
-                              />
-                            </div>
-                          ) : (
-                            <input
-                              id={inputId}
-                              type="text"
-                              value={(formData[field.label] as string) || ''}
-                              onChange={(e) => handleInputChange(field.label, e.target.value)}
-                              placeholder={field.placeholder}
-                              className={inputBaseClasses}
-                              required
-                            />
-                          )}
+                          <textarea
+                            id={inputId}
+                            value={(formData[field.label] as string) || ''}
+                            onChange={(e) => handleInputChange(field.label, e.target.value)}
+                            placeholder={field.placeholder}
+                            rows={3}
+                            className={textareaClasses}
+                            required
+                          />
                         </div>
                       );
                     })}
-                </div>
 
-                {/* Render Description field in full width */}
-                {generatedFields.fields
-                  .filter((field) => field.label === 'Description')
-                  .map((field, index) => {
-                    const inputId = `field-${index}-${field.label}`;
-                    return (
-                      <div key={index} className="space-y-2 w-full">
-                        <label 
-                          htmlFor={inputId}
-                          className="block text-sm font-semibold text-gray-800 dark:text-gray-200 cursor-pointer"
-                        >
-                          {field.label}
-                        </label>
-                        <textarea
-                          id={inputId}
-                          value={(formData[field.label] as string) || ''}
-                          onChange={(e) => handleInputChange(field.label, e.target.value)}
-                          placeholder={field.placeholder}
-                          rows={3}
-                          className={textareaClasses}
-                          required
-                        />
-                      </div>
-                    );
-                  })}
-
-                {/* Render Image Attachment field in full width */}
-                {generatedFields.fields
-                  .filter((field) => field.label === 'Image Attachment')
-                  .map((field, index) => {
-                    const inputId = `field-${index}-${field.label}`;
-                    return (
-                      <div key={index} className="space-y-2 max-w-max">
-                        <label 
-                          htmlFor={inputId}
-                          className="block text-sm font-semibold text-gray-800 dark:text-gray-200 cursor-pointer"
-                        >
-                          {field.label}
-                        </label>
-                        <div className="space-y-2">
-                          <label htmlFor={inputId} className="cursor-pointer">
-                            <input
-                              id={inputId}
-                              type="file"
-                              accept="application/pdf, image/*"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0] || null;
-                                handleFileChange(field.label, file);
-                              }}
-                              className={fileInputClasses}
-                            />
+                  {/* Render Image Attachment field in full width */}
+                  {generatedFields.fields
+                    .filter((field) => field.label === 'Image Attachment')
+                    .map((field, index) => {
+                      const inputId = `field-${index}-${field.label}`;
+                      return (
+                        <div key={index} className="space-y-2 max-w-max">
+                          <label
+                            htmlFor={inputId}
+                            className="block text-sm font-semibold text-gray-800 dark:text-gray-200 cursor-pointer"
+                          >
+                            {field.label}
                           </label>
-                          {formData[field.label] instanceof File && (
-                            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2">
-                              <svg
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                <polyline points="17 8 12 3 7 8"></polyline>
-                                <line x1="12" y1="3" x2="12" y2="15"></line>
-                              </svg>
-                              <span>{formData[field.label] instanceof File ? (formData[field.label] as File).name : ''}</span>
-                              <button
-                                type="button"
-                                onClick={() => handleFileChange(field.label, null)}
-                                className="ml-auto text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
-                              >
+                          <div className="space-y-2">
+                            <label htmlFor={inputId} className="cursor-pointer">
+                              <input
+                                id={inputId}
+                                type="file"
+                                accept="application/pdf, image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0] || null;
+                                  handleFileChange(field.label, file);
+                                }}
+                                className={fileInputClasses}
+                              />
+                            </label>
+                            {formData[field.label] instanceof File && (
+                              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2">
                                 <svg
-                                  width="14"
-                                  height="14"
+                                  width="16"
+                                  height="16"
                                   viewBox="0 0 24 24"
                                   fill="none"
                                   stroke="currentColor"
@@ -664,23 +644,43 @@ export default function ProductCard({
                                   strokeLinecap="round"
                                   strokeLinejoin="round"
                                 >
-                                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                  <polyline points="17 8 12 3 7 8"></polyline>
+                                  <line x1="12" y1="3" x2="12" y2="15"></line>
                                 </svg>
-                              </button>
-                            </div>
-                          )}
+                                <span>{formData[field.label] instanceof File ? (formData[field.label] as File).name : ''}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleFileChange(field.label, null)}
+                                  className="ml-auto text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+                                >
+                                  <svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                  </svg>
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
 
                   {/* Render Custom Fields */}
                   {customFields.map((field) => {
                     return (
                       <div key={field.id} className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <label 
+                          <label
                             className="block text-sm font-semibold text-gray-800 dark:text-gray-200 cursor-pointer"
                           >
                             {field.label}
@@ -707,14 +707,14 @@ export default function ProductCard({
                           </button>
                         </div>
                         {/* Custom fields are always text type and should support multiple values */}
-                        <div 
+                        <div
                           onClick={(e) => {
                             // Find the input inside CreatableSelect and focus it
                             const input = (e.currentTarget as HTMLElement).querySelector('input');
                             if (input) {
                               input.focus();
                             }
-                          }} 
+                          }}
                           className="cursor-pointer"
                         >
                           <CreatableSelect
@@ -732,52 +732,52 @@ export default function ProductCard({
                 </div>
               </div>
 
-            {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
-              <button
-                type="button"
-                onClick={handleCloseModal}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className="px-4 py-2 bg-gray-800 dark:bg-gray-700 hover:bg-gray-900 dark:hover:bg-gray-600 disabled:bg-gray-600 dark:disabled:bg-gray-500 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center gap-2"
-              >
-                {isSubmitting ? (
-                  <>
-                    <svg
-                      className="animate-spin"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
-                    </svg>
-                    Saving...
-                  </>
-                ) : (
-                  'Submit'
-                )}
-              </button>
-            </div>
+              {/* Modal Footer */}
+              <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-gray-800 dark:bg-gray-700 hover:bg-gray-900 dark:hover:bg-gray-600 disabled:bg-gray-600 dark:disabled:bg-gray-500 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center gap-2"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <svg
+                        className="animate-spin"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+                      </svg>
+                      Saving...
+                    </>
+                  ) : (
+                    'Submit'
+                  )}
+                </button>
+              </div>
             </form>
 
             {/* Add Custom Field Modal */}
             {isAddFieldModalOpen && (
-              <div 
+              <div
                 className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50"
                 onClick={() => setIsAddFieldModalOpen(false)}
               >
-                <div 
+                <div
                   className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full border border-gray-200 dark:border-gray-700"
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -976,32 +976,52 @@ export default function ProductCard({
         {isDetailsSidebarOpen && (
           <div>
             {/* Overlay */}
-            <div 
+            <div
               className="fixed inset-0 bg-black/50 z-40"
               onClick={handleCloseDetailsSidebar}
             />
-            
-              {/* Sidebar */}
-              <div className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl bg-white dark:bg-gray-800 shadow-xl transform transition-transform duration-300 ease-in-out overflow-hidden">
-                <div className="flex h-full flex-col">
-                  {/* Sidebar Header */}
-                  <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-                    <div>
-                      <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                        Product Details
-                      </h2>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        {product.title}
-                      </p>
-                    </div>
-                    <button
-                      onClick={handleCloseDetailsSidebar}
-                      className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                      aria-label="Close sidebar"
+
+            {/* Sidebar */}
+            <div className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl bg-white dark:bg-gray-800 shadow-xl transform transition-transform duration-300 ease-in-out overflow-hidden">
+              <div className="flex h-full flex-col">
+                {/* Sidebar Header */}
+                <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                      Product Details
+                    </h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      {product.title}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleCloseDetailsSidebar}
+                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    aria-label="Close sidebar"
+                  >
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     >
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Sidebar Body */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                  {/* Loading State */}
+                  {isLoadingDetails && (
+                    <div className="flex flex-col items-center justify-center py-12">
                       <svg
-                        width="24"
-                        height="24"
+                        className="animate-spin w-8 h-8 text-teal-600 dark:text-teal-400 mb-4"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
@@ -1009,19 +1029,154 @@ export default function ProductCard({
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       >
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
                       </svg>
-                    </button>
-                  </div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Loading product details...</p>
+                    </div>
+                  )}
 
-                  {/* Sidebar Body */}
-                  <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                    {/* Loading State */}
-                    {isLoadingDetails && (
-                      <div className="flex flex-col items-center justify-center py-12">
+                  {/* Error State */}
+                  {detailsError && !isLoadingDetails && (
+                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                      <p className="text-sm text-red-800 dark:text-red-400">{detailsError}</p>
+                    </div>
+                  )}
+
+                  {/* Product Details Content */}
+                  {!isLoadingDetails && !detailsError && productDetails && (
+                    <>
+                      {/* Render Product Details - Prioritize about_the_product */}
+                      <div className="space-y-6">
+                        {/* Product Title and Brand */}
+                        {productDetails.title && (
+                          <div>
+                            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                              {productDetails.title}
+                            </h2>
+                            {productDetails.brand && (
+                              <p className="text-lg text-gray-600 dark:text-gray-400">
+                                Brand: {productDetails.brand}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Price */}
+                        {productDetails.price && (
+                          <div>
+                            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                              Price
+                            </h3>
+                            <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">
+                              {productDetails.price}
+                            </p>
+                            {productDetails.price_range && productDetails.price_range !== productDetails.price && (
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                {productDetails.price_range}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* About the Product - Features */}
+                        {productDetails.about_the_product && (
+                          <div>
+                            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                              About the Product
+                            </h3>
+                            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                              {productDetails.about_the_product.features && Array.isArray(productDetails.about_the_product.features) ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {productDetails.about_the_product.features.map((feature: any, index: number) => (
+                                    <div key={index} className="border-b border-gray-200 dark:border-gray-600 pb-3 last:border-b-0">
+                                      <div className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                                        {feature.title}
+                                      </div>
+                                      <div className="text-base font-semibold text-gray-900 dark:text-white">
+                                        {feature.value}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : typeof productDetails.about_the_product === 'string' ? (
+                                <p className="text-base text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                                  {productDetails.about_the_product}
+                                </p>
+                              ) : (
+                                <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                  {JSON.stringify(productDetails.about_the_product, null, 2)}
+                                </pre>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                      </div>
+                    </>
+                  )}
+
+                  {/* Fallback: Show basic product info if no details fetched */}
+                  {!isLoadingDetails && !detailsError && !productDetails && (
+                    <>
+                      {/* Product Image */}
+                      <div className="relative w-full aspect-square overflow-hidden bg-gray-100 dark:bg-gray-700 rounded-lg">
+                        <img
+                          src={imageUrl}
+                          alt={product.title || 'Product image'}
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+
+                      {/* Basic Information */}
+                      <div className="space-y-4">
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Basic Information</h3>
+                          <div className="space-y-3">
+                            <div>
+                              <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Title</label>
+                              <p className="text-base text-gray-900 dark:text-white mt-1">{product.title}</p>
+                            </div>
+                            {product.item && (
+                              <div>
+                                <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Item</label>
+                                <p className="text-base text-gray-900 dark:text-white mt-1">{product.item}</p>
+                              </div>
+                            )}
+                            <div>
+                              <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Category</label>
+                              <p className="text-base text-gray-900 dark:text-white mt-1">{product.product_category}</p>
+                            </div>
+                            {product.vendor && (
+                              <div>
+                                <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Vendor</label>
+                                <p className="text-base text-gray-900 dark:text-white mt-1">{product.vendor}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {product.description && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Description</h3>
+                            <p className="text-base text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{product.description}</p>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Sidebar Footer */}
+                <div className="border-t border-gray-200 dark:border-gray-700 p-6">
+                  <button
+                    onClick={handleAddClick}
+                    disabled={isLoading}
+                    className="w-full bg-teal-600 hover:bg-teal-700 active:bg-teal-800 dark:bg-teal-500 dark:hover:bg-teal-600 dark:active:bg-teal-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-sm hover:shadow-md disabled:shadow-none"
+                  >
+                    {isLoading ? (
+                      <>
                         <svg
-                          className="animate-spin w-8 h-8 text-teal-600 dark:text-teal-400 mb-4"
+                          className="animate-spin w-5 h-5"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -1031,184 +1186,29 @@ export default function ProductCard({
                         >
                           <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
                         </svg>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Loading product details...</p>
-                      </div>
-                    )}
-
-                    {/* Error State */}
-                    {detailsError && !isLoadingDetails && (
-                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                        <p className="text-sm text-red-800 dark:text-red-400">{detailsError}</p>
-                      </div>
-                    )}
-
-                    {/* Product Details Content */}
-                    {!isLoadingDetails && !detailsError && productDetails && (
+                        <span>Loading...</span>
+                      </>
+                    ) : (
                       <>
-                        {/* Render Product Details - Prioritize about_the_product */}
-                        <div className="space-y-6">
-                          {/* Product Title and Brand */}
-                          {productDetails.title && (
-                            <div>
-                              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                                {productDetails.title}
-                              </h2>
-                              {productDetails.brand && (
-                                <p className="text-lg text-gray-600 dark:text-gray-400">
-                                  Brand: {productDetails.brand}
-                                </p>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Price */}
-                          {productDetails.price && (
-                            <div>
-                              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                                Price
-                              </h3>
-                              <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">
-                                {productDetails.price}
-                              </p>
-                              {productDetails.price_range && productDetails.price_range !== productDetails.price && (
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                  {productDetails.price_range}
-                                </p>
-                              )}
-                            </div>
-                          )}
-
-                          {/* About the Product - Features */}
-                          {productDetails.about_the_product && (
-                            <div>
-                              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                                About the Product
-                              </h3>
-                              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                                {productDetails.about_the_product.features && Array.isArray(productDetails.about_the_product.features) ? (
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {productDetails.about_the_product.features.map((feature: any, index: number) => (
-                                      <div key={index} className="border-b border-gray-200 dark:border-gray-600 pb-3 last:border-b-0">
-                                        <div className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                                          {feature.title}
-                                        </div>
-                                        <div className="text-base font-semibold text-gray-900 dark:text-white">
-                                          {feature.value}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : typeof productDetails.about_the_product === 'string' ? (
-                                  <p className="text-base text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
-                                    {productDetails.about_the_product}
-                                  </p>
-                                ) : (
-                                  <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                                    {JSON.stringify(productDetails.about_the_product, null, 2)}
-                                  </pre>
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                        </div>
+                        <svg
+                          className="w-5 h-5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <line x1="12" y1="5" x2="12" y2="19"></line>
+                          <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        <span>Add to list</span>
                       </>
                     )}
-
-                    {/* Fallback: Show basic product info if no details fetched */}
-                    {!isLoadingDetails && !detailsError && !productDetails && (
-                      <>
-                        {/* Product Image */}
-                        <div className="relative w-full aspect-square overflow-hidden bg-gray-100 dark:bg-gray-700 rounded-lg">
-                          <img
-                            src={imageUrl}
-                            alt={product.title || 'Product image'}
-                            className="w-full h-full object-contain"
-                          />
-                        </div>
-
-                        {/* Basic Information */}
-                        <div className="space-y-4">
-                          <div>
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Basic Information</h3>
-                            <div className="space-y-3">
-                              <div>
-                                <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Title</label>
-                                <p className="text-base text-gray-900 dark:text-white mt-1">{product.title}</p>
-                              </div>
-                              {product.item && (
-                                <div>
-                                  <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Item</label>
-                                  <p className="text-base text-gray-900 dark:text-white mt-1">{product.item}</p>
-                                </div>
-                              )}
-                              <div>
-                                <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Category</label>
-                                <p className="text-base text-gray-900 dark:text-white mt-1">{product.product_category}</p>
-                              </div>
-                              {product.vendor && (
-                                <div>
-                                  <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Vendor</label>
-                                  <p className="text-base text-gray-900 dark:text-white mt-1">{product.vendor}</p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {product.description && (
-                            <div>
-                              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Description</h3>
-                              <p className="text-base text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{product.description}</p>
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Sidebar Footer */}
-                  <div className="border-t border-gray-200 dark:border-gray-700 p-6">
-                    <button
-                      onClick={handleAddClick}
-                      disabled={isLoading}
-                      className="w-full bg-teal-600 hover:bg-teal-700 active:bg-teal-800 dark:bg-teal-500 dark:hover:bg-teal-600 dark:active:bg-teal-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-sm hover:shadow-md disabled:shadow-none"
-                    >
-                      {isLoading ? (
-                        <>
-                          <svg
-                            className="animate-spin w-5 h-5"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
-                          </svg>
-                          <span>Loading...</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            className="w-5 h-5"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                          </svg>
-                          <span>Add to list</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+                  </button>
                 </div>
               </div>
+            </div>
           </div>
         )}
       </div>
