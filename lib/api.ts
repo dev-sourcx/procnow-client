@@ -229,10 +229,10 @@ export async function getGoogleAuthUrl(redirect?: string, phone?: string): Promi
   const params = new URLSearchParams();
   if (redirect) params.append('redirect', redirect);
   if (phone) params.append('phone', phone);
-  
+
   const queryString = params.toString();
   const url = `${API_URL}/api/auth/google${queryString ? `?${queryString}` : ''}`;
-  
+
   const response = await fetch(url, {
     method: 'GET',
     headers: {
@@ -722,7 +722,7 @@ function extractProductsFromText(text: string): { cleanedText: string; products:
   // Find the start of the product dict pattern
   const startPattern = /\{'type':\s*['"]products['"]/;
   const startMatch = text.search(startPattern);
-  
+
   if (startMatch === -1) {
     return { cleanedText: text, products: null };
   }
@@ -732,11 +732,11 @@ function extractProductsFromText(text: string): { cleanedText: string; products:
   let inString = false;
   let stringChar = '';
   let dictStart = -1;
-  
+
   for (let i = startMatch; i < text.length; i++) {
     const char = text[i];
     const prevChar = i > 0 ? text[i - 1] : '';
-    
+
     // Handle string detection
     if ((char === '"' || char === "'") && prevChar !== '\\') {
       if (!inString) {
@@ -746,7 +746,7 @@ function extractProductsFromText(text: string): { cleanedText: string; products:
         inString = false;
       }
     }
-    
+
     if (!inString) {
       if (char === '{') {
         if (braceCount === 0) dictStart = i;
@@ -774,7 +774,7 @@ function extractProductsFromText(text: string): { cleanedText: string; products:
             // Evaluate as JS object literal. This string is produced by our own backend.
             // eslint-disable-next-line no-new-func
             const parsed = Function('"use strict"; return (' + jsLike + ');')();
-            
+
             if (parsed.type === 'products' && Array.isArray(parsed.data)) {
               return { cleanedText, products: parsed.data };
             }
@@ -783,7 +783,7 @@ function extractProductsFromText(text: string): { cleanedText: string; products:
             // Even if parsing fails, still return the cleaned text without the dict
             return { cleanedText, products: null };
           }
-          
+
           break;
         }
       }
@@ -912,7 +912,7 @@ export async function sendChatMessage(
               const productsData = parsed.data || {};
               const products = productsData.products || [];
               const filters = productsData.filters || {};
-              
+
               onProducts({ products, filters });
               // Consider "products" as the end of the stream
               if (onDone) {
@@ -961,7 +961,7 @@ export async function sendChatMessage(
                 const productsData = parsed.data || {};
                 const products = productsData.products || [];
                 const filters = productsData.filters || {};
-                
+
                 onProducts({ products, filters });
                 if (onDone) {
                   onDone();

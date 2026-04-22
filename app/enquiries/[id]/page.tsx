@@ -57,9 +57,9 @@ export default function EnquiryDetailPage() {
         const assignment = quote.vendorAssignmentId as any;
         const enquiryProduct = assignment?.enquiryProductId as any;
         // Handle both populated and non-populated enquiryId
-        const quoteEnquiryId = enquiryProduct?.enquiryId?._id?.toString() || 
-                               enquiryProduct?.enquiryId?.toString() ||
-                               enquiryProduct?.enquiryId;
+        const quoteEnquiryId = enquiryProduct?.enquiryId?._id?.toString() ||
+          enquiryProduct?.enquiryId?.toString() ||
+          enquiryProduct?.enquiryId;
         return quoteEnquiryId === enquiryId;
       });
       setQuotes(enquiryQuotes);
@@ -67,8 +67,8 @@ export default function EnquiryDetailPage() {
       // Set first product as selected by default
       if (enquiryData.enquiryProducts && enquiryData.enquiryProducts.length > 0) {
         const firstProduct = enquiryData.enquiryProducts[0];
-        const firstProductId = typeof firstProduct === 'string' 
-          ? firstProduct 
+        const firstProductId = typeof firstProduct === 'string'
+          ? firstProduct
           : (firstProduct._id || (firstProduct as any).id || '');
         if (firstProductId) {
           setSelectedProductId(firstProductId);
@@ -109,14 +109,14 @@ export default function EnquiryDetailPage() {
     if (typeof product === 'string') {
       return null;
     }
-    
+
     const productItem = product.productsheetitemid || product;
-    const imageLink = productItem?.userAttributes?.image_link || 
-                      productItem?.userAttributes?.Image_Attachment || '';
+    const imageLink = productItem?.userAttributes?.image_link ||
+      productItem?.userAttributes?.Image_Attachment || '';
     const displayName = productItem?.displayName || productItem?.name || 'Unknown Product';
-    const description = productItem?.userAttributes?.description || 
-                       productItem?.description || 
-                       'No description available';
+    const description = productItem?.userAttributes?.description ||
+      productItem?.description ||
+      'No description available';
     const quantity = product.quantity || 1;
     const targetPrice = product.targetUnitPrice || productItem?.userAttributes?.targetPrice || 'N/A';
     const needByDate = product.deliveryDate || product.expectedDeliveryDate || enquiry?.expectedDeliveryDate || 'N/A';
@@ -146,15 +146,15 @@ export default function EnquiryDetailPage() {
       const assignment = quote.vendorAssignmentId as any;
       const enquiryProduct = assignment?.enquiryProductId as any;
       const enquiryProductId = enquiryProduct?._id?.toString() || enquiryProduct?._id || enquiryProduct?.id;
-      
+
       if (enquiryProductId === productId) {
         const vendor = assignment?.vendorId as any;
         const vendorId = typeof vendor === 'string' ? vendor : (vendor._id || vendor.id);
         const vendorName = typeof vendor === 'object' ? (vendor.auth?.name || vendor.name || 'Unknown Vendor') : 'Unknown Vendor';
-        
+
         // Determine status based on quote existence
         const status: 'Quoted' | 'RFQ Sent' = quote.vendorStatus === 'sent' ? 'Quoted' : 'RFQ Sent';
-        
+
         // Check if vendor already added
         const existingIndex = productVendors.findIndex(v => v.vendorId === vendorId);
         if (existingIndex === -1) {
@@ -190,10 +190,10 @@ export default function EnquiryDetailPage() {
       const vendor = assignment?.vendorId as any;
       const vendorId = typeof vendor === 'string' ? vendor : (vendor._id || vendor.id);
       const vendorName = typeof vendor === 'object' ? (vendor.auth?.name || vendor.name || 'Unknown Vendor') : 'Unknown Vendor';
-      
+
       // Determine status based on quote existence - if quote exists, status is 'Quoted', otherwise 'RFQ Sent'
       const status: 'Quoted' | 'RFQ Sent' = quote.vendorStatus === 'sent' ? 'Quoted' : 'RFQ Sent';
-      
+
       // Check if vendor already added
       const existingIndex = allVendors.findIndex(v => v.vendorId === vendorId);
       if (existingIndex === -1) {
@@ -225,36 +225,36 @@ export default function EnquiryDetailPage() {
     quotes.forEach((quote) => {
       const assignment = quote.vendorAssignmentId as any;
       if (!assignment) return;
-      
+
       const enquiryProduct = assignment?.enquiryProductId as any;
       if (!enquiryProduct) return;
 
       let enquiryProductId: string | null = enquiryProduct?.productsheetitemid?._id?.toString() || enquiryProduct?.productsheetitemid?._id || enquiryProduct?.productsheetitemid?.id?.toString() || enquiryProduct?.productsheetitemid?.id;
 
       if (!enquiryProductId) return;
-      
+
       // Normalize both IDs for comparison (convert to string and trim)
       const normalizedProductId = productId.toString().trim();
       const normalizedEnquiryProductId = enquiryProductId.toString().trim();
 
       console.log(normalizedProductId, normalizedEnquiryProductId);
-      
+
       // Match product ID - quotes are already filtered by enquiry and visibletoClient
       if (normalizedEnquiryProductId === normalizedProductId) {
         const vendor = assignment?.vendorId as any;
         if (!vendor) return;
-        
-        const vendorId = typeof vendor === 'string' 
-          ? vendor 
+
+        const vendorId = typeof vendor === 'string'
+          ? vendor
           : (vendor._id?.toString() || vendor._id || vendor.id?.toString() || vendor.id);
         const vendorName = typeof vendor === 'object' && vendor !== null
           ? (vendor.auth?.name || vendor.name || vendor.companyName || 'Unknown Vendor')
           : 'Unknown Vendor';
-        
+
         // Determine status: Approved if buyerStatus is 'approved' or 'Accepted', otherwise Pending
         const buyerStatus = quote.buyerStatus?.toLowerCase();
         const status: 'Pending' | 'Approved' = (buyerStatus === 'approved' || buyerStatus === 'accepted') ? 'Approved' : 'Pending';
-        
+
         // Check if vendor already added (avoid duplicates)
         const existingIndex = vendorQuotes.findIndex(v => v.vendorId === vendorId);
         if (existingIndex === -1) {
@@ -278,11 +278,11 @@ export default function EnquiryDetailPage() {
       const buyerStatus = vq.quote.buyerStatus?.toLowerCase();
       return buyerStatus === 'approved' || buyerStatus === 'accepted';
     });
-    
+
     if (acceptedQuote) {
       return acceptedQuote.quote._id || (acceptedQuote.quote as any).id;
     }
-    
+
     return null;
   };
 
@@ -329,14 +329,14 @@ export default function EnquiryDetailPage() {
 
       // Iterate through all products
       enquiry.enquiryProducts.forEach((product: any) => {
-        const productId = typeof product === 'string' 
-          ? product 
+        const productId = typeof product === 'string'
+          ? product
           : (product._id || (product as any).id || '');
-        
+
         if (!productId) return;
 
         const vendorQuotesForProduct = getVendorQuotesForProduct(productId);
-        
+
         // Skip products with no quotes
         if (vendorQuotesForProduct.length === 0) return;
 
@@ -349,7 +349,7 @@ export default function EnquiryDetailPage() {
 
           // If this is the selected quote, mark as Accepted, otherwise Rejected
           const buyerStatus = selectedQuoteId === quoteId ? 'Accepted' : 'Rejected';
-          
+
           updatePromises.push(
             updateBuyerQuoteStatus(token, quoteId, buyerStatus).then(() => {
               // Update local state
@@ -367,13 +367,13 @@ export default function EnquiryDetailPage() {
       });
 
       await Promise.all(updatePromises);
-      
+
       // Reload data to get updated quotes
       await loadData();
-      
+
       // Clear selections
       setSelectedQuotes(new Map());
-      
+
       // Show success message
       showToast({ type: 'success', message: 'Quotes submitted successfully!' });
     } catch (err: any) {
@@ -406,7 +406,7 @@ export default function EnquiryDetailPage() {
 
         // If this is the selected quote, mark as Accepted, otherwise Rejected
         const buyerStatus = currentQuoteId === quoteId ? 'Accepted' : 'Rejected';
-        
+
         updatePromises.push(
           updateBuyerQuoteStatus(token, currentQuoteId, buyerStatus).then(() => {
             // Update local state
@@ -423,10 +423,10 @@ export default function EnquiryDetailPage() {
       });
 
       await Promise.all(updatePromises);
-      
+
       // Reload data to get updated quotes
       await loadData();
-      
+
       // Show success message
       showToast({ type: 'success', message: 'Quote accepted successfully!' });
     } catch (err: any) {
@@ -452,43 +452,43 @@ export default function EnquiryDetailPage() {
   if (error || !enquiry) {
     return (
       <div className="flex-1 overflow-y-auto p-6">
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-4 text-red-500 dark:text-red-400">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="8" x2="12" y2="12"></line>
-              <line x1="12" y1="16" x2="12.01" y2="16"></line>
-            </svg>
-            <p className="text-red-800 dark:text-red-400 font-medium mb-2">Error loading enquiry</p>
-            <p className="text-red-600 dark:text-red-400 text-sm">{error || 'Enquiry not found'}</p>
-            <button
-              onClick={() => router.push('/enquiries')}
-              className="mt-4 px-4 py-2 text-sm font-medium text-white bg-teal-500 rounded-lg hover:bg-teal-600 transition-colors"
-            >
-              Back to Enquiries
-            </button>
-          </div>
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-4 text-red-500 dark:text-red-400">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <p className="text-red-800 dark:text-red-400 font-medium mb-2">Error loading enquiry</p>
+          <p className="text-red-600 dark:text-red-400 text-sm">{error || 'Enquiry not found'}</p>
+          <button
+            onClick={() => router.push('/enquiries')}
+            className="mt-4 px-4 py-2 text-sm font-medium text-white bg-teal-500 rounded-lg hover:bg-teal-600 transition-colors"
+          >
+            Back to Enquiries
+          </button>
+        </div>
       </div>
     );
   }
 
   // Group quotes by product - include all enquiry products, even if they have no quotes
   const quotesByProduct = new Map<string, { quotes: Quote[], productName: string, productDetails: any }>();
-  
+
   // First, initialize all enquiry products
   if (enquiry.enquiryProducts) {
     enquiry.enquiryProducts.forEach((enquiryProduct: any) => {
-      const productId = typeof enquiryProduct === 'string' 
-        ? enquiryProduct 
+      const productId = typeof enquiryProduct === 'string'
+        ? enquiryProduct
         : (enquiryProduct._id || enquiryProduct.id || enquiryProduct.productId || `product-${Math.random()}`);
-      
+
       const productDetails = typeof enquiryProduct === 'object' ? enquiryProduct : null;
       const product = productDetails?.productsheetitemid || productDetails;
-      const productName = product?.displayName || 
-                         product?.externalRef || 
-                         productDetails?.displayName ||
-                         productDetails?.name || 
-                         'Unknown Product';
-      
+      const productName = product?.displayName ||
+        product?.externalRef ||
+        productDetails?.displayName ||
+        productDetails?.name ||
+        'Unknown Product';
+
       if (!quotesByProduct.has(productId)) {
         quotesByProduct.set(productId, {
           quotes: [],
@@ -498,21 +498,21 @@ export default function EnquiryDetailPage() {
       }
     });
   }
-  
+
   // Then, add quotes to their respective products
   quotes.forEach((quote) => {
     const assignment = quote.vendorAssignmentId as any;
     const enquiryProduct = assignment?.enquiryProductId as any;
     const product = enquiryProduct?.productsheetitemid as any;
-    
+
     // Try to find the product ID from the enquiry product
-    const productId = enquiryProduct?._id?.toString() || 
-                     enquiryProduct?._id || 
-                     product?._id?.toString() ||
-                     product?._id || 
-                     product?.id?.toString() ||
-                     `product-${quote._id || Math.random()}`;
-    
+    const productId = enquiryProduct?._id?.toString() ||
+      enquiryProduct?._id ||
+      product?._id?.toString() ||
+      product?._id ||
+      product?.id?.toString() ||
+      `product-${quote._id || Math.random()}`;
+
     if (quotesByProduct.has(productId)) {
       quotesByProduct.get(productId)!.quotes.push(quote);
     } else {
@@ -527,195 +527,191 @@ export default function EnquiryDetailPage() {
   });
 
   return (
-      <div className="flex-1 overflow-y-auto">
-        {/* Header */}
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{enquiry.enquiryName || 'Enquiry Details'}</h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Enquiry ID: {enquiry._id}</p>
-              </div>
+    <div className="flex-1 overflow-y-auto">
+      {/* Header */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{enquiry.enquiryName || 'Enquiry Details'}</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Enquiry ID: {enquiry._id}</p>
             </div>
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={toggleTheme}
-                className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                aria-label="Toggle theme"
-              >
-                {theme === 'light' ? (
-                  <svg
-                    width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <circle cx="12" cy="12" r="5"></circle>
-                      <line x1="12" y1="1" x2="12" y2="3"></line>
-                      <line x1="12" y1="21" x2="12" y2="23"></line>
-                      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                      <line x1="1" y1="12" x2="3" y2="12"></line>
-                      <line x1="21" y1="12" x2="23" y2="12"></line>
-                      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                    </svg>
-                  ) : (
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                    </svg>
-                  )}
-                </button>
-                <span className={`px-3 py-1 text-sm font-medium rounded-full ${
-                  enquiry.enquiryStatus === 'submitted' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' :
-                  enquiry.enquiryStatus === 'draft' ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300' :
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={toggleTheme}
+              className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              aria-label="Toggle theme"
+            >
+              {theme === 'light' ? (
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="5"></circle>
+                  <line x1="12" y1="1" x2="12" y2="3"></line>
+                  <line x1="12" y1="21" x2="12" y2="23"></line>
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                  <line x1="1" y1="12" x2="3" y2="12"></line>
+                  <line x1="21" y1="12" x2="23" y2="12"></line>
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
+              ) : (
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+              )}
+            </button>
+            <span className={`px-3 py-1 text-sm font-medium rounded-full ${enquiry.enquiryStatus === 'submitted' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' :
+                enquiry.enquiryStatus === 'draft' ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300' :
                   'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-                }`}>
-                {enquiry.enquiryStatus || 'Draft'}
-              </span>
-              </div>
-            </div>
+              }`}>
+              {enquiry.enquiryStatus || 'Draft'}
+            </span>
           </div>
+        </div>
+      </div>
 
-          {/* Tabs */}
-          <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6">
-            <div className="flex gap-1">
-              <button
-                onClick={() => setActiveTab('quotesRequested')}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'quotesRequested'
-                    ? 'border-teal-500 text-teal-600 dark:text-teal-400'
-                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
-              >
-                Quotes Requested
-              </button>
-              <button
-                onClick={() => setActiveTab('quotesReceived')}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'quotesReceived'
-                    ? 'border-teal-500 text-teal-600 dark:text-teal-400'
-                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
-              >
-                Quotes Received ({quotes.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('chatWithAdmin')}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'chatWithAdmin'
-                    ? 'border-teal-500 text-teal-600 dark:text-teal-400'
-                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
-              >
-                Chat with Admin
-              </button>
-            </div>
-          </div>
+      {/* Tabs */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6">
+        <div className="flex gap-1">
+          <button
+            onClick={() => setActiveTab('quotesRequested')}
+            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'quotesRequested'
+                ? 'border-teal-500 text-teal-600 dark:text-teal-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+          >
+            Quotes Requested
+          </button>
+          <button
+            onClick={() => setActiveTab('quotesReceived')}
+            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'quotesReceived'
+                ? 'border-teal-500 text-teal-600 dark:text-teal-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+          >
+            Quotes Received ({quotes.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('chatWithAdmin')}
+            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'chatWithAdmin'
+                ? 'border-teal-500 text-teal-600 dark:text-teal-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+          >
+            Chat with Admin
+          </button>
+        </div>
+      </div>
 
-          {/* Tab Content */}
-          <div className="p-6">
-            {activeTab === 'quotesRequested' && (
-              <div className="space-y-6">
-                {/* Products */}
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Products Requested</h2>
-                  {enquiry.enquiryProducts && enquiry.enquiryProducts.length > 0 ? (
-                    <div className="space-y-3">
-                      {enquiry.enquiryProducts.map((product: any, index: number) => {
-                        const productId = typeof product === 'string' ? product : (product._id || product.id || product.productId || `product-${index}`);
-                        const productDetails = typeof product === 'object' ? product : null;
-                        const productName = productDetails?.productsheetitemid?.displayName || 
-                                          productDetails?.displayName || 
-                                          productDetails?.name || 
-                                          'Product ' + (index + 1);
-                        const productRef = productDetails?.productsheetitemid?.externalRef || productDetails?.externalRef;
-
-                        return (
-                          <div key={productId} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
-                                  {productName}
-                                </h3>
-                                {productRef && (
-                                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                                    Ref: {productRef}
-                                  </p>
-                                )}
-                                <div className="flex flex-wrap gap-4 text-sm text-gray-600 dark:text-gray-300 mt-2">
-                                  {productDetails?.quantity && (
-                                    <div>
-                                      <span className="text-gray-500 dark:text-gray-400">Quantity: </span>
-                                      <span className="font-medium text-gray-900 dark:text-white">{productDetails.quantity}</span>
-                                    </div>
-                                  )}
-                                  {productDetails?.targetUnitPrice && (
-                                    <div>
-                                      <span className="text-gray-500 dark:text-gray-400">Target Price: </span>
-                                      <span className="font-medium text-gray-900 dark:text-white">{productDetails.targetUnitPrice}</span>
-                                    </div>
-                                  )}
-                                  {productDetails?.deliveryDate && (
-                                    <div>
-                                      <span className="text-gray-500 dark:text-gray-400">Delivery Date: </span>
-                                      <span className="font-medium text-gray-900 dark:text-white">{formatDate(productDetails.deliveryDate)}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <p className="text-gray-600 dark:text-gray-400">No products added to this enquiry</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'quotesReceived' && (
-              <div className="space-y-6">
-                {!enquiry || !enquiry.enquiryProducts || enquiry.enquiryProducts.length === 0 ? (
-                  <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
-                    <p className="text-gray-600 dark:text-gray-400 text-lg">No products in this enquiry</p>
-                  </div>
-                ) : (
-                  <>
-                  {                  enquiry.enquiryProducts.map((product: any, index: number) => {
-                    const productId = typeof product === 'string' ? product : (product._id || (product as any).id || `product-${index}`);
-                    const productDetails = getProductDetails(product);
-                    const vendorQuotesForProduct = getVendorQuotesForProduct(productId);
-                    const quoteCount = vendorQuotesForProduct.length;
-                    const selectedQuoteId = getSelectedQuoteForProduct(productId, vendorQuotesForProduct);
-                    const hasSelectedQuote = selectedQuoteId !== null;
+      {/* Tab Content */}
+      <div className="p-6">
+        {activeTab === 'quotesRequested' && (
+          <div className="space-y-6">
+            {/* Products */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Products Requested</h2>
+              {enquiry.enquiryProducts && enquiry.enquiryProducts.length > 0 ? (
+                <div className="space-y-3">
+                  {enquiry.enquiryProducts.map((product: any, index: number) => {
+                    const productId = typeof product === 'string' ? product : (product._id || product.id || product.productId || `product-${index}`);
+                    const productDetails = typeof product === 'object' ? product : null;
+                    const productName = productDetails?.productsheetitemid?.displayName ||
+                      productDetails?.displayName ||
+                      productDetails?.name ||
+                      'Product ' + (index + 1);
+                    const productRef = productDetails?.productsheetitemid?.externalRef || productDetails?.externalRef;
 
                     return (
-                      <div key={productId} className="grid grid-cols-7 gap-6">
-                        {/* Left Column - Product Details */}
-                        <div className="col-span-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600 p-6">
-                          {!productDetails ? (
-                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                              <p>Product details unavailable</p>
+                      <div key={productId} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
+                              {productName}
+                            </h3>
+                            {productRef && (
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                                Ref: {productRef}
+                              </p>
+                            )}
+                            <div className="flex flex-wrap gap-4 text-sm text-gray-600 dark:text-gray-300 mt-2">
+                              {productDetails?.quantity && (
+                                <div>
+                                  <span className="text-gray-500 dark:text-gray-400">Quantity: </span>
+                                  <span className="font-medium text-gray-900 dark:text-white">{productDetails.quantity}</span>
+                                </div>
+                              )}
+                              {productDetails?.targetUnitPrice && (
+                                <div>
+                                  <span className="text-gray-500 dark:text-gray-400">Target Price: </span>
+                                  <span className="font-medium text-gray-900 dark:text-white">{productDetails.targetUnitPrice}</span>
+                                </div>
+                              )}
+                              {productDetails?.deliveryDate && (
+                                <div>
+                                  <span className="text-gray-500 dark:text-gray-400">Delivery Date: </span>
+                                  <span className="font-medium text-gray-900 dark:text-white">{formatDate(productDetails.deliveryDate)}</span>
+                                </div>
+                              )}
                             </div>
-                          ) : (
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p className="text-gray-600 dark:text-gray-400">No products added to this enquiry</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'quotesReceived' && (
+          <div className="space-y-6">
+            {!enquiry || !enquiry.enquiryProducts || enquiry.enquiryProducts.length === 0 ? (
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
+                <p className="text-gray-600 dark:text-gray-400 text-lg">No products in this enquiry</p>
+              </div>
+            ) : (
+              <>
+                {enquiry.enquiryProducts.map((product: any, index: number) => {
+                  const productId = typeof product === 'string' ? product : (product._id || (product as any).id || `product-${index}`);
+                  const productDetails = getProductDetails(product);
+                  const vendorQuotesForProduct = getVendorQuotesForProduct(productId);
+                  const quoteCount = vendorQuotesForProduct.length;
+                  const selectedQuoteId = getSelectedQuoteForProduct(productId, vendorQuotesForProduct);
+                  const hasSelectedQuote = selectedQuoteId !== null;
+
+                  return (
+                    <div key={productId} className="grid grid-cols-7 gap-6">
+                      {/* Left Column - Product Details */}
+                      <div className="col-span-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600 p-6">
+                        {!productDetails ? (
+                          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <p>Product details unavailable</p>
+                          </div>
+                        ) : (
                           <div className="space-y-4">
                             {/* Product Image */}
                             <div className="flex-shrink-0">
@@ -795,15 +791,15 @@ export default function EnquiryDetailPage() {
                             </div>
                           </div>
                         )}
-                        </div>
+                      </div>
 
-                        {/* Right Column - Quote Comparison Table */}
-                        <div className="col-span-5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-                          {vendorQuotesForProduct.length === 0 ? (
-                            <div className="text-center py-8">
-                              <p className="text-gray-500 dark:text-gray-400">No quotes received for this product</p>
-                            </div>
-                          ) : (
+                      {/* Right Column - Quote Comparison Table */}
+                      <div className="col-span-5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+                        {vendorQuotesForProduct.length === 0 ? (
+                          <div className="text-center py-8">
+                            <p className="text-gray-500 dark:text-gray-400">No quotes received for this product</p>
+                          </div>
+                        ) : (
                           <div className="overflow-x-auto">
                             <table className="w-full">
                               <thead>
@@ -821,13 +817,12 @@ export default function EnquiryDetailPage() {
                                           <span className="text-sm font-medium text-gray-900 dark:text-white">
                                             {vendorQuote.vendorName}
                                           </span>
-                                          <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
-                                            buyerStatus === 'accepted' 
-                                              ? 'bg-green-500 dark:bg-green-500 text-white' 
-                                              : buyerStatus === 'rejected' 
-                                              ? 'bg-red-500 dark:bg-red-500 text-white' 
-                                              : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                                          }`}>
+                                          <span className={`px-3 py-1 rounded-lg text-xs font-medium ${buyerStatus === 'accepted'
+                                              ? 'bg-green-500 dark:bg-green-500 text-white'
+                                              : buyerStatus === 'rejected'
+                                                ? 'bg-red-500 dark:bg-red-500 text-white'
+                                                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                            }`}>
                                             {buyerStatus === 'accepted' ? 'Accepted' : buyerStatus === 'rejected' ? 'Rejected' : 'Pending'}
                                           </span>
                                         </div>
@@ -934,9 +929,8 @@ export default function EnquiryDetailPage() {
                                               handleQuoteSelect(productId, quoteId);
                                             }}
                                             disabled={isSubmitting}
-                                            className={`custom-checkbox w-4 h-4 rounded focus:ring-2 focus:ring-teal-500 focus:ring-offset-1 ${
-                                              isSubmitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                                            }`}
+                                            className={`custom-checkbox w-4 h-4 rounded focus:ring-2 focus:ring-teal-500 focus:ring-offset-1 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                                              }`}
                                           />
                                         </td>
                                       );
@@ -948,57 +942,56 @@ export default function EnquiryDetailPage() {
                             </table>
                           </div>
                         )}
-                        </div>
                       </div>
-                    );
-                  })}
-                  {/* Submit Button */}
-                  <div className="flex justify-end mt-6">
-                    <button
-                      onClick={handleSubmitQuotes}
-                      disabled={isSubmitting || selectedQuotes.size === 0}
-                      className={`px-6 py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2 ${
-                        isSubmitting || selectedQuotes.size === 0
-                          ? 'opacity-50 cursor-not-allowed'
-                          : ''
+                    </div>
+                  );
+                })}
+                {/* Submit Button */}
+                <div className="flex justify-end mt-6">
+                  <button
+                    onClick={handleSubmitQuotes}
+                    disabled={isSubmitting || selectedQuotes.size === 0}
+                    className={`px-6 py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2 ${isSubmitting || selectedQuotes.size === 0
+                        ? 'opacity-50 cursor-not-allowed'
+                        : ''
                       }`}
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <div className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                          <span>Submitting...</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            width="20"
-                            height="20"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                          </svg>
-                          <span>Submit Quotes</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'chatWithAdmin' && (
-              <div>
-                {/* Chat with Admin content will be added here */}
-              </div>
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <div className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        <span>Submitting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                        <span>Submit Quotes</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
             )}
           </div>
+        )}
+
+        {activeTab === 'chatWithAdmin' && (
+          <div>
+            {/* Chat with Admin content will be added here */}
+          </div>
+        )}
       </div>
+    </div>
   );
 }

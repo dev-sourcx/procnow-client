@@ -557,8 +557,8 @@ export default function EnquiriesPage() {
 
     // Pre-fill selected product IDs
     const productIds = enquiry.enquiryProducts?.map((ep: any) =>
-      typeof ep === 'string' ? ep : ep.productId || ep._id
-    ) || [];
+      typeof ep === 'string' ? ep : (ep.productId || ep._id || ep.id)
+    ).filter(Boolean) || [];
     setNewEnquirySelectedProductIds(productIds);
 
     // Initialize custom product rows with 5 default empty rows
@@ -1516,35 +1516,33 @@ export default function EnquiriesPage() {
   // Helper function to combine selected products and custom products for edit enquiry
   // Only includes products that are in the ribbon (have quantity > 0 and unit filled)
   const getAllEditEnquiryProducts = (): any => {
-    // Filter products that are in ribbon (quantity > 0 and unit filled)
-    const ribbonProducts = editEnquirySelectedProductIds.filter((productId) => {
+    // Always include ALL selected product IDs in the payload.
+    // Products loaded from the API may not have quantity/unit filled yet —
+    // filtering them out caused the DB to be cleared on every "Update Enquiry".
+    const selectedProducts = editEnquirySelectedProductIds.map((productId) => {
       const details = productDetails[productId];
-      return details?.quantity && details?.quantity > 0 && details?.unit && details?.unit.trim() !== '';
+      // Only include detail fields if the user has actually filled them in
+      if (details && (details.quantity > 0 || details.unit?.trim() || details.targetPrice > 0)) {
+        return {
+          productId,
+          quantity: details.quantity || undefined,
+          targetPrice: details.targetPrice || undefined,
+          unit: details.unit?.trim() || undefined,
+        };
+      }
+      // Otherwise just send the product ID so it stays in the enquiry
+      return productId;
     });
 
-    const selectedProducts = ribbonProducts.length > 0
-      ? mapProductIdsToEnquiryProducts(ribbonProducts)
-      : [];
-
-    // Filter custom products that are in ribbon (have name, quantity > 0, and unit filled)
+    // Filter custom products that have a name (quantity/unit optional for saving as draft)
     const customProducts = editCustomProductRows
-      .filter((row) => {
-        return row.name && row.name.trim() !== '' && row.quantity && row.quantity > 0 && row.unit && row.unit.trim() !== '';
-      })
+      .filter((row) => row.name && row.name.trim() !== '')
       .map((row) => {
-        // Get saved specifications for this row
         const savedSpecs = customProductSpecifications[row.id] || {};
-
-        // Prepare userAttributes from saved specifications
         const userAttributes: Record<string, any> = {};
         Object.entries(savedSpecs).forEach(([key, value]) => {
-          // Include value if it's not empty string, null, or undefined
-          // Allow 0, false, and empty arrays as valid values
           if (value !== '' && value !== null && value !== undefined) {
-            if (Array.isArray(value) && value.length === 0) {
-              // Skip empty arrays
-              return;
-            }
+            if (Array.isArray(value) && value.length === 0) return;
             userAttributes[key] = value;
           }
         });
@@ -1553,14 +1551,12 @@ export default function EnquiriesPage() {
           name: row.name.trim(),
           quantity: row.quantity > 0 ? row.quantity : undefined,
           targetPrice: row.targetPrice > 0 ? row.targetPrice : undefined,
-          unit: row.unit.trim() || undefined,
+          unit: row.unit?.trim() || undefined,
           userAttributes: Object.keys(userAttributes).length > 0 ? userAttributes : undefined,
         };
       });
 
-    // Combine both arrays - handle both string[] and object[] cases
-    const selectedArray = Array.isArray(selectedProducts) ? selectedProducts : [];
-    return [...selectedArray, ...customProducts] as Array<string | { productId?: string; name?: string; quantity?: number; targetPrice?: number; unit?: string }>;
+    return [...selectedProducts, ...customProducts];
   };
 
   const handleInlineGenerateProduct = async () => {
@@ -1965,18 +1961,26 @@ export default function EnquiriesPage() {
 
       enquiry.enquiryProducts?.forEach((p: any) => {
         if (typeof p === 'string') {
+          // Plain string ID
           productIds.push(p);
+        } else if (p._id && (p.displayName || p.category || p.productSource)) {
+          // Full ProductSheetItem document returned by the API
+          productIds.push(p._id);
         } else if (p.productId) {
+          // Embedded reference with explicit productId field
           productIds.push(p.productId);
-        } else if (p.name) {
-          // This is a custom product
+        } else if (p.name || p.displayName) {
+          // Custom product (no _id or productId)
           customProducts.push({
             id: `edit_custom_${Date.now()}_${customProducts.length}`,
-            name: p.name,
+            name: p.name || p.displayName,
             quantity: p.quantity || 0,
             unit: p.unit || '',
-            targetPrice: p.targetPrice || 0,
+            targetPrice: p.targetPrice || p.targetUnitPrice || 0,
           });
+        } else if (p._id) {
+          // Fallback: any object with an _id
+          productIds.push(p._id);
         }
       });
 
