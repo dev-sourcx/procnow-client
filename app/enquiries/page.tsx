@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { getStoredProducts, BriefProduct } from '@/lib/storage';
+import { getStoredProducts, BriefProduct, saveEnquiryDraft, getEnquiryDraft, clearEnquiryDraft } from '@/lib/storage';
 import { requireAuth } from '@/lib/auth';
 import { getAuthToken } from '@/lib/storage';
 import {
@@ -196,6 +196,7 @@ export default function EnquiriesPage() {
   const [enquiryIdForSubmit, setEnquiryIdForSubmit] = useState<string | null>(null);
   // Tab state for filtering enquiries
   const [activeTab, setActiveTab] = useState<'draft' | 'sentToAdmin' | 'vendorAssigned'>('draft');
+  const [isDraftLoaded, setIsDraftLoaded] = useState(false);
   // Quotes state for vendor assigned tab
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [quotesLoading, setQuotesLoading] = useState(false);
@@ -372,10 +373,75 @@ export default function EnquiriesPage() {
 
       // Load data
       await Promise.all([loadEnquiries(), loadProducts(), loadQuotes()]);
+      
+      // Load draft from localStorage on mount
+      const draft = getEnquiryDraft();
+      if (draft && !isSubmitMode) {
+        if (draft.enquiryName) setEnquiryName(draft.enquiryName);
+        if (draft.shippingAddress) setShippingAddress(draft.shippingAddress);
+        if (draft.billingAddress) setBillingAddress(draft.billingAddress);
+        if (draft.expectedDeliveryDate) setExpectedDeliveryDate(draft.expectedDeliveryDate);
+        if (draft.enquiryStatus) setEnquiryStatus(draft.enquiryStatus);
+        if (draft.enquiryNotes) setEnquiryNotes(draft.enquiryNotes);
+        if (draft.selectedShippingAddressIndex !== undefined) setSelectedShippingAddressIndex(draft.selectedShippingAddressIndex);
+        if (draft.selectedBillingAddressIndex !== undefined) setSelectedBillingAddressIndex(draft.selectedBillingAddressIndex);
+        if (draft.useNewShippingAddress !== undefined) setUseNewShippingAddress(draft.useNewShippingAddress);
+        if (draft.useNewBillingAddress !== undefined) setUseNewBillingAddress(draft.useNewBillingAddress);
+        if (draft.newEnquirySelectedProductIds) setNewEnquirySelectedProductIds(draft.newEnquirySelectedProductIds);
+        if (draft.productDetails) setProductDetails(draft.productDetails);
+        if (draft.customProductRows) setCustomProductRows(draft.customProductRows);
+        if (draft.productSpecifications) setProductSpecifications(draft.productSpecifications);
+        if (draft.customProductSpecifications) setCustomProductSpecifications(draft.customProductSpecifications);
+      }
+      setIsDraftLoaded(true);
     };
 
     initialize();
   }, []);
+
+  // Save draft to localStorage whenever relevant state changes
+  useEffect(() => {
+    // Don't save if draft hasn't been loaded yet or if we're in submit/edit mode (which uses different state)
+    if (!isDraftLoaded || isSubmitMode) return;
+
+    const draft = {
+      enquiryName,
+      shippingAddress,
+      billingAddress,
+      expectedDeliveryDate,
+      enquiryStatus,
+      enquiryNotes,
+      selectedShippingAddressIndex,
+      selectedBillingAddressIndex,
+      useNewShippingAddress,
+      useNewBillingAddress,
+      newEnquirySelectedProductIds,
+      productDetails,
+      customProductRows,
+      productSpecifications,
+      customProductSpecifications
+    };
+
+    saveEnquiryDraft(draft);
+  }, [
+    isDraftLoaded,
+    isSubmitMode,
+    enquiryName,
+    shippingAddress,
+    billingAddress,
+    expectedDeliveryDate,
+    enquiryStatus,
+    enquiryNotes,
+    selectedShippingAddressIndex,
+    selectedBillingAddressIndex,
+    useNewShippingAddress,
+    useNewBillingAddress,
+    newEnquirySelectedProductIds,
+    productDetails,
+    customProductRows,
+    productSpecifications,
+    customProductSpecifications
+  ]);
 
 
   const toggleEnquiry = (enquiryId: string) => {
@@ -807,6 +873,23 @@ export default function EnquiriesPage() {
     await loadBuyerProfile();
 
     setIsNewEnquiryModalOpen(true);
+    
+    // Initial sync with cart if form is completely empty
+    if (newEnquirySelectedProductIds.length === 0 && customProductRows.every(row => !row.name)) {
+      const storedProducts = getStoredProducts();
+      setNewEnquirySelectedProductIds(storedProducts.map(p => p.id));
+    }
+  };
+
+  const handleResetEnquiryForm = () => {
+    if (!confirm('Are you sure you want to clear all filled data? This cannot be undone.')) {
+      return;
+    }
+    
+    // Clear draft from storage
+    clearEnquiryDraft();
+    
+    // Reset all form state
     setEnquiryName('');
     setShippingAddress({
       addressLine1: '',
@@ -828,10 +911,6 @@ export default function EnquiriesPage() {
     setEnquiryStatus('draft');
     setEnquiryNotes('');
     setEnquiryAttachment(null);
-    setSelectedShippingAddressIndex(null);
-    setSelectedBillingAddressIndex(null);
-    setUseNewShippingAddress(false);
-    setUseNewBillingAddress(false);
     setEnquiryAttachmentUrl('');
     setSelectedProductIds([]);
     setNewEnquirySelectedProductIds([]);
@@ -845,34 +924,6 @@ export default function EnquiriesPage() {
     setIsNewEnquiryModalOpen(false);
     setIsSubmitMode(false);
     setEnquiryIdForSubmit(null);
-    setEnquiryName('');
-    setShippingAddress({
-      addressLine1: '',
-      addressLine2: '',
-      city: '',
-      state: '',
-      zipCode: '',
-      country: '',
-    });
-    setBillingAddress({
-      addressLine1: '',
-      addressLine2: '',
-      city: '',
-      state: '',
-      zipCode: '',
-      country: '',
-    });
-    setExpectedDeliveryDate('');
-    setEnquiryStatus('draft');
-    setEnquiryNotes('');
-    setEnquiryAttachment(null);
-    setEnquiryAttachmentUrl('');
-    setSelectedProductIds([]);
-    setNewEnquirySelectedProductIds([]);
-    setCustomProductRows(createDefaultCustomRows());
-    setInlineProductKeyword('');
-    setInlineGeneratedFields(null);
-    setInlineSpecFormData({});
   };
 
   const handleCloseNewEnquiryProductModal = () => {
@@ -1891,6 +1942,44 @@ export default function EnquiriesPage() {
         });
 
         await loadEnquiries();
+        
+        // Clear draft on successful submission
+        clearEnquiryDraft();
+        
+        // Reset form state
+        setEnquiryName('');
+        setShippingAddress({
+          addressLine1: '',
+          addressLine2: '',
+          city: '',
+          state: '',
+          zipCode: '',
+          country: '',
+        });
+        setBillingAddress({
+          addressLine1: '',
+          addressLine2: '',
+          city: '',
+          state: '',
+          zipCode: '',
+          country: '',
+        });
+        setExpectedDeliveryDate('');
+        setEnquiryStatus('draft');
+        setEnquiryNotes('');
+        setEnquiryAttachment(null);
+        setSelectedShippingAddressIndex(null);
+        setSelectedBillingAddressIndex(null);
+        setUseNewShippingAddress(false);
+        setUseNewBillingAddress(false);
+        setEnquiryAttachmentUrl('');
+        setSelectedProductIds([]);
+        setNewEnquirySelectedProductIds([]);
+        setCustomProductRows(createDefaultCustomRows());
+        setInlineProductKeyword('');
+        setInlineGeneratedFields(null);
+        setInlineSpecFormData({});
+
         handleCloseNewEnquiryModal();
       }
     } catch (error: any) {
@@ -4549,6 +4638,15 @@ export default function EnquiriesPage() {
                       >
                         Cancel
                       </button>
+                      {!isSubmitMode && (
+                        <button
+                          type="button"
+                          onClick={handleResetEnquiryForm}
+                          className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-400/10 hover:bg-red-100 dark:hover:bg-red-400/20 rounded-lg transition-colors"
+                        >
+                          Clear Form
+                        </button>
+                      )}
                       <button
                         type="submit"
                         disabled={isSubmitting}

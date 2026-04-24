@@ -361,3 +361,37 @@ export function deleteEnquiry(enquiryId: string): void {
   }
 }
 
+
+/**
+ * Enquiry form draft storage utilities
+ */
+const STORAGE_KEY_ENQUIRY_DRAFT = 'enquiry_form_draft';
+
+export function saveEnquiryDraft(draft: any): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY_ENQUIRY_DRAFT, JSON.stringify(draft));
+  } catch (error) {
+    console.error('Error saving enquiry draft:', error);
+  }
+}
+
+export function getEnquiryDraft(): any | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_ENQUIRY_DRAFT);
+    return stored ? JSON.parse(stored) : null;
+  } catch (error) {
+    console.error('Error loading enquiry draft:', error);
+    return null;
+  }
+}
+
+export function clearEnquiryDraft(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(STORAGE_KEY_ENQUIRY_DRAFT);
+  } catch (error) {
+    console.error('Error clearing enquiry draft:', error);
+  }
+}
